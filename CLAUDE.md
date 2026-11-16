@@ -26,7 +26,8 @@
 - github.com/Hemant-Mhalsekar/finance-tracker (PUBLIC repo; never commit secrets).
 - backend/ (Maven project, base package com.financetracker): packages auth, user, category, cycle, expense, onboarding, common, config, web (and settings if added).
 - frontend/ (Vite app): src/App.tsx, src/AuthForm.tsx, src/api.ts, vite.config.ts, vercel.json.
-- Root README.md, backend/README.md (environment variable table, how to run tests).
+- Root README.md (CI badge, test overview), backend/README.md (environment variables, how to run tests), frontend/README.md (run, tests, deployment).
+- .github/workflows/ci.yml: on every PR and push to main. Job backend: Temurin 25, ./mvnw -B -ntp verify (Testcontainers uses the runner's Docker; no secrets). Job frontend: Node 24, npm ci, lint, build, npm test, playwright install chromium, test:e2e. Reports uploaded on failure. Deploys do not wait for CI: merge only when green.
 
 ## Hosting (all free tiers)
 - Frontend: Vercel (root directory frontend). vercel.json rewrites /api/(.*) to https://finance-tracker-h0zi.onrender.com/api/$1, so the browser sees ONE origin (this makes the httpOnly cookie work; verified).
@@ -108,13 +109,13 @@
 - Settings (/settings): salary for the current cycle onward (with split preview); pay-day change with the pending notice and a cancel button (sends the current pay day); reloads /api/me after a change.
 - Dashboard: current cycle report, Previous/Next cycle (report?date=), needs/wants cards with bar and overspend, savings with deficit, warnings (over salary, deficit, no expenses yet, last logged 3+ days ago), category table.
 - vercel.json: /api/* goes to Render; every other path rewrites to /index.html so deep links work.
-- No frontend test runner yet. Claude verifies builds, lint and a Playwright click-through against a mock API in its cloud workspace (npm works there; Maven does not).
-- Not built yet: weekly/yearly/savings reports, demo mode, README with screenshots, frontend tests in the repo.
+- Frontend tests (branch feature/ci-and-tests, 16 Nov 2026): Vitest 5.1 unit tests in src/*.test.ts (money and date helpers, 42 tests); Playwright 1.64.1 (pinned exactly, browser build must match) browser tests in e2e/*.spec.ts (13 tests, phone-size viewport, workers 1) against e2e/mock-api.mjs on port 8080 (in-memory, dates relative to today in IST, POST /__reset {onboarded} before each test). playwright.config.ts starts the mock API and Vite itself; PW_CHROMIUM_PATH lets a machine reuse a preinstalled Chromium. e2e code is type-checked through tsconfig.e2e.json. Scripts: npm test, npm run test:e2e.
+- Not built yet: weekly/yearly/savings reports, demo mode, README with screenshots.
 
 ## Roadmap and open items
-- Next: merge feature/frontend-manage; then weekly, yearly and savings overview reports.
+- Next: merge feature/ci-and-tests once CI is green; then weekly, yearly and savings overview reports.
 - Deferred: the "did your salary change?" prompt each cycle (needs a stored flag, so a new migration).
-- Before sharing the link: rate limiting on register/login (Bucket4j), cleanup job for expired refresh tokens, GitHub Actions CI (runners have Docker), a separate Supabase project for development, decide on cold-start fix (keep-alive ping, paid Render Starter about $7/month, or startup-time tuning), raise the frontend waiting limit above 140 s, Swagger/OpenAPI docs, account deletion, CSV export, README limitations (savings counts only logged expenses, no opening balance, no bonus income, India only, registration reveals emails).
+- Before sharing the link: rate limiting on register/login (Bucket4j), cleanup job for expired refresh tokens, branch protection on main requiring CI, a separate Supabase project for development, decide on cold-start fix (keep-alive ping, paid Render Starter about $7/month, or startup-time tuning), Swagger/OpenAPI docs, account deletion, CSV export, README limitations (savings counts only logged expenses, no opening balance, no bonus income, India only, registration reveals emails).
 
 ## First thing to do in a new session
 - Run git log --oneline and git status, run the tests, and report back before changing anything.
