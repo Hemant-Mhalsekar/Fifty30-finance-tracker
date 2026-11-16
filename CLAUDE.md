@@ -80,6 +80,8 @@
 
 - Rate limiting (branch feature/rate-limiting, 16 Nov 2026): RateLimiter = in-memory Bucket4j buckets per (limit name, key), greedy refill, time from the injected Clock (tests move a MutableClock), max 50,000 keys (evicts full buckets, then fails closed with 429), @Scheduled eviction every 10 min (SchedulingConfig enables scheduling). AuthRateLimits: login per IP 20/15 min and per email 10/15 min (checked BEFORE the BCrypt check), register per IP 5/h and global 50/h; properties app.rate-limit.*. ClientIp = first X-Forwarded-For entry (Vercel sets it; spoofable when calling Render directly), else remote address. 429 + Retry-After + "Too many attempts. Please try again in N minutes."; logs only the limit name. Single-instance only; counts reset on restart. AbstractIntegrationTest sets the limits to 100000; RateLimitIntegrationTest uses small ones in its own context.
 
+- Refresh-token cleanup (branch feature/token-cleanup, 16 Nov 2026): RefreshTokenCleanup deletes rows (revoked or not) whose expires_at is more than 7 days in the past, via one JPQL bulk delete. Revoked-but-unexpired rows are KEPT because reuse detection needs them. Runs 5 minutes after start and then every 6 hours (fixed delay), not at a time of day, because the Render free instance sleeps when idle. Logs only the count.
+
 ## Code conventions
 - Feature packages; records for DTOs; entities have protected no-arg constructor, getters and minimal mutators, user_id and category_id as plain UUID columns (no relationships), created_at insertable=false/updatable=false, enums as EnumType.STRING.
 - Services hold the business rules and use @Transactional on every method that changes data (including derived deletes). Controllers read the user id from the JWT subject (@AuthenticationPrincipal Jwt).
@@ -115,9 +117,9 @@
 - Not built yet: weekly/yearly/savings reports, demo mode, README with screenshots.
 
 ## Roadmap and open items
-- Next: merge feature/rate-limiting once CI is green; then the refresh-token cleanup job; then weekly, yearly and savings overview reports.
+- Next: merge feature/token-cleanup once CI is green; then the cold-start decision and a README with screenshots; then weekly, yearly and savings overview reports.
 - Deferred: the "did your salary change?" prompt each cycle (needs a stored flag, so a new migration).
-- Before sharing the link: cleanup job for expired refresh tokens, a separate Supabase project for development, decide on cold-start fix (keep-alive ping, paid Render Starter about $7/month, or startup-time tuning), Swagger/OpenAPI docs, account deletion, CSV export, README limitations (savings counts only logged expenses, no opening balance, no bonus income, India only, registration reveals emails).
+- Before sharing the link: a separate Supabase project for development, decide on cold-start fix (keep-alive ping, paid Render Starter about $7/month, or startup-time tuning), Swagger/OpenAPI docs, account deletion, CSV export, README limitations (savings counts only logged expenses, no opening balance, no bonus income, India only, registration reveals emails).
 
 ## First thing to do in a new session
 - Run git log --oneline and git status, run the tests, and report back before changing anything.
