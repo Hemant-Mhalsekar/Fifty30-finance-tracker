@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { getMe, logout, onLoggedOut, refreshSession, waitForServer, type Me } from './api'
 import AppShell from './AppShell'
 import { BrandMark } from './components/icons'
@@ -10,11 +10,14 @@ import Dashboard from './pages/Dashboard'
 import Expenses from './pages/Expenses'
 import More from './pages/More'
 import Onboarding from './pages/Onboarding'
+import ResetPassword from './pages/ResetPassword'
 import Settings from './pages/Settings'
 
 type Phase = 'waking' | 'serverError' | 'form' | 'ready'
 
 export default function App() {
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
   const [phase, setPhase] = useState<Phase>('waking')
   const [me, setMe] = useState<Me | null>(null)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -73,12 +76,37 @@ export default function App() {
     setPhase('ready')
   }
 
+  async function finishReset() {
+    if (me) {
+      await logout()
+      setMe(null)
+    }
+    setPhase('form')
+    navigate('/', { replace: true })
+  }
+
   async function handleLogout() {
     setLoggingOut(true)
     await logout()
     setLoggingOut(false)
     setMe(null)
     setPhase('form')
+  }
+
+  // The reset link works whether or not someone is logged in on this device. The reset logs out
+  // every session on the server, so it always ends on the login form.
+  if (pathname === '/reset-password' && (phase === 'form' || phase === 'ready')) {
+    return (
+      <main className="welcome">
+        <div className="brand">
+          <BrandMark />
+          Fifty30
+        </div>
+        <div className="card">
+          <ResetPassword onDone={finishReset} />
+        </div>
+      </main>
+    )
   }
 
   if (phase !== 'ready' || !me) {

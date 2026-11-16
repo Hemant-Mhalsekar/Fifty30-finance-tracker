@@ -530,7 +530,8 @@ class IntegrationTest extends AbstractIntegrationTest {
                         + "AND c.relname <> 'flyway_schema_history' "
                         + "AND c.relrowsecurity",
                 Integer.class);
-        assertEquals(6, rlsTableCount);
+        // users, refresh_tokens, categories, cycles, expenses, app_meta, password_reset_tokens
+        assertEquals(7, rlsTableCount);
     }
 
     // ---- helpers ----

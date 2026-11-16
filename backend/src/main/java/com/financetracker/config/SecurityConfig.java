@@ -36,7 +36,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/ping", "/api/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login",
-                                "/api/auth/refresh", "/api/auth/logout").permitAll()
+                                "/api/auth/refresh", "/api/auth/logout",
+                                "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(e -> e.authenticationEntryPoint(unauthorizedEntryPoint))
                 .oauth2ResourceServer(oauth -> oauth

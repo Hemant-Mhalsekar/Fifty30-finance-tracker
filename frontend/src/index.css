@@ -1283,3 +1283,42 @@ fieldset.field > legend {
     display: inline-flex;
   }
 }
+
+/* ---- password fields ---- */
+
+.password-field {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.password-field:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.password-field input {
+  border: none;
+  outline: none;
+  background: transparent;
+}
+
+.password-field button {
+  flex: none;
+  min-width: 4.5rem;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.label-row button.link {
+  padding: 0;
+  font-size: 0.9375rem;
+}

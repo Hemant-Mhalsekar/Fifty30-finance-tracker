@@ -38,18 +38,20 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final boolean cookieSecure;
     private final AuthRateLimits rateLimits;
+    private final PasswordResetService passwordResetService;
     // Used for unknown emails so login takes about as long whether or not the email exists.
     private final String dummyHash;
 
     public AuthController(UserRepository users, PasswordEncoder passwordEncoder, TokenService tokenService,
             RefreshTokenService refreshTokenService, @Value("${app.cookie.secure}") boolean cookieSecure,
-            AuthRateLimits rateLimits) {
+            AuthRateLimits rateLimits, PasswordResetService passwordResetService) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.refreshTokenService = refreshTokenService;
         this.cookieSecure = cookieSecure;
         this.rateLimits = rateLimits;
+        this.passwordResetService = passwordResetService;
         this.dummyHash = passwordEncoder.encode("not-a-real-password");
     }
 
@@ -88,6 +90,21 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshTokenService.issue(user.getId())).toString())
                 .body(new TokenResponse(tokenService.createAccessToken(user.getId())));
+    }
+
+    // Always 202 with no body, whether or not the email has an account, so it reveals nothing.
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest httpRequest) {
+        rateLimits.checkPasswordReset(httpRequest, request.email());
+        passwordResetService.requestReset(request.email());
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        passwordResetService.resetPassword(request.token(), request.password());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/refresh")
