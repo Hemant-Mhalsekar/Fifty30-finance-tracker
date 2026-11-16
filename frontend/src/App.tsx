@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 import { getMe, logout, onLoggedOut, refreshSession, waitForServer, type Me } from './api'
 import AppShell from './AppShell'
+import { BrandMark } from './components/icons'
 import AuthForm from './AuthForm'
 import AddExpense from './pages/AddExpense'
 import Categories from './pages/Categories'
 import Dashboard from './pages/Dashboard'
 import Expenses from './pages/Expenses'
+import More from './pages/More'
 import Onboarding from './pages/Onboarding'
 import Settings from './pages/Settings'
 
@@ -81,21 +83,36 @@ export default function App() {
 
   if (phase !== 'ready' || !me) {
     return (
-      <main className="narrow">
-        <h1>Fifty30</h1>
+      <main className="welcome">
+        <div className="brand">
+          <BrandMark />
+          Fifty30
+        </div>
+        <p className="tagline">Split every pay cycle 50/30/20 into needs, wants and savings, and see where your salary goes.</p>
 
         {phase === 'waking' && (
-          <p>Server is waking up. On the free hosting plan this can take up to 3 minutes...</p>
+          <div className="card stack" role="status">
+            <p>
+              <strong>Waking up the server…</strong>
+            </p>
+            <p className="muted">On the free hosting plan this can take up to 3 minutes. The page continues by itself.</p>
+          </div>
         )}
 
         {phase === 'serverError' && (
-          <>
-            <p className="error">Could not reach the server. Please try again.</p>
-            <button onClick={retry}>Retry</button>
-          </>
+          <div className="card stack">
+            <p className="error" role="alert">
+              Could not reach the server. Check your connection and try again.
+            </p>
+            <button onClick={retry}>Try again</button>
+          </div>
         )}
 
-        {phase === 'form' && <AuthForm onAuthenticated={loadUser} />}
+        {phase === 'form' && (
+          <div className="card">
+            <AuthForm onAuthenticated={loadUser} />
+          </div>
+        )}
       </main>
     )
   }
@@ -116,6 +133,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="add" element={<AddExpense />} />
         <Route path="expenses" element={<Expenses />} />
+        <Route path="more" element={<More email={me.email} onLogout={handleLogout} loggingOut={loggingOut} />} />
         <Route path="categories" element={<Categories />} />
         <Route path="settings" element={<Settings me={me} onUserChanged={loadUser} />} />
       </Route>

@@ -15,7 +15,7 @@ type Props = {
 
 export default function Settings({ me, onUserChanged }: Props) {
   return (
-    <section className="settings narrow-section">
+    <section className="settings narrow sections">
       <h1>Settings</h1>
       <SalarySettings />
       <PayDaySettings me={me} onUserChanged={onUserChanged} />
@@ -81,7 +81,7 @@ function SalarySettings() {
   return (
     <article className="card">
       <h2>Salary</h2>
-      {!cycle && !error && <p className="muted">Loading...</p>}
+      {!cycle && !error && <p className="muted">Loading…</p>}
       {cycle && (
         <form onSubmit={handleSubmit} noValidate>
           <p className="muted">
@@ -108,7 +108,7 @@ function SalarySettings() {
           )}
           <div className="form-actions">
             <button type="submit" disabled={submitting || unchanged}>
-              {submitting ? 'Saving...' : 'Update salary'}
+              {submitting ? 'Saving…' : 'Update salary'}
             </button>
           </div>
         </form>
@@ -189,7 +189,7 @@ function PayDaySettings({ me, onUserChanged }: Props) {
         {selectedDay >= 29 && <p className="hint">In shorter months, the last day of the month is used.</p>}
         <div className="form-actions">
           <button type="submit" disabled={submitting || nothingToSave}>
-            {submitting ? 'Saving...' : 'Schedule change'}
+            {submitting ? 'Saving…' : 'Schedule change'}
           </button>
         </div>
       </form>

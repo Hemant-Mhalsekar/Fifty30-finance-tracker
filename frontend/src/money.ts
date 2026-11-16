@@ -47,3 +47,9 @@ export function paiseToInput(paise: number): string {
   const fraction = paise % 100
   return fraction === 0 ? String(rupees) : `${rupees}.${String(fraction).padStart(2, '0')}`
 }
+
+/** Like formatPaise but drops ".00" on whole rupees, for chart labels: 2500000 -> "₹25,000", 133250 -> "₹1,332.50". */
+export function formatPaiseShort(paise: number): string {
+  const full = formatPaise(paise)
+  return paise % 100 === 0 ? full.slice(0, -3) : full
+}

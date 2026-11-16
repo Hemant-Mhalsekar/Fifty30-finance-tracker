@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type CSSProperties, type FormEvent } from 'react'
 import {
   createCategory,
   deleteCategory,
@@ -7,7 +7,7 @@ import {
   type BudgetType,
   type Category,
 } from '../api'
-import { TYPE_LABELS } from '../labels'
+import { TYPE_COLORS, TYPE_LABELS } from '../labels'
 
 const MAX_NAME_LENGTH = 50
 const TYPES = Object.keys(TYPE_LABELS) as BudgetType[]
@@ -47,14 +47,14 @@ export default function Categories() {
 
   if (!categories) {
     return (
-      <section className="narrow-section">
+      <section className="narrow">
         <h1>Categories</h1>
         {loadError ? (
           <p className="error" role="alert">
             {loadError}
           </p>
         ) : (
-          <p className="muted">Loading...</p>
+          <p className="muted">Loading…</p>
         )}
       </section>
     )
@@ -65,7 +65,7 @@ export default function Categories() {
   const protectedOnes = active.filter((c) => c.type === null).sort(byName)
 
   return (
-    <section className="categories narrow-section">
+    <section className="categories narrow sections">
       <h1>Categories</h1>
       <p className="muted">
         Changing a category&apos;s type affects new expenses only. Expenses already logged keep the type they had.
@@ -77,7 +77,10 @@ export default function Categories() {
         const group = active.filter((c) => c.type === type).sort(byName)
         return (
           <article key={type} className="card">
-            <h2>{GROUP_TITLES[type]}</h2>
+            <h2 className="category-name">
+              <span className="dot" style={{ '--c': TYPE_COLORS[type] } as CSSProperties} aria-hidden="true" />
+              {GROUP_TITLES[type]}
+            </h2>
             {group.length === 0 ? (
               <p className="muted">None</p>
             ) : (
@@ -97,8 +100,11 @@ export default function Categories() {
           <ul className="category-list">
             {protectedOnes.map((c) => (
               <li key={c.id} className="category-row">
-                <span className="category-name">{c.name}</span>
-                <span className="muted">Built in. You choose need, want or investment for each expense.</span>
+                <div className="category-summary">
+                  <span className="category-name">{c.name}</span>
+                  <span className="muted">Built in</span>
+                </div>
+                <p className="hint">You choose need, want or investment for each expense.</p>
               </li>
             ))}
           </ul>
@@ -184,12 +190,15 @@ type RowProps = {
   onDeleted: (id: string) => void
 }
 
+// Collapsed: name, type and one Edit button, so a long list stays calm on a phone.
+// Expanded: rename, retype, archive and delete, each a full-size control.
 function CategoryRow({ category, onChanged, onDeleted }: RowProps) {
-  const [renaming, setRenaming] = useState(false)
+  const [open, setOpen] = useState(false)
   const [name, setName] = useState(category.name)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const panelId = useId()
 
   async function run(action: () => Promise<void>) {
     setBusy(true)
@@ -210,112 +219,113 @@ function CategoryRow({ category, onChanged, onDeleted }: RowProps) {
       setError('Enter a name')
       return
     }
-    if (trimmed === category.name) {
-      setRenaming(false)
-      return
-    }
-    run(async () => {
-      onChanged(await updateCategory(category.id, { name: trimmed }))
-      setRenaming(false)
-    })
+    if (trimmed === category.name) return
+    run(async () => onChanged(await updateCategory(category.id, { name: trimmed })))
+  }
+
+  function close() {
+    setOpen(false)
+    setConfirmDelete(false)
+    setError(null)
+    setName(category.name)
   }
 
   return (
     <li className="category-row">
-      {renaming ? (
-        <form className="inline-fields" onSubmit={saveName} noValidate>
-          <input
-            aria-label={`New name for ${category.name}`}
-            type="text"
-            maxLength={MAX_NAME_LENGTH}
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button type="submit" disabled={busy}>
-            Save
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy}
-            onClick={() => {
-              setRenaming(false)
-              setName(category.name)
-              setError(null)
-            }}
-          >
-            Cancel
-          </button>
-        </form>
-      ) : (
+      <div className="category-summary">
         <span className="category-name">{category.name}</span>
-      )}
+        <button
+          type="button"
+          className="ghost"
+          aria-expanded={open}
+          aria-controls={panelId}
+          aria-label={`${open ? 'Close' : 'Edit'} ${category.name}`}
+          onClick={() => (open ? close() : setOpen(true))}
+        >
+          {open ? 'Done' : 'Edit'}
+        </button>
+      </div>
 
-      {!renaming && (
-        <div className="row-actions">
-          <select
-            aria-label={`Type of ${category.name}`}
-            value={category.type ?? ''}
-            disabled={busy}
-            onChange={(e) =>
-              run(async () => onChanged(await updateCategory(category.id, { type: e.target.value as BudgetType })))
-            }
-          >
-            {TYPES.map((t) => (
-              <option key={t} value={t}>
-                {TYPE_LABELS[t]}
-              </option>
-            ))}
-          </select>
-          {confirmDelete ? (
-            <>
-              <button
-                type="button"
-                className="danger"
-                disabled={busy}
-                onClick={() =>
-                  // On failure (usually: it still has expenses) the confirm stays open with the archive hint.
-                  run(async () => {
-                    await deleteCategory(category.id)
-                    onDeleted(category.id)
-                  })
-                }
-              >
-                Confirm delete
-              </button>
-              <button type="button" className="secondary" disabled={busy} onClick={() => setConfirmDelete(false)}>
-                Keep
-              </button>
-            </>
-          ) : (
-            <>
-              <button type="button" className="secondary" disabled={busy} onClick={() => setRenaming(true)}>
+      {open && (
+        <div className="category-panel" id={panelId}>
+          <form className="field" onSubmit={saveName} noValidate>
+            <label htmlFor={`${panelId}-name`}>Name</label>
+            <div className="inline-fields">
+              <input
+                id={`${panelId}-name`}
+                type="text"
+                maxLength={MAX_NAME_LENGTH}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <button type="submit" className="secondary" disabled={busy || name.trim() === category.name}>
                 Rename
               </button>
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() =>
-                  run(async () => onChanged(await updateCategory(category.id, { archived: !category.archived })))
-                }
-              >
-                {category.archived ? 'Restore' : 'Archive'}
-              </button>
-              <button type="button" className="secondary" disabled={busy} onClick={() => setConfirmDelete(true)}>
+            </div>
+          </form>
+
+          <div className="field">
+            <label htmlFor={`${panelId}-type`}>Type</label>
+            <select
+              id={`${panelId}-type`}
+              value={category.type ?? ''}
+              disabled={busy}
+              onChange={(e) =>
+                run(async () => onChanged(await updateCategory(category.id, { type: e.target.value as BudgetType })))
+              }
+            >
+              {TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {TYPE_LABELS[t]}
+                </option>
+              ))}
+            </select>
+            <p className="hint">Affects new expenses only.</p>
+          </div>
+
+          <div className="row-actions">
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy}
+              onClick={() => run(async () => onChanged(await updateCategory(category.id, { archived: !category.archived })))}
+            >
+              {category.archived ? 'Restore' : 'Archive'}
+            </button>
+            {confirmDelete ? (
+              <>
+                <button
+                  type="button"
+                  className="danger"
+                  disabled={busy}
+                  onClick={() =>
+                    // On failure (usually: it still has expenses) the confirm stays open with the archive hint.
+                    run(async () => {
+                      await deleteCategory(category.id)
+                      onDeleted(category.id)
+                    })
+                  }
+                >
+                  Confirm delete
+                </button>
+                <button type="button" className="secondary" disabled={busy} onClick={() => setConfirmDelete(false)}>
+                  Keep
+                </button>
+              </>
+            ) : (
+              <button type="button" className="danger-outline" disabled={busy} onClick={() => setConfirmDelete(true)}>
                 Delete
               </button>
-            </>
+            )}
+          </div>
+
+          {error && (
+            <p className="error row-error" role="alert">
+              {error}
+              {confirmDelete && ' Archive it instead to hide it from new expenses.'}
+            </p>
           )}
         </div>
-      )}
-
-      {error && (
-        <p className="error row-error" role="alert">
-          {error}
-          {confirmDelete && ' Archive it instead to hide it from new expenses.'}
-        </p>
       )}
     </li>
   )

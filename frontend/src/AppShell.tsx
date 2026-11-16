@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { Link, NavLink, Outlet, useLocation } from 'react-router'
+import { BrandMark, HomeIcon, ListIcon, MoreIcon, PlusIcon } from './components/icons'
 
 type Props = {
   email: string
@@ -7,20 +7,21 @@ type Props = {
   loggingOut: boolean
 }
 
+// Desktop: top bar with every page. Phone: a bottom tab bar in thumb reach, with Add in the
+// middle; Categories, Settings and Log out live under More.
 export default function AppShell({ email, onLogout, loggingOut }: Props) {
-  const navRef = useRef<HTMLElement>(null)
   const { pathname } = useLocation()
-
-  // On a phone the nav scrolls sideways; keep the current page's link visible.
-  useEffect(() => {
-    navRef.current?.querySelector('a.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [pathname])
+  // Categories and Settings are reached through More on a phone, so More stays highlighted there.
+  const inMoreSection = ['/more', '/categories', '/settings'].some((path) => pathname.startsWith(path))
 
   return (
     <div className="shell">
       <header className="topbar">
-        <span className="brand">Fifty30</span>
-        <nav aria-label="Main" ref={navRef}>
+        <Link to="/" className="brand" aria-label="Fifty30 home">
+          <BrandMark />
+          Fifty30
+        </Link>
+        <nav className="topnav" aria-label="Main">
           <NavLink to="/" end>
             Dashboard
           </NavLink>
@@ -38,9 +39,31 @@ export default function AppShell({ email, onLogout, loggingOut }: Props) {
           </button>
         </div>
       </header>
-      <main>
+
+      <main className="page">
         <Outlet />
       </main>
+
+      <nav className="tabbar" aria-label="Main">
+        <NavLink to="/" end>
+          <HomeIcon />
+          Dashboard
+        </NavLink>
+        <NavLink to="/add" className="tab-add">
+          <span className="tab-add-circle">
+            <PlusIcon />
+          </span>
+          Add
+        </NavLink>
+        <NavLink to="/expenses">
+          <ListIcon />
+          Expenses
+        </NavLink>
+        <NavLink to="/more" className={inMoreSection ? 'active' : ''}>
+          <MoreIcon />
+          More
+        </NavLink>
+      </nav>
     </div>
   )
 }

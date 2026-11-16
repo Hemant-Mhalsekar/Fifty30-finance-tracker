@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatPaise, paiseToInput, parseRupeesToPaise, splitBudget } from './money'
+import { formatPaise, formatPaiseShort, paiseToInput, parseRupeesToPaise, splitBudget } from './money'
 
 describe('parseRupeesToPaise', () => {
   it.each([
@@ -63,5 +63,17 @@ describe('splitBudget', () => {
       const { needs, wants, savings } = splitBudget(salary)
       expect(needs + wants + savings).toBe(salary)
     }
+  })
+})
+
+describe('formatPaiseShort', () => {
+  it.each([
+    [2_500_000, '₹25,000'],
+    [133_250, '₹1,332.50'],
+    [0, '₹0'],
+    [-1_000_000, '-₹10,000'],
+    [-505, '-₹5.05'],
+  ])('formats %d as %s', (paise, text) => {
+    expect(formatPaiseShort(paise)).toBe(text)
   })
 })

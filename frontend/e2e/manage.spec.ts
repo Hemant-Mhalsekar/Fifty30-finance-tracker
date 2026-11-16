@@ -15,21 +15,23 @@ test('expenses: newest first, paging and category filter', async ({ page }) => {
   await expect(page.getByText('Page 2 of 2')).toBeVisible()
   await expect(page.locator('.expense-row')).toHaveCount(4)
 
+  // Filters start folded away on a phone.
+  await page.getByText('Filters').click()
   await page.getByLabel('Category').selectOption({ label: 'Other' })
   await expect(page.getByText('1 expense', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'This cycle' }).click()
+  await page.getByRole('button', { name: 'Reset to this cycle' }).click()
   await expect(page.getByText('24 expenses')).toBeVisible()
 })
 
 test('expenses: edit keeps the chosen type for Other and saves the new amount', async ({ page }) => {
   await page.goto('/expenses')
-  const row = page.locator('.expense-row', { hasText: 'Gift for Asha' })
-  await row.getByRole('button', { name: 'Edit' }).click()
+  // Tapping a row opens it for editing.
+  await page.getByRole('button', { name: /^Edit Gift for Asha/ }).click()
 
   const form = page.locator('.expense-list form')
-  await expect(form.getByLabel('Amount (₹)')).toHaveValue('555')
+  await expect(form.getByLabel('Amount')).toHaveValue('555')
   await expect(form.getByLabel('Want')).toBeChecked()
-  await form.getByLabel('Amount (₹)').fill('600.25')
+  await form.getByLabel('Amount').fill('600.25')
   await form.getByRole('button', { name: 'Save changes' }).click()
 
   await expect(page.locator('.expense-row', { hasText: 'Gift for Asha' })).toContainText('₹600.25')
@@ -37,13 +39,14 @@ test('expenses: edit keeps the chosen type for Other and saves the new amount', 
 
 test('expenses: delete asks for confirmation first', async ({ page }) => {
   await page.goto('/expenses')
-  const first = page.locator('.expense-row').first()
-  await first.getByRole('button', { name: 'Delete' }).click()
-  await first.getByRole('button', { name: 'Keep' }).click()
+  // Delete lives inside the edit view and still asks first.
+  await page.locator('.expense-row').first().click()
+  await page.getByRole('button', { name: 'Delete expense' }).click()
+  await page.getByRole('button', { name: 'Keep' }).click()
   await expect(page.getByText('24 expenses')).toBeVisible()
 
-  await first.getByRole('button', { name: 'Delete' }).click()
-  await first.getByRole('button', { name: 'Confirm delete' }).click()
+  await page.getByRole('button', { name: 'Delete expense' }).click()
+  await page.getByRole('button', { name: 'Confirm delete' }).click()
   await expect(page.getByText('23 expenses')).toBeVisible()
 })
 
@@ -61,19 +64,20 @@ test('categories: add, reject duplicates, rename and retype', async ({ page }) =
   await page.getByRole('button', { name: 'Add' }).click()
   await expect(page.getByRole('alert')).toContainText('already exists')
 
-  const pets = page.locator('.category-row', { hasText: 'Pets' })
-  await pets.getByRole('button', { name: 'Rename' }).click()
-  await page.getByLabel('New name for Pets').fill('Pet care')
-  await page.getByRole('button', { name: 'Save' }).click()
-  await page.getByLabel('Type of Pet care').selectOption('WANT')
+  await page.getByRole('button', { name: 'Edit Pets' }).click()
+  await page.getByLabel('Name', { exact: true }).fill('Pet care')
+  await page.getByRole('button', { name: 'Rename' }).click()
+  await expect(needs.getByText('Pet care')).toBeVisible()
+  await page.getByLabel('Type', { exact: true }).selectOption('WANT')
   await expect(wants.getByText('Pet care')).toBeVisible()
 
-  await expect(page.getByText('Built in.')).toBeVisible()
+  await expect(page.getByText('Built in', { exact: true })).toBeVisible()
 })
 
 test('categories: a category with expenses cannot be deleted, but can be archived and restored', async ({ page }) => {
   await page.goto('/categories')
   const dining = page.locator('.category-row', { hasText: 'Dining' })
+  await page.getByRole('button', { name: 'Edit Dining' }).click()
   await dining.getByRole('button', { name: 'Delete' }).click()
   await dining.getByRole('button', { name: 'Confirm delete' }).click()
   await expect(dining.getByRole('alert')).toContainText('Archive it instead')
@@ -84,10 +88,14 @@ test('categories: a category with expenses cannot be deleted, but can be archive
   await expect(archived.getByText('Dining')).toBeVisible()
 
   // Archived categories are not offered for new expenses.
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Add expense' }).click()
-  await expect(page.getByLabel('Category').locator('option', { hasText: 'Dining' })).toHaveCount(0)
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Add' }).click()
+  await expect(page.getByRole('button', { name: 'Rent', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Dining', exact: true })).toHaveCount(0)
 
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Categories' }).click()
+  // On a phone, Categories is reached through More.
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'More' }).click()
+  await page.getByRole('link', { name: 'Categories' }).click()
+  await page.getByRole('button', { name: 'Edit Dining' }).click()
   await archived.locator('.category-row', { hasText: 'Dining' }).getByRole('button', { name: 'Restore' }).click()
   await expect(archived).toHaveCount(0)
 })
@@ -117,5 +125,48 @@ test('no page scrolls sideways on a small phone', async ({ page }) => {
     await expect(page.locator('main h1').first()).toBeVisible()
     const width = await page.evaluate(() => document.documentElement.scrollWidth)
     expect(width, `${path} is wider than the screen`).toBeLessThanOrEqual(360)
+  }
+})
+
+test('phones get a bottom tab bar with More; wide screens get the top bar', async ({ page }) => {
+  await page.goto('/')
+  const tabs = page.getByRole('navigation', { name: 'Main' })
+  await expect(tabs.getByRole('link')).toHaveText(['Dashboard', 'Add', 'Expenses', 'More'])
+  await tabs.getByRole('link', { name: 'More' }).click()
+  await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible()
+
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link')).toHaveText([
+    'Dashboard',
+    'Add expense',
+    'Expenses',
+    'Categories',
+    'Settings',
+  ])
+})
+
+test('every control on a phone is at least 44px tall and fields are at least 16px', async ({ page }) => {
+  for (const path of ['/', '/add', '/expenses', '/categories', '/settings', '/more']) {
+    await page.goto(path)
+    await expect(page.locator('main h1').first()).toBeVisible()
+    const problems = await page.$$eval('button, a, select, input, summary', (elements) =>
+      elements
+        .filter((e) => {
+          const box = e.getBoundingClientRect()
+          return box.width > 0 && box.height > 0
+        })
+        .flatMap((e) => {
+          const box = e.getBoundingClientRect()
+          const name = (e.textContent || e.getAttribute('aria-label') || e.tagName).trim().slice(0, 20)
+          const issues = []
+          if (box.height < 44) issues.push(`${name}: ${Math.round(box.height)}px tall`)
+          if (['INPUT', 'SELECT'].includes(e.tagName) && parseFloat(getComputedStyle(e).fontSize) < 16) {
+            issues.push(`${name}: font under 16px (iOS zooms in)`)
+          }
+          return issues
+        }),
+    )
+    expect(problems, path).toEqual([])
   }
 })

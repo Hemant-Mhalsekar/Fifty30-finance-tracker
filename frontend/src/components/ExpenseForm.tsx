@@ -1,7 +1,7 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import type { BudgetType, Category, NewExpense } from '../api'
-import { todayIst } from '../dates'
-import { TYPE_LABELS } from '../labels'
+import { addDays, todayIst } from '../dates'
+import { TYPE_COLORS, TYPE_LABELS } from '../labels'
 import { paiseToInput, parseRupeesToPaise } from '../money'
 
 const MAX_AMOUNT_PAISE = 10_000_000_000
@@ -16,15 +16,19 @@ export type ExpenseFormInitial = {
 }
 
 type Props = {
+  // Shown as tappable chips in this order (the caller puts recently used ones first).
   categories: Category[]
   initial?: ExpenseFormInitial
   submitLabel: string
   // Add mode: clear amount and description after saving, keep category and date for the next entry.
   resetAfterSubmit?: boolean
   autoFocus?: boolean
+  // Keeps the submit button above the phone's tab bar while the form scrolls.
+  stickyActions?: boolean
   // Resolves to a success message to show, or throws to show its message as an error.
   onSubmit: (expense: NewExpense, category: Category) => Promise<string | null>
   onCancel?: () => void
+  children?: ReactNode
 }
 
 export default function ExpenseForm({
@@ -33,8 +37,10 @@ export default function ExpenseForm({
   submitLabel,
   resetAfterSubmit = false,
   autoFocus = false,
+  stickyActions = false,
   onSubmit,
   onCancel,
+  children,
 }: Props) {
   const id = useId()
   const initialCategory = categories.find((c) => c.id === initial?.categoryId)
@@ -53,6 +59,8 @@ export default function ExpenseForm({
 
   const category = categories.find((c) => c.id === categoryId)
   const needsType = category !== undefined && category.type === null
+  const today = todayIst()
+  const yesterday = addDays(today, -1)
 
   function validate(): string | null {
     const amountPaise = parseRupeesToPaise(amountText)
@@ -105,84 +113,115 @@ export default function ExpenseForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
-      <label htmlFor={`${id}-amount`}>Amount (₹)</label>
-      <input
-        id={`${id}-amount`}
-        ref={amountRef}
-        className="amount-input"
-        type="text"
-        inputMode="decimal"
-        autoComplete="off"
-        autoFocus={autoFocus}
-        placeholder="0.00"
-        value={amountText}
-        onChange={(e) => setAmountText(e.target.value)}
-      />
+    <form onSubmit={handleSubmit} noValidate className="expense-form">
+      {success && (
+        <p className="toast" role="status">
+          {success}
+        </p>
+      )}
 
-      <label htmlFor={`${id}-category`}>Category</label>
-      <select
-        id={`${id}-category`}
-        value={categoryId}
-        onChange={(e) => {
-          setCategoryId(e.target.value)
-          setType('')
-        }}
-      >
-        <option value="" disabled>
-          Choose a category
-        </option>
-        {categories.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-            {c.type ? ` (${TYPE_LABELS[c.type]})` : ''}
-            {c.archived ? ' – archived' : ''}
-          </option>
-        ))}
-      </select>
+      <div className="field">
+        <label htmlFor={`${id}-amount`}>Amount</label>
+        <div className="amount-field">
+          <span aria-hidden="true">₹</span>
+          <input
+            id={`${id}-amount`}
+            ref={amountRef}
+            type="text"
+            inputMode="decimal"
+            enterKeyHint="next"
+            autoComplete="off"
+            autoFocus={autoFocus}
+            placeholder="0"
+            value={amountText}
+            onChange={(e) => {
+              setAmountText(e.target.value)
+              setSuccess(null)
+            }}
+          />
+        </div>
+      </div>
+
+      <fieldset className="field chips-field">
+        <legend>Category</legend>
+        <div className="chips">
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className="chip"
+              aria-pressed={c.id === categoryId}
+              onClick={() => {
+                if (c.id !== categoryId) setType('')
+                setCategoryId(c.id)
+              }}
+            >
+              <span className="dot" style={{ '--c': c.type ? TYPE_COLORS[c.type] : 'var(--muted)' } as CSSProperties} />
+              {c.name}
+              {c.archived ? ' (archived)' : ''}
+            </button>
+          ))}
+        </div>
+      </fieldset>
 
       {needsType && (
-        <fieldset className="type-picker">
+        <fieldset className="field">
           <legend>This expense is a</legend>
-          {(Object.keys(TYPE_LABELS) as BudgetType[]).map((t) => (
-            <label key={t}>
-              <input
-                type="radio"
-                name={`${id}-type`}
-                value={t}
-                checked={type === t}
-                onChange={() => setType(t)}
-              />
-              {TYPE_LABELS[t]}
-            </label>
-          ))}
+          <div className="segmented">
+            {(Object.keys(TYPE_LABELS) as BudgetType[]).map((t) => (
+              <label key={t}>
+                <input type="radio" name={`${id}-type`} value={t} checked={type === t} onChange={() => setType(t)} />
+                {TYPE_LABELS[t]}
+              </label>
+            ))}
+          </div>
         </fieldset>
       )}
 
-      <label htmlFor={`${id}-description`}>Description</label>
-      <input
-        id={`${id}-description`}
-        type="text"
-        maxLength={200}
-        autoComplete="off"
-        placeholder="What was it for?"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-      />
+      <div className="field">
+        <label htmlFor={`${id}-description`}>Description</label>
+        <input
+          id={`${id}-description`}
+          type="text"
+          maxLength={200}
+          autoComplete="off"
+          enterKeyHint="done"
+          placeholder="What was it for?"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
 
-      <label htmlFor={`${id}-date`}>Date</label>
-      <input
-        id={`${id}-date`}
-        type="date"
-        min={MIN_DATE}
-        max={todayIst()}
-        value={date}
-        onChange={(e) => setDate(e.target.value)}
-      />
+      <fieldset className="field">
+        <legend>Date</legend>
+        <div className="chips">
+          <button type="button" className="chip" aria-pressed={date === today} onClick={() => setDate(today)}>
+            Today
+          </button>
+          <button type="button" className="chip" aria-pressed={date === yesterday} onClick={() => setDate(yesterday)}>
+            Yesterday
+          </button>
+          <input
+            aria-label="Date"
+            className="date-input"
+            type="date"
+            min={MIN_DATE}
+            max={today}
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </div>
+      </fieldset>
 
-      <div className="form-actions">
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+
+      <div className={`form-actions${stickyActions ? ' sticky-actions' : ''}`}>
         <button type="submit" disabled={submitting}>
-          {submitting ? 'Saving...' : submitLabel}
+          {submitting ? 'Saving…' : submitLabel}
         </button>
         {onCancel && (
           <button type="button" className="secondary" onClick={onCancel} disabled={submitting}>
@@ -191,16 +230,7 @@ export default function ExpenseForm({
         )}
       </div>
 
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      {success && (
-        <p className="success" role="status">
-          {success}
-        </p>
-      )}
+      {children}
     </form>
   )
 }
