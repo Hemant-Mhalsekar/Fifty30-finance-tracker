@@ -32,6 +32,7 @@
 ## Hosting (all free tiers)
 - Frontend: Vercel (root directory frontend). vercel.json rewrites /api/(.*) to https://finance-tracker-h0zi.onrender.com/api/$1, so the browser sees ONE origin (this makes the httpOnly cookie work; verified).
 - Backend: Render free web service, Docker runtime, root directory backend, health check path /api/ping (deliberately not /api/health, which touches the DB). Sleeps after 15 minutes idle. Cold start of the JVM is about 140 seconds on the free instance; the frontend waiting page gives up after 90 seconds (needs raising). A failed deploy leaves the previous version live. Render auto-deploys on every push.
+- Keep-alive (16 Nov 2026): cron-job.org pings /api/health every 10 min, 08:30-18:20 IST (UTC cron */10 3-12 * * *). ShelfSpace (same Render workspace) uses the same window; UptimeRobot's 24/7 ShelfSpace monitor was to be paused. Budget: 750 free hours per workspace per month shared by all free services; above that Render suspends ALL of them. Never add a 24/7 keep-alive. Paid Render Starter for one app is the upgrade path.
 - Database: Supabase free Postgres, Mumbai region. Connect ONLY through the SESSION POOLER (host aws-0-ap-south-1.pooler.supabase.com, port 5432, database postgres, user postgres.<PROJECT_REF>). The direct connection is IPv6-only; transaction mode (6543) is wrong for Flyway. The pooler allows max 15 clients, so the Hikari pool is set to max 3 / min idle 1 in application.yml. Free projects pause after a week of inactivity (a keep-alive idea is pending).
 - IMPORTANT: local runs and the live backend share the SAME Supabase database. Be careful with manual tests; delete throwaway users afterwards. Integration tests use their own Docker database.
 - Dockerfile (backend/): multi-stage, eclipse-temurin:25-jdk-noble build (-DskipTests) and 25-jre-noble runtime, non-root user, listens on PORT, JVM flags -XX:MaxRAMPercentage=65 -XX:+UseSerialGC for 512 MB. Render never runs tests.
@@ -117,9 +118,9 @@
 - Not built yet: weekly/yearly/savings reports, demo mode, README with screenshots.
 
 ## Roadmap and open items
-- Next: merge feature/token-cleanup once CI is green; then the cold-start decision and a README with screenshots; then weekly, yearly and savings overview reports.
+- Next: README with screenshots; then weekly, yearly and savings overview reports.
 - Deferred: the "did your salary change?" prompt each cycle (needs a stored flag, so a new migration).
-- Before sharing the link: a separate Supabase project for development, decide on cold-start fix (keep-alive ping, paid Render Starter about $7/month, or startup-time tuning), Swagger/OpenAPI docs, account deletion, CSV export, README limitations (savings counts only logged expenses, no opening balance, no bonus income, India only, registration reveals emails).
+- Before sharing the link: a separate Supabase project for development, Swagger/OpenAPI docs, account deletion, CSV export, README limitations (savings counts only logged expenses, no opening balance, no bonus income, India only, registration reveals emails).
 
 ## First thing to do in a new session
 - Run git log --oneline and git status, run the tests, and report back before changing anything.
