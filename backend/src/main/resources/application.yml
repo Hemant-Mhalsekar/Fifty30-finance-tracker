@@ -22,11 +22,21 @@ server:
   port: ${PORT:8080}
 
 app:
+  # Public address of the frontend, used to build links in emails.
+  base-url: ${APP_BASE_URL:http://localhost:5173}
   cookie:
     secure: ${COOKIE_SECURE:true}
+  # Without both values the app runs but sends no email (see MailConfig).
+  mail:
+    brevo-api-key: ${BREVO_API_KEY:}
+    from-address: ${MAIL_FROM_ADDRESS:}
+    from-name: Fifty30
   # Attempts allowed per window: login per 15 minutes, register per hour. See AuthRateLimits.
   rate-limit:
     login-per-ip: 20
     login-per-email: 10
     register-per-ip: 5
     register-global: 50
+    # Per hour; each request can send an email.
+    password-reset-per-ip: 10
+    password-reset-per-email: 3

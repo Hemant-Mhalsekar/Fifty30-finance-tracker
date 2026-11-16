@@ -66,6 +66,7 @@ function reset({ onboarded = true } = {}) {
 
   state = {
     id,
+    resetTokenUsed: false,
     me: { id: 'u1', email: 'test@example.com', payDay: onboarded ? 25 : null, pendingPayDay: null, pendingPayDayFrom: null },
     cycles: onboarded
       ? [
@@ -156,6 +157,16 @@ function handle(req, res, body) {
     return send(res, 200, { accessToken: 'test-token' })
   }
   if (path === '/api/auth/logout') return send(res, 204)
+  // Reset flow: any email gets 202; only the token below is "valid", and only once.
+  if (path === '/api/auth/forgot-password') return send(res, 202)
+  if (path === '/api/auth/reset-password') {
+    if (body.token !== 'valid-reset-token' || state.resetTokenUsed) {
+      return fail(res, 400, 'This reset link is invalid or has expired. Request a new one.')
+    }
+    if (!body.password || body.password.length < 8) return fail(res, 400, 'Password must be at least 8 characters')
+    state.resetTokenUsed = true
+    return send(res, 204)
+  }
   if (path === '/api/me') return send(res, 200, state.me)
 
   if (path === '/api/onboarding') {

@@ -2,7 +2,14 @@
 // It is lost on page reload; the HttpOnly refresh cookie is used to get a new one.
 let accessToken: string | null = null
 
-const AUTH_PATHS = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh', '/api/auth/logout']
+const AUTH_PATHS = [
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/refresh',
+  '/api/auth/logout',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
+]
 
 const PING_INTERVAL_MS = 3_000
 const PING_TIMEOUT_MS = 10_000
@@ -375,4 +382,14 @@ export function listExpenses(query: ExpenseQuery): Promise<ExpensePage> {
   }
   const search = params.toString()
   return requestJson<ExpensePage>(`/api/expenses${search ? `?${search}` : ''}`)
+}
+
+/** Asks for a reset email. The server answers the same whether or not the account exists. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  await sendJson<null>('/api/auth/forgot-password', 'POST', { email })
+}
+
+/** Sets a new password using the token from the email link. Logs out every session. */
+export async function resetPassword(token: string, password: string): Promise<void> {
+  await sendJson<null>('/api/auth/reset-password', 'POST', { token, password })
 }

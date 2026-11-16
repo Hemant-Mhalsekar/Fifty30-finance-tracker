@@ -78,6 +78,10 @@ public class User {
         return createdAt;
     }
 
+    public void changePasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
     public void schedulePayDayChange(short newPayDay, LocalDate from) {
         this.pendingPayDay = newPayDay;
         this.pendingPayDayFrom = from;

@@ -31,7 +31,9 @@ import tools.jackson.databind.json.JsonMapper;
         "app.rate-limit.login-per-ip=100000",
         "app.rate-limit.login-per-email=100000",
         "app.rate-limit.register-per-ip=100000",
-        "app.rate-limit.register-global=100000"
+        "app.rate-limit.register-global=100000",
+        "app.rate-limit.password-reset-per-ip=100000",
+        "app.rate-limit.password-reset-per-email=100000"
 })
 @AutoConfigureMockMvc
 public abstract class AbstractIntegrationTest {

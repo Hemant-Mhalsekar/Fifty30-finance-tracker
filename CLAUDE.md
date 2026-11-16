@@ -44,6 +44,8 @@
 - DB_URL (JDBC, ends with ?sslmode=require), DB_USER, DB_PASSWORD
 - JWT_SECRET (at least 32 bytes; DIFFERENT local vs Render; app refuses to start without it)
 - COOKIE_SECURE (default true; set false only for local http)
+- APP_BASE_URL (frontend address for email links; production https://fifty30-finance-tracker.vercel.app; default http://localhost:5173)
+- Optional: BREVO_API_KEY and MAIL_FROM_ADDRESS (a Brevo-verified sender). Without both, MailConfig uses DisabledEmailSender: the app runs, no email is sent.
 - Optional: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE (overrides the yml default)
 - Set them in backend/.env locally (gitignored) and in the Render dashboard. Add a variable on Render BEFORE pushing code that needs it (a missing JWT_SECRET once crashed a deploy).
 - application.yml also sets: ddl-auto validate, open-in-view false, Flyway on, server.port ${PORT:8080}, spring.jackson.deserialization.accept-float-as-int false.
@@ -86,6 +88,8 @@
 
 - Refresh-token cleanup (branch feature/token-cleanup, 16 Nov 2026): RefreshTokenCleanup deletes rows (revoked or not) whose expires_at is more than 7 days in the past, via one JPQL bulk delete. Revoked-but-unexpired rows are KEPT because reuse detection needs them. Runs 5 minutes after start and then every 6 hours (fixed delay), not at a time of day, because the Render free instance sleeps when idle. Logs only the count.
 
+- Password reset (branch feature/password-reset, 17 Nov 2026): V5 password_reset_tokens (id, user_id fk cascade, token_hash unique, expires_at, used_at, created_at; RLS on). POST /api/auth/forgot-password {email} -> always 202, work done on a virtual-thread executor so timing does not reveal accounts; new link invalidates older ones; 30-minute expiry; only SHA-256 hashes stored (SecureTokens). POST /api/auth/reset-password {token, password} -> 204; consumeIfActive is one conditional UPDATE; then new BCrypt hash, other links invalidated, all refresh tokens revoked; invalid -> 400 "This reset link is invalid or has expired. Request a new one." Rate limits app.rate-limit.password-reset-per-ip 10/h and per-email 3/h. Email: mail package, EmailSender interface, BrevoEmailSender (JDK HttpClient to https://api.brevo.com/v3/smtp/email, header api-key) because Render free blocks SMTP; logs only status codes, never recipients or links. Expired links deleted by a scheduled job a day after expiry. PasswordResetIntegrationTest (6 tests) replaces the sender with a capturing one.
+
 ## Code conventions
 - Feature packages; records for DTOs; entities have protected no-arg constructor, getters and minimal mutators, user_id and category_id as plain UUID columns (no relationships), created_at insertable=false/updatable=false, enums as EnumType.STRING.
 - Services hold the business rules and use @Transactional on every method that changes data (including derived deletes). Controllers read the user id from the JWT subject (@AuthenticationPrincipal Jwt).
@@ -106,6 +110,7 @@
 
 ## Frontend (current state; UI refresh on branch feature/ui-refresh, 17 Nov 2026)
 - Design: phone-first for data entry, desktop for charts. Tokens in src/index.css (:root light, prefers-color-scheme dark; no manual theme toggle). Brand green #0f6b4f light / #3cc48f dark. Series colours = first three dataviz reference slots (validated light and dark): needs blue var(--need), wants orange var(--want), savings/investments aqua var(--save); savings aqua is under 3:1 on light, so charts always print values and offer a table view. All text tokens pass 4.5:1 in both modes. Every control is at least 44px tall and every field 16px+ (iOS zoom); an e2e test guards both.
+- Auth screens: PasswordInput component with a Show/Hide button (accessible name "Show password"/"Hide password"). AuthForm has login, register and forgot modes (the email carries over). /reset-password (shown logged in or out) reads ?token=, removes it from the address bar, asks for the new password twice, then ends on the login form. e2e/password.spec.ts (5 tests).
 - Startup unchanged in spirit: waitForServer() polls /api/ping every 3 s up to 180 s (cold start is about 140 s), then refreshSession() exactly once (shared in-flight promise, never auto-retried because a lost response would trigger reuse detection), then getMe(). Access token only in a module variable in api.ts. apiFetch retries once after a 401 via refresh.
 - Routing: logged out -> welcome screen with AuthForm on any URL. payDay null -> everything redirects to /onboarding. Otherwise AppShell: top bar with all pages at >= 768px; on phones a fixed bottom tab bar (Dashboard, Add, Expenses, More) and /more lists Categories, Settings, account and Log out. Routes: / (Dashboard), /add, /expenses, /more, /categories, /settings; unknown paths -> /.
 - api.ts: requestJson/sendJson throw ApiError(status, message from the API's {message}). Typed calls: getMe, onboard, getCurrentCycle, changeCurrentSalary, changePayDay, getCurrentReport, getReportForDate, listCategories(includeArchived), createCategory, updateCategory, deleteCategory, createExpense, updateExpense, deleteExpense, listExpenses.

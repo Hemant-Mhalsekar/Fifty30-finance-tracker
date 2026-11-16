@@ -16,6 +16,9 @@ Spring Boot app (Maven, Java).
 | `DB_PASSWORD` | Required | `backend/.env` locally, Render dashboard in production | Database password. |
 | `JWT_SECRET` | Required | `backend/.env` locally, Render dashboard in production | Random string of at least 32 bytes, different in each environment. |
 | `COOKIE_SECURE` | Optional | `backend/.env` locally, Render dashboard in production | Defaults to `true`. Set to `false` only for local development over http. |
+| `APP_BASE_URL` | Required in production | `backend/.env` locally, Render dashboard in production | Public address of the frontend, used in reset-password emails. Production: `https://fifty30-finance-tracker.vercel.app`. Defaults to `http://localhost:5173`. |
+| `BREVO_API_KEY` | Optional | `backend/.env` locally, Render dashboard in production | Brevo API key for sending email. Without it (or without `MAIL_FROM_ADDRESS`) the app runs but sends no email. |
+| `MAIL_FROM_ADDRESS` | Optional | `backend/.env` locally, Render dashboard in production | Sender address. Must be a sender verified in Brevo. |
 | `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE` | Optional | `backend/.env` locally, Render dashboard in production | Overrides the default pool size. |
 
 Set these in `backend/.env` locally (never commit it) and in the Render dashboard in production. Never put real values in the repository.
@@ -89,3 +92,10 @@ Render's free instance sleeps after 15 minutes without traffic and takes about 1
 - Render gives 750 free instance hours per workspace per month, shared by every free service in it. ShelfSpace is in the same workspace with the same window, so the two use about 640 hours a month together. Never keep a free service awake around the clock here: above 750 hours Render suspends every free service until the next month.
 - Each morning's first ping times out (cron-job.org waits 30 seconds) but still wakes the instance. cron-job.org disables a job only after more than 25 failures in a row.
 - The Render health check stays on `/api/ping`, which does not touch the database.
+
+## Password reset
+
+- `POST /api/auth/forgot-password` `{email}` always answers `202` with no body, whether or not the account exists. If it does, a one-time link (`APP_BASE_URL/reset-password?token=...`) is emailed in the background, so the response time does not reveal registered emails either. Rate limited: 10 per IP and 3 per email per hour.
+- `POST /api/auth/reset-password` `{token, password}` sets the new password (same rules as register), uses up the link and logs out every session. Invalid, used, replaced or expired links get `400`.
+- Links expire after 30 minutes; asking again cancels older links. Only the SHA-256 hash of a token is stored (`password_reset_tokens`, migration V5).
+- Email goes through Brevo's HTTPS API because Render's free plan blocks outbound SMTP ports.
