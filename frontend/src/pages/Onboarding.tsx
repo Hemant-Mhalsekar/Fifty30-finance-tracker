@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type CSSProperties, type FormEvent } from 'react'
 import { ApiError, onboard } from '../api'
+import { BrandMark } from '../components/icons'
 import { formatPaise, parseRupeesToPaise, splitBudget } from '../money'
 
 const MIN_SALARY_PAISE = 100
@@ -45,64 +46,76 @@ export default function Onboarding({ onDone }: Props) {
   }
 
   return (
-    <main className="narrow">
-      <h1>Set up your budget</h1>
-      <p className="muted">
-        Each pay cycle is split 50/30/20: needs, wants, and savings including investments.
-      </p>
-
-      <form onSubmit={handleSubmit} noValidate>
-        <label htmlFor="salary">Monthly take-home salary (₹)</label>
-        <input
-          id="salary"
-          type="text"
-          inputMode="decimal"
-          autoComplete="off"
-          placeholder="50,000"
-          required
-          value={salaryText}
-          onChange={(e) => setSalaryText(e.target.value)}
-        />
-
-        <label htmlFor="pay-day">Pay day (day of the month your salary arrives)</label>
-        <select id="pay-day" value={payDay} onChange={(e) => setPayDay(e.target.value)}>
-          {Array.from({ length: 31 }, (_, i) => String(i + 1)).map((day) => (
-            <option key={day} value={day}>
-              {day}
-            </option>
-          ))}
-        </select>
-        {Number(payDay) >= 29 && (
-          <p className="hint">In shorter months, the last day of the month is used.</p>
-        )}
-
-        {split && (
-          <dl className="split-preview" aria-live="polite">
-            <div>
-              <dt>Needs (50%)</dt>
-              <dd>{formatPaise(split.needs)}</dd>
-            </div>
-            <div>
-              <dt>Wants (30%)</dt>
-              <dd>{formatPaise(split.wants)}</dd>
-            </div>
-            <div>
-              <dt>Savings (20%)</dt>
-              <dd>{formatPaise(split.savings)}</dd>
-            </div>
-          </dl>
-        )}
-
-        <button type="submit" disabled={submitting}>
-          {submitting ? 'Saving...' : 'Start tracking'}
-        </button>
-
-        {error && (
-          <p className="error" role="alert">
-            {error}
+    <main className="welcome">
+      <div className="brand">
+        <BrandMark />
+        Fifty30
+      </div>
+      <div className="card">
+        <form onSubmit={handleSubmit} noValidate>
+          <h1>Set up your budget</h1>
+          <p className="muted">
+            Each pay cycle runs from one pay day to the next and is split 50/30/20: needs, wants, and savings including
+            investments.
           </p>
-        )}
-      </form>
+
+          <div className="field">
+            <label htmlFor="salary">Monthly take-home salary</label>
+            <div className="amount-field">
+              <span aria-hidden="true">₹</span>
+              <input
+                id="salary"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="50,000"
+                required
+                value={salaryText}
+                onChange={(e) => setSalaryText(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {split && (
+            <dl className="split-preview" aria-live="polite">
+              <div style={{ '--c': 'var(--need)' } as CSSProperties}>
+                <dt>Needs 50%</dt>
+                <dd>{formatPaise(split.needs)}</dd>
+              </div>
+              <div style={{ '--c': 'var(--want)' } as CSSProperties}>
+                <dt>Wants 30%</dt>
+                <dd>{formatPaise(split.wants)}</dd>
+              </div>
+              <div style={{ '--c': 'var(--save)' } as CSSProperties}>
+                <dt>Savings 20%</dt>
+                <dd>{formatPaise(split.savings)}</dd>
+              </div>
+            </dl>
+          )}
+
+          <div className="field">
+            <label htmlFor="pay-day">Pay day (the day of the month your salary arrives)</label>
+            <select id="pay-day" value={payDay} onChange={(e) => setPayDay(e.target.value)}>
+              {Array.from({ length: 31 }, (_, i) => String(i + 1)).map((day) => (
+                <option key={day} value={day}>
+                  {day}
+                </option>
+              ))}
+            </select>
+            {Number(payDay) >= 29 && <p className="hint">In shorter months, the last day of the month is used.</p>}
+          </div>
+
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+
+          <button type="submit" className="block" disabled={submitting}>
+            {submitting ? 'Saving…' : 'Start tracking'}
+          </button>
+        </form>
+      </div>
     </main>
   )
 }

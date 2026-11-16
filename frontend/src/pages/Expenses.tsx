@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
 import {
   deleteExpense,
@@ -11,13 +11,16 @@ import {
   type ExpensePage,
 } from '../api'
 import ExpenseForm from '../components/ExpenseForm'
-import { formatDate, todayIst } from '../dates'
-import { TYPE_LABELS } from '../labels'
+import { addDays, formatDate, todayIst } from '../dates'
+import { TYPE_COLORS, TYPE_LABELS } from '../labels'
 import { formatPaise } from '../money'
 
 const PAGE_SIZE = 20
 
 type Query = { from: string; to: string; categoryId: string; page: number }
+
+// On a phone the filters start folded away; on a wide screen there is room to show them.
+const WIDE = typeof window !== 'undefined' && window.matchMedia?.('(min-width: 768px)').matches
 
 export default function Expenses() {
   const [categories, setCategories] = useState<Category[] | null>(null)
@@ -29,8 +32,8 @@ export default function Expenses() {
   const [error, setError] = useState<string | null>(null)
 
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Defaults: the current cycle, all categories.
   useEffect(() => {
@@ -74,25 +77,28 @@ export default function Expenses() {
   const page = result?.page ?? null
   const categoryById = new Map((categories ?? []).map((c) => [c.id, c]))
 
+  function closeEditor() {
+    setEditingId(null)
+    setConfirmDelete(false)
+  }
+
   // Any filter change goes back to the first page.
   function updateFilter(changes: Partial<Omit<Query, 'page'>>) {
     setQuery((q) => (q ? { ...q, ...changes, page: 0 } : q))
-    setEditingId(null)
-    setConfirmDeleteId(null)
+    closeEditor()
   }
 
   function goToPage(next: number) {
     setQuery((q) => (q ? { ...q, page: next } : q))
-    setEditingId(null)
-    setConfirmDeleteId(null)
+    closeEditor()
   }
 
   async function handleDelete(expense: Expense) {
-    setDeletingId(expense.id)
+    setDeleting(true)
     setError(null)
     try {
       await deleteExpense(expense.id)
-      setConfirmDeleteId(null)
+      closeEditor()
       // Deleting the last row of a later page would leave an empty page.
       if (page && page.items.length === 1 && page.page > 0) {
         goToPage(page.page - 1)
@@ -102,7 +108,7 @@ export default function Expenses() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
-      setDeletingId(null)
+      setDeleting(false)
     }
   }
 
@@ -122,7 +128,7 @@ export default function Expenses() {
             {error}
           </p>
         ) : (
-          <p className="muted">Loading...</p>
+          <p className="muted">Loading…</p>
         )}
       </section>
     )
@@ -130,66 +136,75 @@ export default function Expenses() {
 
   const showingCurrentCycle =
     query.from === cycleRange.from && query.to === cycleRange.to && query.categoryId === ''
+  const filterSummary = [
+    showingCurrentCycle ? 'This cycle' : `${formatDate(query.from)} – ${formatDate(query.to)}`,
+    query.categoryId ? (categoryById.get(query.categoryId)?.name ?? 'One category') : 'All categories',
+  ].join(' · ')
 
   return (
     <section className="expenses" aria-busy={loading}>
       <div className="page-header">
         <h1>Expenses</h1>
-        <Link to="/add" className="button-link">
+        <Link to="/add" className="button wide-only">
           Add expense
         </Link>
       </div>
 
-      <div className="filters">
-        <div>
-          <label htmlFor="filter-from">From</label>
-          <input
-            id="filter-from"
-            type="date"
-            min="2000-01-01"
-            max={query.to}
-            value={query.from}
-            onChange={(e) => e.target.value && updateFilter({ from: e.target.value })}
-          />
-        </div>
-        <div>
-          <label htmlFor="filter-to">To</label>
-          <input
-            id="filter-to"
-            type="date"
-            min={query.from}
-            max={todayIst()}
-            value={query.to}
-            onChange={(e) => e.target.value && updateFilter({ to: e.target.value })}
-          />
-        </div>
-        <div>
-          <label htmlFor="filter-category">Category</label>
-          <select
-            id="filter-category"
-            value={query.categoryId}
-            onChange={(e) => updateFilter({ categoryId: e.target.value })}
+      <details className="filters" open={WIDE}>
+        <summary>
+          Filters <span className="muted">· {filterSummary}</span>
+        </summary>
+        <div className="filter-grid">
+          <div className="field">
+            <label htmlFor="filter-from">From</label>
+            <input
+              id="filter-from"
+              type="date"
+              min="2000-01-01"
+              max={query.to}
+              value={query.from}
+              onChange={(e) => e.target.value && updateFilter({ from: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="filter-to">To</label>
+            <input
+              id="filter-to"
+              type="date"
+              min={query.from}
+              max={todayIst()}
+              value={query.to}
+              onChange={(e) => e.target.value && updateFilter({ to: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="filter-category">Category</label>
+            <select
+              id="filter-category"
+              value={query.categoryId}
+              onChange={(e) => updateFilter({ categoryId: e.target.value })}
+            >
+              <option value="">All categories</option>
+              {[...categories]
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.archived ? ' (archived)' : ''}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            className="secondary"
+            disabled={showingCurrentCycle}
+            onClick={() => updateFilter({ ...cycleRange, categoryId: '' })}
           >
-            <option value="">All categories</option>
-            {[...categories]
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.archived ? ' (archived)' : ''}
-                </option>
-              ))}
-          </select>
+            Reset to this cycle
+          </button>
         </div>
-        <button
-          type="button"
-          className="secondary"
-          disabled={showingCurrentCycle}
-          onClick={() => updateFilter({ ...cycleRange, categoryId: '' })}
-        >
-          This cycle
-        </button>
-      </div>
+      </details>
 
       {error && (
         <p className="error" role="alert">
@@ -199,96 +214,97 @@ export default function Expenses() {
 
       {page && (
         <>
-          <p className="muted">
+          <p className="muted" aria-live="polite">
             {page.totalItems} {page.totalItems === 1 ? 'expense' : 'expenses'}
-            {loading ? ' · updating...' : ''}
+            {loading ? ' · updating…' : ''}
           </p>
 
           {page.items.length === 0 ? (
-            <p className="muted">No expenses match these filters.</p>
+            <div className="card stack">
+              <p>No expenses match these filters.</p>
+              {showingCurrentCycle && <Link to="/add">Add your first expense for this cycle</Link>}
+            </div>
           ) : (
-            <ul className="expense-list">
-              {page.items.map((expense) => {
-                const category = categoryById.get(expense.categoryId)
-                if (editingId === expense.id) {
-                  return (
-                    <li key={expense.id} className="card">
-                      <h2>Edit expense</h2>
-                      <ExpenseForm
-                        categories={editableCategories(expense)}
-                        initial={expense}
-                        submitLabel="Save changes"
-                        autoFocus
-                        onSubmit={async (changes) => {
-                          await updateExpense(expense.id, changes)
-                          setEditingId(null)
-                          setReloadCount((n) => n + 1)
-                          return null
-                        }}
-                        onCancel={() => setEditingId(null)}
-                      />
-                    </li>
-                  )
-                }
-                return (
-                  <li key={expense.id} className="expense-row">
-                    <div className="expense-main">
-                      <span className="expense-description">{expense.description}</span>
-                      <span className="muted">
-                        {formatDate(expense.expenseDate)} · {category?.name ?? 'Unknown category'} ·{' '}
-                        {TYPE_LABELS[expense.type]}
-                      </span>
-                    </div>
-                    <span className="expense-amount">{formatPaise(expense.amountPaise)}</span>
-                    <div className="row-actions">
-                      {confirmDeleteId === expense.id ? (
-                        <>
-                          <button
-                            type="button"
-                            className="danger"
-                            disabled={deletingId === expense.id}
-                            onClick={() => handleDelete(expense)}
-                          >
-                            {deletingId === expense.id ? 'Deleting...' : 'Confirm delete'}
-                          </button>
-                          <button
-                            type="button"
-                            className="secondary"
-                            disabled={deletingId === expense.id}
-                            onClick={() => setConfirmDeleteId(null)}
-                          >
-                            Keep
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            className="secondary"
-                            onClick={() => {
-                              setEditingId(expense.id)
-                              setConfirmDeleteId(null)
+            groupByDate(page.items).map(([date, items]) => (
+              <section key={date} className="day-group" aria-label={dayLabel(date)}>
+                {/* No per-day total: a day can straddle two pages, so it could be wrong. */}
+                <h2 className="day-heading">{dayLabel(date)}</h2>
+                <ul className="expense-list">
+                  {items.map((expense) => {
+                    const category = categoryById.get(expense.categoryId)
+                    if (editingId === expense.id) {
+                      return (
+                        <li key={expense.id} className="editing">
+                          <h2>Edit expense</h2>
+                          <ExpenseForm
+                            categories={editableCategories(expense)}
+                            initial={expense}
+                            submitLabel="Save changes"
+                            onSubmit={async (changes) => {
+                              await updateExpense(expense.id, changes)
+                              closeEditor()
+                              setReloadCount((n) => n + 1)
+                              return null
                             }}
+                            onCancel={closeEditor}
                           >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="secondary"
-                            onClick={() => {
-                              setConfirmDeleteId(expense.id)
-                              setEditingId(null)
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
+                            <div className="delete-zone">
+                              {confirmDelete ? (
+                                <div className="row-actions">
+                                  <span>Delete this expense for good?</span>
+                                  <button
+                                    type="button"
+                                    className="danger"
+                                    disabled={deleting}
+                                    onClick={() => handleDelete(expense)}
+                                  >
+                                    {deleting ? 'Deleting…' : 'Confirm delete'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="secondary"
+                                    disabled={deleting}
+                                    onClick={() => setConfirmDelete(false)}
+                                  >
+                                    Keep
+                                  </button>
+                                </div>
+                              ) : (
+                                <button type="button" className="danger-outline" onClick={() => setConfirmDelete(true)}>
+                                  Delete expense
+                                </button>
+                              )}
+                            </div>
+                          </ExpenseForm>
+                        </li>
+                      )
+                    }
+                    return (
+                      <li key={expense.id}>
+                        <button
+                          type="button"
+                          className="expense-row"
+                          aria-label={`Edit ${expense.description}, ${formatPaise(expense.amountPaise)}`}
+                          onClick={() => {
+                            setEditingId(expense.id)
+                            setConfirmDelete(false)
+                          }}
+                        >
+                          <span className="expense-main">
+                            <span className="expense-description">{expense.description}</span>
+                            <span className="expense-meta">
+                              <span className="dot" style={{ '--c': TYPE_COLORS[expense.type] } as CSSProperties} />
+                              {category?.name ?? 'Unknown category'} · {TYPE_LABELS[expense.type]}
+                            </span>
+                          </span>
+                          <span className="expense-amount">{formatPaise(expense.amountPaise)}</span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            ))
           )}
 
           {page.totalPages > 1 && (
@@ -318,4 +334,22 @@ export default function Expenses() {
       )}
     </section>
   )
+}
+
+// Items arrive newest first, so groups come out in date order without sorting.
+function groupByDate(items: Expense[]): [string, Expense[]][] {
+  const groups = new Map<string, Expense[]>()
+  for (const item of items) {
+    const group = groups.get(item.expenseDate)
+    if (group) group.push(item)
+    else groups.set(item.expenseDate, [item])
+  }
+  return [...groups.entries()]
+}
+
+function dayLabel(date: string): string {
+  const today = todayIst()
+  if (date === today) return 'Today'
+  if (date === addDays(today, -1)) return 'Yesterday'
+  return formatDate(date)
 }

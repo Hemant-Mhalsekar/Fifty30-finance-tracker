@@ -40,7 +40,7 @@ export default function AuthForm({ onAuthenticated }: Props) {
 
   return (
     <form onSubmit={handleSubmit}>
-      <h2>{isRegister ? 'Create account' : 'Log in'}</h2>
+      <h1>{isRegister ? 'Create your account' : 'Log in'}</h1>
 
       <label htmlFor="auth-email">Email</label>
       <input
@@ -58,13 +58,20 @@ export default function AuthForm({ onAuthenticated }: Props) {
         type="password"
         autoComplete={isRegister ? 'new-password' : 'current-password'}
         minLength={isRegister ? 8 : undefined}
+        aria-describedby={isRegister ? 'auth-password-hint' : undefined}
         required
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
 
-      <button type="submit" disabled={submitting}>
-        {isRegister ? 'Create account' : 'Log in'}
+      {isRegister && (
+        <p id="auth-password-hint" className="hint">
+          At least 8 characters.
+        </p>
+      )}
+
+      <button type="submit" className="block" disabled={submitting}>
+        {submitting ? 'Please wait…' : isRegister ? 'Create account' : 'Log in'}
       </button>
 
       {error && (

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router'
-import { createExpense, listCategories, type Category } from '../api'
+import { createExpense, listCategories, listExpenses, type Category } from '../api'
+import { orderByRecentUse } from '../categoryOrder'
 import ExpenseForm from '../components/ExpenseForm'
 import { formatPaise } from '../money'
+
+// How many recent expenses decide the chip order. Enough to cover a few days of logging.
+const RECENT_SAMPLE = 50
 
 export default function AddExpense() {
   const [categories, setCategories] = useState<Category[] | null>(null)
@@ -10,11 +13,11 @@ export default function AddExpense() {
 
   useEffect(() => {
     let cancelled = false
-    listCategories()
-      .then((all) => {
+    // Recent use is only a nicety: if that request fails, fall back to alphabetical order.
+    Promise.all([listCategories(), listExpenses({ size: RECENT_SAMPLE }).catch(() => null)])
+      .then(([all, recent]) => {
         if (cancelled) return
-        // New expenses cannot go into archived categories.
-        setCategories(all.filter((c) => !c.archived).sort((a, b) => a.name.localeCompare(b.name)))
+        setCategories(orderByRecentUse(all, recent?.items.map((e) => e.categoryId) ?? []))
       })
       .catch((e: unknown) => {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : 'Something went wrong')
@@ -25,30 +28,28 @@ export default function AddExpense() {
   }, [])
 
   return (
-    <section className="narrow-section">
-      <h1>Add expense</h1>
+    <section className="narrow">
+      <div className="page-header">
+        <h1>Add expense</h1>
+      </div>
       {loadError && (
         <p className="error" role="alert">
           {loadError}
         </p>
       )}
-      {!loadError && !categories && <p className="muted">Loading categories...</p>}
+      {!loadError && !categories && <p className="muted">Loading categories…</p>}
       {categories && (
-        <>
-          <ExpenseForm
-            categories={categories}
-            submitLabel="Save expense"
-            resetAfterSubmit
-            autoFocus
-            onSubmit={async (expense, category) => {
-              const saved = await createExpense(expense)
-              return `Saved ${formatPaise(saved.amountPaise)} in ${category.name}.`
-            }}
-          />
-          <p>
-            <Link to="/">See dashboard</Link> · <Link to="/expenses">All expenses</Link>
-          </p>
-        </>
+        <ExpenseForm
+          categories={categories}
+          submitLabel="Save expense"
+          resetAfterSubmit
+          autoFocus
+          stickyActions
+          onSubmit={async (expense, category) => {
+            const saved = await createExpense(expense)
+            return `Saved ${formatPaise(saved.amountPaise)} in ${category.name}.`
+          }}
+        />
       )}
     </section>
   )
