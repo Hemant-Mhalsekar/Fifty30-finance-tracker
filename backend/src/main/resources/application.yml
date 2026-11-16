@@ -24,3 +24,9 @@ server:
 app:
   cookie:
     secure: ${COOKIE_SECURE:true}
+  # Attempts allowed per window: login per 15 minutes, register per hour. See AuthRateLimits.
+  rate-limit:
+    login-per-ip: 20
+    login-per-email: 10
+    register-per-ip: 5
+    register-global: 50

@@ -18,10 +18,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.financetracker.ratelimit.AuthRateLimits;
 import com.financetracker.user.User;
 import com.financetracker.user.UserRepository;
 import com.financetracker.web.ApiExceptionHandler.ApiError;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 @RestController
@@ -35,21 +37,26 @@ public class AuthController {
     private final TokenService tokenService;
     private final RefreshTokenService refreshTokenService;
     private final boolean cookieSecure;
+    private final AuthRateLimits rateLimits;
     // Used for unknown emails so login takes about as long whether or not the email exists.
     private final String dummyHash;
 
     public AuthController(UserRepository users, PasswordEncoder passwordEncoder, TokenService tokenService,
-            RefreshTokenService refreshTokenService, @Value("${app.cookie.secure}") boolean cookieSecure) {
+            RefreshTokenService refreshTokenService, @Value("${app.cookie.secure}") boolean cookieSecure,
+            AuthRateLimits rateLimits) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.refreshTokenService = refreshTokenService;
         this.cookieSecure = cookieSecure;
+        this.rateLimits = rateLimits;
         this.dummyHash = passwordEncoder.encode("not-a-real-password");
     }
 
     @PostMapping("/register")
-    public ResponseEntity<TokenResponse> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<TokenResponse> register(
+            @Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
+        rateLimits.checkRegister(httpRequest);
         if (users.existsByEmail(request.email())) {
             throw emailTaken();
         }
@@ -66,7 +73,10 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<TokenResponse> login(
+            @Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        // Before the password check, so a blocked attempt costs no BCrypt work.
+        rateLimits.checkLogin(httpRequest, request.email());
         User user = users.findByEmail(request.email()).orElse(null);
         String hash = user != null ? user.getPasswordHash() : dummyHash;
         boolean passwordMatches = passwordEncoder.matches(request.password(), hash);

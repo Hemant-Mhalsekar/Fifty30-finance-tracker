@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+import com.financetracker.ratelimit.RateLimitExceededException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -52,6 +55,17 @@ public class ApiExceptionHandler {
         log.warn("Data integrity violation: exception={}, sqlState={}",
                 ex.getClass().getName(), findSqlState(ex));
         return build(HttpStatus.CONFLICT, "Request conflicts with existing data");
+    }
+
+    // Logs only which limit was hit, never the IP or email it was counted against.
+    @ExceptionHandler(RateLimitExceededException.class)
+    ResponseEntity<ApiError> handleRateLimit(RateLimitExceededException ex) {
+        log.info("Rate limit hit: limit={}", ex.getLimitName());
+        long minutes = Math.max(1, (ex.getRetryAfterSeconds() + 59) / 60);
+        String message = "Too many attempts. Please try again in " + minutes + (minutes == 1 ? " minute." : " minutes.");
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(ex.getRetryAfterSeconds()))
+                .body(new ApiError(HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(), message));
     }
 
     @ExceptionHandler(Exception.class)

@@ -26,7 +26,12 @@ import tools.jackson.databind.json.JsonMapper;
         "DB_URL=jdbc:postgresql://localhost:5432/unused",
         "DB_USER=unused",
         "DB_PASSWORD=unused",
-        "COOKIE_SECURE=false"
+        "COOKIE_SECURE=false",
+        // The other tests send every request from one address; RateLimitIntegrationTest uses real limits.
+        "app.rate-limit.login-per-ip=100000",
+        "app.rate-limit.login-per-email=100000",
+        "app.rate-limit.register-per-ip=100000",
+        "app.rate-limit.register-global=100000"
 })
 @AutoConfigureMockMvc
 public abstract class AbstractIntegrationTest {
