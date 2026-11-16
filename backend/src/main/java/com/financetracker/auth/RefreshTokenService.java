@@ -77,6 +77,12 @@ public class RefreshTokenService {
         repository.revokeIfActive(hash(rawToken), OffsetDateTime.now());
     }
 
+    /** Deletes tokens that expired before the cutoff, revoked or not. Returns how many were deleted. */
+    @Transactional
+    public int deleteExpiredBefore(OffsetDateTime cutoff) {
+        return repository.deleteExpiredBefore(cutoff);
+    }
+
     private static String hash(String rawToken) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

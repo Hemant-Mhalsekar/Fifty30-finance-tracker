@@ -74,3 +74,8 @@ When a limit is reached the API returns `429 Too Many Requests` with a `Retry-Af
 - The client IP is the first `X-Forwarded-For` entry, which Vercel sets. Requests sent straight to the Render URL can fake it, which is why the per-email and site-wide limits exist.
 - Counts live in memory: they reset on restart and are only correct with a single backend instance.
 - Someone who knows your email can block logins to it for up to 15 minutes. That is the cost of protecting each account against guessing from many IPs.
+
+## Scheduled jobs
+
+- Expired refresh tokens are deleted 5 minutes after start and then every 6 hours, once they have been expired for 7 days. Revoked tokens that have not expired are kept, because presenting one again is how token theft is detected. A fixed time of day is not used because the free Render instance sleeps when idle.
+- Idle rate-limit buckets are dropped every 10 minutes.
