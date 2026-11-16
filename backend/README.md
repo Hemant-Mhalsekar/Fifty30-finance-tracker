@@ -57,3 +57,20 @@ cd backend
 - `PUT /api/settings/pay-day` schedules a pay day change. It waits one full cycle: the current and next cycle keep the old pay day.
 - `GET /api/cycles/current/report` returns spending against the plan for the current cycle: needs, wants, savings, investments, a per-category breakdown and overspend flags.
 - `GET /api/cycles/report?date=YYYY-MM-DD` returns the same report for the cycle containing that date.
+
+## Rate limiting
+
+Login and register are rate limited in memory with Bucket4j (`ratelimit` package). Every attempt counts.
+
+| Limit | Default | Window | Property |
+|-------|---------|--------|----------|
+| Login per client IP | 20 | 15 minutes | `app.rate-limit.login-per-ip` |
+| Login per email | 10 | 15 minutes | `app.rate-limit.login-per-email` |
+| Register per client IP | 5 | 1 hour | `app.rate-limit.register-per-ip` |
+| Register, whole site | 50 | 1 hour | `app.rate-limit.register-global` |
+
+When a limit is reached the API returns `429 Too Many Requests` with a `Retry-After` header (seconds).
+
+- The client IP is the first `X-Forwarded-For` entry, which Vercel sets. Requests sent straight to the Render URL can fake it, which is why the per-email and site-wide limits exist.
+- Counts live in memory: they reset on restart and are only correct with a single backend instance.
+- Someone who knows your email can block logins to it for up to 15 minutes. That is the cost of protecting each account against guessing from many IPs.

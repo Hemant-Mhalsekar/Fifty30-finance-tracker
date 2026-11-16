@@ -17,14 +17,14 @@
 
 ## Tech and versions
 - Backend: Java 25 (Temurin; the shell must use JDK 25, not 27: export JAVA_HOME=$(/usr/libexec/java_home -v 25)), Spring Boot 4.1.2, Maven wrapper (./mvnw), Spring Framework 7, Spring Security 7, Hibernate 7, Jackson 3, Flyway 12, HikariCP, PostgreSQL 17 (Supabase), Tomcat 11. No Lombok.
-- Starters used: webmvc, data-jpa, flyway (+ flyway-database-postgresql), validation, security, security-oauth2-resource-server, actuator; postgres driver at runtime.
+- Starters used: webmvc, data-jpa, flyway (+ flyway-database-postgresql), validation, security, security-oauth2-resource-server, actuator; postgres driver at runtime. Extra library: com.bucket4j:bucket4j_jdk17-core 8.21.0 (rate limiting, added 16 Nov 2026).
 - Tests: JUnit 5, Mockito, Spring Boot Testcontainers + testcontainers-postgresql (needs Docker Desktop running).
 - Frontend: Vite + React + TypeScript, plain CSS, Node 24, react-router 8 (declarative mode: BrowserRouter/Routes, added 10 Nov 2026). No UI library.
 - Machine: MacBook Air, zsh. Docker Desktop 29.9.2 installed.
 
 ## Repo layout
 - github.com/Hemant-Mhalsekar/finance-tracker (PUBLIC repo; never commit secrets).
-- backend/ (Maven project, base package com.financetracker): packages auth, user, category, cycle, expense, onboarding, common, config, web (and settings if added).
+- backend/ (Maven project, base package com.financetracker): packages auth, user, category, cycle, expense, onboarding, report, settings, ratelimit, common, config, web.
 - frontend/ (Vite app): src/App.tsx, src/AuthForm.tsx, src/api.ts, vite.config.ts, vercel.json.
 - Root README.md (CI badge, test overview), backend/README.md (environment variables, how to run tests), frontend/README.md (run, tests, deployment).
 - .github/workflows/ci.yml: on every PR and push to main. Job backend: Temurin 25, ./mvnw -B -ntp verify (Testcontainers uses the runner's Docker; no secrets). Job frontend: Node 24, npm ci, lint, build, npm test, playwright install chromium, test:e2e. Reports uploaded on failure. Deploys do not wait for CI: merge only when green.
@@ -78,6 +78,8 @@
 - Races are handled with atomic SQL (conditional UPDATE, ON CONFLICT DO NOTHING), not read-then-write in Java.
 - Global handler: never echoes rejected values, never logs request bodies, tokens, passwords or SQL; conflict logging is only the exception class and SQLState. Fractional JSON numbers for integer fields are rejected (400 "Malformed request body"). Malformed UUID or parameter gives 400 via MethodArgumentTypeMismatchException. Do not use @Validated constraints on request parameters (they would fall into the catch-all and return 500); validate manually in services.
 
+- Rate limiting (branch feature/rate-limiting, 16 Nov 2026): RateLimiter = in-memory Bucket4j buckets per (limit name, key), greedy refill, time from the injected Clock (tests move a MutableClock), max 50,000 keys (evicts full buckets, then fails closed with 429), @Scheduled eviction every 10 min (SchedulingConfig enables scheduling). AuthRateLimits: login per IP 20/15 min and per email 10/15 min (checked BEFORE the BCrypt check), register per IP 5/h and global 50/h; properties app.rate-limit.*. ClientIp = first X-Forwarded-For entry (Vercel sets it; spoofable when calling Render directly), else remote address. 429 + Retry-After + "Too many attempts. Please try again in N minutes."; logs only the limit name. Single-instance only; counts reset on restart. AbstractIntegrationTest sets the limits to 100000; RateLimitIntegrationTest uses small ones in its own context.
+
 ## Code conventions
 - Feature packages; records for DTOs; entities have protected no-arg constructor, getters and minimal mutators, user_id and category_id as plain UUID columns (no relationships), created_at insertable=false/updatable=false, enums as EnumType.STRING.
 - Services hold the business rules and use @Transactional on every method that changes data (including derived deletes). Controllers read the user id from the JWT subject (@AuthenticationPrincipal Jwt).
@@ -113,9 +115,9 @@
 - Not built yet: weekly/yearly/savings reports, demo mode, README with screenshots.
 
 ## Roadmap and open items
-- Next: merge feature/ci-and-tests once CI is green; then weekly, yearly and savings overview reports.
+- Next: merge feature/rate-limiting once CI is green; then the refresh-token cleanup job; then weekly, yearly and savings overview reports.
 - Deferred: the "did your salary change?" prompt each cycle (needs a stored flag, so a new migration).
-- Before sharing the link: rate limiting on register/login (Bucket4j), cleanup job for expired refresh tokens, branch protection on main requiring CI, a separate Supabase project for development, decide on cold-start fix (keep-alive ping, paid Render Starter about $7/month, or startup-time tuning), Swagger/OpenAPI docs, account deletion, CSV export, README limitations (savings counts only logged expenses, no opening balance, no bonus income, India only, registration reveals emails).
+- Before sharing the link: cleanup job for expired refresh tokens, a separate Supabase project for development, decide on cold-start fix (keep-alive ping, paid Render Starter about $7/month, or startup-time tuning), Swagger/OpenAPI docs, account deletion, CSV export, README limitations (savings counts only logged expenses, no opening balance, no bonus income, India only, registration reveals emails).
 
 ## First thing to do in a new session
 - Run git log --oneline and git status, run the tests, and report back before changing anything.
