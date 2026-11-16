@@ -1,4 +1,6 @@
-# Project context: Personal finance tracker (portfolio project, real users can sign up)
+# Project context: Fifty30, a personal finance tracker (portfolio project, real users can sign up)
+
+- Renamed from "Finance Tracker" to Fifty30 on 16 Nov 2026. User-facing name everywhere is Fifty30. Internal names stay: Java package com.financetracker, Maven artifact finance-tracker-backend, Render service finance-tracker-h0zi, local folder finance-tracker.
 
 ## What it is
 - A responsive website (no PWA) for salaried users in India. The user enters a monthly salary and pay day. The app splits each pay cycle into a 50/30/20 plan (needs / wants / savings+investments), the user logs expenses, and reports compare actual spending to the plan.
@@ -23,7 +25,8 @@
 - Machine: MacBook Air, zsh. Docker Desktop 29.9.2 installed.
 
 ## Repo layout
-- github.com/Hemant-Mhalsekar/finance-tracker (PUBLIC repo; never commit secrets).
+- github.com/Hemant-Mhalsekar/Fifty30-finance-tracker (PUBLIC repo; never commit secrets). Renamed from finance-tracker; GitHub redirects the old URL.
+- Live site: https://fifty30-finance-tracker.vercel.app
 - backend/ (Maven project, base package com.financetracker): packages auth, user, category, cycle, expense, onboarding, report, settings, ratelimit, common, config, web.
 - frontend/ (Vite app): src/App.tsx, src/AuthForm.tsx, src/api.ts, vite.config.ts, vercel.json.
 - Root README.md (CI badge, test overview), backend/README.md (environment variables, how to run tests), frontend/README.md (run, tests, deployment).

@@ -1,8 +1,10 @@
-# Finance Tracker
+# Fifty30
 
-[![CI](https://github.com/Hemant-Mhalsekar/finance-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/Hemant-Mhalsekar/finance-tracker/actions/workflows/ci.yml)
+[![CI](https://github.com/Hemant-Mhalsekar/Fifty30-finance-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/Hemant-Mhalsekar/Fifty30-finance-tracker/actions/workflows/ci.yml)
 
-A personal finance tracker for salaried users in India. You enter your monthly salary and pay day, each pay cycle is split 50/30/20 into needs, wants and savings, and you log expenses against that plan.
+Live: https://fifty30-finance-tracker.vercel.app
+
+A personal finance tracker for salaried users in India, named after the 50/30/20 budgeting rule. You enter your monthly salary and pay day, each pay cycle is split 50/30/20 into needs, wants and savings, and you log expenses against that plan.
 
 Built as a portfolio project with a Java Spring Boot backend, a React (Vite) frontend, and a PostgreSQL database hosted on Supabase.
 
