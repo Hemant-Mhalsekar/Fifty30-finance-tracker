@@ -82,7 +82,7 @@ export default function App() {
   if (phase !== 'ready' || !me) {
     return (
       <main className="narrow">
-        <h1>Finance Tracker</h1>
+        <h1>Fifty30</h1>
 
         {phase === 'waking' && (
           <p>Server is waking up. On the free hosting plan this can take up to 3 minutes...</p>

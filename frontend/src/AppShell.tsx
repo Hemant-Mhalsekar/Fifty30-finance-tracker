@@ -19,7 +19,7 @@ export default function AppShell({ email, onLogout, loggingOut }: Props) {
   return (
     <div className="shell">
       <header className="topbar">
-        <span className="brand">Finance Tracker</span>
+        <span className="brand">Fifty30</span>
         <nav aria-label="Main" ref={navRef}>
           <NavLink to="/" end>
             Dashboard

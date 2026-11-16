@@ -1,4 +1,4 @@
-# Finance Tracker Frontend
+# Fifty30 Frontend
 
 React + TypeScript app built with Vite.
 

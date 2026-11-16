@@ -1,4 +1,4 @@
-# Finance Tracker Backend
+# Fifty30 Backend
 
 Spring Boot app (Maven, Java).
 
