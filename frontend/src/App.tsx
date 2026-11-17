@@ -14,6 +14,7 @@ import Recurring from './pages/Recurring'
 import Reports from './pages/Reports'
 import ResetPassword from './pages/ResetPassword'
 import Settings from './pages/Settings'
+import { setMonitoredUser } from './monitoring'
 import { forgetUser, rememberedUser, rememberUser } from './offline'
 import { useOnline, usePendingSync } from './useOffline'
 
@@ -105,6 +106,9 @@ export default function App() {
 
   // Sends expenses saved offline whenever the app is open and has a connection.
   const pending = usePendingSync(phase === 'ready' && me ? me.id : null, online && !startedOffline)
+
+  // Error reports carry the user's id (never the email), so repeated crashes can be grouped.
+  useEffect(() => setMonitoredUser(me?.id ?? null), [me])
 
   // Return to the form if a session refresh ever fails.
   useEffect(
