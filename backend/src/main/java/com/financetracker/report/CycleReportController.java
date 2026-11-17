@@ -1,6 +1,7 @@
 package com.financetracker.report;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.format.annotation.DateTimeFormat;
@@ -33,5 +34,15 @@ public class CycleReportController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return reportService.reportForDate(UUID.fromString(jwt.getSubject()), date);
+    }
+
+    // The cycle containing the date (default today) and the cycles before it, oldest first.
+    // count is checked in the service (1 to 12) so a bad value is a 400, not a 500.
+    @GetMapping("/history")
+    public List<CycleHistoryItem> history(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(defaultValue = "6") int count) {
+        return reportService.history(UUID.fromString(jwt.getSubject()), date, count);
     }
 }

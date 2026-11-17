@@ -141,6 +141,30 @@ function report(cycle) {
     categories: [...byCategory.values()].sort((a, b) => b.spentPaise - a.spentPaise),
     lastExpenseLoggedOn: state.expenses.length ? today() : null,
     daysSinceLastExpenseLogged: state.expenses.length ? 0 : null,
+    daily: dailyRows(inCycle),
+  }
+}
+
+// Sparse, like the API: one row per day and type with something logged, oldest first.
+function dailyRows(expenses) {
+  const rows = new Map()
+  for (const e of expenses) {
+    const key = `${e.expenseDate}|${e.type}`
+    const row = rows.get(key) ?? { date: e.expenseDate, type: e.type, spentPaise: 0 }
+    row.spentPaise += e.amountPaise
+    rows.set(key, row)
+  }
+  return [...rows.values()].sort((a, b) => a.date.localeCompare(b.date) || a.type.localeCompare(b.type))
+}
+
+function historyItem(cycle) {
+  const r = report(cycle)
+  return {
+    cycle,
+    needsSpentPaise: r.needs.spentPaise,
+    wantsSpentPaise: r.wants.spentPaise,
+    investedPaise: r.savings.investedPaise,
+    savedPaise: r.savings.savedPaise,
   }
 }
 
@@ -220,6 +244,14 @@ function handle(req, res, body) {
     const date = url.searchParams.get('date')
     const cycle = state.cycles.find((c) => c.periodStart <= date && date <= c.periodEnd)
     return cycle ? send(res, 200, report(cycle)) : fail(res, 404, 'No cycle contains that date')
+  }
+  if (path === '/api/cycles/history') {
+    const date = url.searchParams.get('date') ?? today()
+    const count = Number(url.searchParams.get('count') ?? 6)
+    if (!(count >= 1 && count <= 12)) return fail(res, 400, 'Count must be between 1 and 12')
+    const index = state.cycles.findIndex((c) => c.periodStart <= date && date <= c.periodEnd)
+    if (index < 0) return fail(res, 404, 'No cycle contains that date')
+    return send(res, 200, state.cycles.slice(Math.max(0, index - count + 1), index + 1).map(historyItem))
   }
   if (path === '/api/cycles/current/salary') {
     Object.assign(currentCycle(), { salaryPaise: body.salaryPaise, ...split(body.salaryPaise) })

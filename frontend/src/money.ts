@@ -53,3 +53,20 @@ export function formatPaiseShort(paise: number): string {
   const full = formatPaise(paise)
   return paise % 100 === 0 ? full.slice(0, -3) : full
 }
+
+/**
+ * Short axis labels in Indian units, whole rupees: 2500000 -> "₹25k", 15000000 -> "₹1.5L",
+ * 250000000 -> "₹25L", 1000000000 -> "₹1Cr". Below ₹1,000 it is the plain amount.
+ */
+export function formatPaiseCompact(paise: number): string {
+  const sign = paise < 0 ? '−' : ''
+  const rupees = Math.abs(paise) / 100
+  const unit = (value: number, suffix: string) => {
+    const rounded = value >= 10 ? Math.round(value) : Math.round(value * 10) / 10
+    return `${sign}₹${rounded}${suffix}`
+  }
+  if (rupees >= 1_00_00_000) return unit(rupees / 1_00_00_000, 'Cr')
+  if (rupees >= 1_00_000) return unit(rupees / 1_00_000, 'L')
+  if (rupees >= 1_000) return unit(rupees / 1_000, 'k')
+  return `${sign}₹${Math.round(rupees)}`
+}

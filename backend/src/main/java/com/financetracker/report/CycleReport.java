@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.financetracker.cycle.CycleView;
 import com.financetracker.expense.CategorySpend;
+import com.financetracker.expense.DailySpend;
 
 // All money in paise. Negative values are meaningful: a negative remainingPaise is an overspend
 // and a negative savedPaise is a deficit. They are never clamped to zero.
@@ -21,7 +22,9 @@ public record CycleReport(
         List<CategorySpend> categories,
         // Across all of the user's expenses, by the date they were logged (not the expense date).
         LocalDate lastExpenseLoggedOn,
-        Long daysSinceLastExpenseLogged) {
+        Long daysSinceLastExpenseLogged,
+        // One row per day and type with something logged, oldest first. Days with nothing are left out.
+        List<DailySpend> daily) {
 
     // For a past cycle, elapsed equals total and remaining is 0.
     public record Days(long total, long elapsed, long remaining) {

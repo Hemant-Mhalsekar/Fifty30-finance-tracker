@@ -3,14 +3,18 @@ import { Link } from 'react-router'
 import {
   ApiError,
   getCurrentReport,
+  getHistory,
   getReportForDate,
   listRecurring,
   type BudgetLine,
+  type CycleHistoryItem,
   type CycleReport,
   type RecurringExpense,
 } from '../api'
 import BarChart, { type BarRow } from '../components/BarChart'
+import CycleSpendChart from '../components/CycleSpendChart'
 import DueRecurring from '../components/DueRecurring'
+import HistoryChart from '../components/HistoryChart'
 import { AlertIcon, ChevronLeftIcon, ChevronRightIcon } from '../components/icons'
 import { addDays, formatRange, todayIst } from '../dates'
 import { TYPE_COLORS, TYPE_LABELS } from '../labels'
@@ -30,6 +34,20 @@ export default function Dashboard() {
   const [reloads, setReloads] = useState(0)
   // null until loaded; a failure just hides the due list, the dashboard still works.
   const [recurring, setRecurring] = useState<RecurringExpense[] | null>(null)
+  // The viewed cycle and the five before it. A failure just hides the chart.
+  const [history, setHistory] = useState<CycleHistoryItem[] | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getHistory(viewDate ?? undefined)
+      .then((items) => {
+        if (!cancelled) setHistory(items)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [viewDate, reloads])
 
   useEffect(() => {
     let cancelled = false
@@ -166,6 +184,11 @@ export default function Dashboard() {
           <PlanChart report={report} isCurrent={isCurrent} />
         </div>
         <CategoryChart report={report} isCurrent={isCurrent} />
+      </div>
+
+      <div className="charts charts-history">
+        <CycleSpendChart report={report} isCurrent={isCurrent} />
+        {history && history.length > 0 && <HistoryChart items={history} currentStart={cycle.periodStart} />}
       </div>
     </section>
   )

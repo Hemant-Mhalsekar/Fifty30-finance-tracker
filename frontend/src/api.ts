@@ -296,6 +296,8 @@ export type CycleReport = {
   categories: CategorySpend[]
   lastExpenseLoggedOn: string | null
   daysSinceLastExpenseLogged: number | null
+  // One row per day and type with something logged, oldest first.
+  daily: { date: string; type: BudgetType; spentPaise: number }[]
 }
 
 export function getCurrentCycle(): Promise<Cycle> {
@@ -320,6 +322,22 @@ export function getCurrentReport(): Promise<CycleReport> {
 /** Report for the stored cycle containing the date. Throws ApiError 404 if there is none. */
 export function getReportForDate(isoDate: string): Promise<CycleReport> {
   return requestJson<CycleReport>(`/api/cycles/report?date=${encodeURIComponent(isoDate)}`)
+}
+
+export type CycleHistoryItem = {
+  cycle: Cycle
+  needsSpentPaise: number
+  wantsSpentPaise: number
+  investedPaise: number
+  // Salary - needs - wants; negative is a deficit.
+  savedPaise: number
+}
+
+/** The cycle containing the date (today if left out) and up to count - 1 before it, oldest first. */
+export function getHistory(date?: string, count = 6): Promise<CycleHistoryItem[]> {
+  const params = new URLSearchParams({ count: String(count) })
+  if (date) params.set('date', date)
+  return requestJson<CycleHistoryItem[]>(`/api/cycles/history?${params}`)
 }
 
 export type Category = { id: string; name: string; type: BudgetType | null; archived: boolean }

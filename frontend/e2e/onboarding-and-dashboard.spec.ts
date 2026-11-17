@@ -74,7 +74,7 @@ test('the dashboard moves between cycles and stops at the first one', async ({ p
   await expect(next).toBeDisabled()
 
   await page.getByRole('button', { name: 'Previous cycle' }).click()
-  await expect(page.getByText('Past cycle')).toBeVisible()
+  await expect(page.locator('.cycle-header').getByText('Past cycle')).toBeVisible()
   await page.getByRole('button', { name: 'Previous cycle' }).click()
   await expect(page.getByText('There is no earlier cycle.')).toBeVisible()
 

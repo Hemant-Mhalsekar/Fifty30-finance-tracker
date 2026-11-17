@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
+import ChartTable from './ChartTable'
 
 export type BarRow = {
   key: string
@@ -101,31 +102,7 @@ export default function BarChart({ title, subtitle, rows, legend, table, emptyTe
             ))}
           </ul>
 
-          <details className="table-view">
-            <summary>Show as table</summary>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  {table.columns.map((column, i) => (
-                    <th key={column} scope="col" className={i > 0 ? 'num' : undefined}>
-                      {column}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {table.rows.map((cells) => (
-                  <tr key={cells.join('|')}>
-                    {cells.map((cell, i) => (
-                      <td key={i} className={i > 0 ? 'num' : undefined}>
-                        {cell}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </details>
+          <ChartTable columns={table.columns} rows={table.rows} />
         </>
       )}
     </article>
