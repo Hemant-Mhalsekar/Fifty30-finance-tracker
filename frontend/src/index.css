@@ -1332,3 +1332,93 @@ fieldset.field > legend {
   flex-direction: column;
   gap: 0.35rem;
 }
+
+/* ---- recurring expenses ---- */
+
+.due-card {
+  border-left: 4px solid var(--brand);
+}
+
+.due-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.due-list > li + li {
+  border-top: 1px solid var(--border);
+}
+
+.due-row form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+}
+
+.due-summary,
+.recurring-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.amount-field.compact {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.amount-field.compact span {
+  font-size: 1.125rem;
+}
+
+.amount-field.compact input {
+  min-height: var(--tap);
+  padding: 0;
+  font-size: 1.125rem;
+}
+
+.recurring-summary .status {
+  font-size: 0.875rem;
+}
+
+.recurring-summary .status.due {
+  color: var(--brand);
+  font-weight: 600;
+}
+
+/* Six links in the top bar: keep each on one line, and on narrower desktops drop the email
+   (it is on the More page) and tighten the links so Log out still fits. */
+.topnav a {
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) and (max-width: 1099px) {
+  .topbar {
+    gap: 0.5rem;
+  }
+
+  .topnav a {
+    padding: 0 0.6rem;
+  }
+
+  .account .muted {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 899px) {
+  .topnav {
+    gap: 0;
+  }
+
+  .topnav a {
+    padding: 0 0.4rem;
+    font-size: 0.9375rem;
+  }
+
+  .account button {
+    white-space: nowrap;
+  }
+}

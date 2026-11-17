@@ -395,6 +395,62 @@ export function listExpenses(query: ExpenseQuery): Promise<ExpensePage> {
   return requestJson<ExpensePage>(`/api/expenses${search ? `?${search}` : ''}`)
 }
 
+/** type is set only for categories without a fixed type (Other). due = waiting for Confirm or Skip. */
+export type RecurringExpense = {
+  id: string
+  categoryId: string
+  type: BudgetType | null
+  amountPaise: number
+  description: string
+  dayOfMonth: number
+  nextDueDate: string
+  paused: boolean
+  due: boolean
+}
+
+export type RecurringInput = {
+  categoryId: string
+  type?: BudgetType
+  amountPaise: number
+  description: string
+  dayOfMonth: number
+}
+
+/** Due ones first, then by next due date. */
+export function listRecurring(): Promise<RecurringExpense[]> {
+  return requestJson<RecurringExpense[]>('/api/recurring-expenses')
+}
+
+export function createRecurring(input: RecurringInput): Promise<RecurringExpense> {
+  return sendJson<RecurringExpense>('/api/recurring-expenses', 'POST', input)
+}
+
+/** Full replace. Changing the day keeps the month that is waiting; resuming skips months missed while paused. */
+export function updateRecurring(id: string, input: RecurringInput & { paused: boolean }): Promise<RecurringExpense> {
+  return sendJson<RecurringExpense>(`/api/recurring-expenses/${encodeURIComponent(id)}`, 'PUT', input)
+}
+
+export async function deleteRecurring(id: string): Promise<void> {
+  await requestJson<null>(`/api/recurring-expenses/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+/**
+ * Logs the expense for dueDate and moves on a month. dueDate guards against adding it twice:
+ * if another tap or device already answered it, the server returns 409.
+ */
+export function confirmRecurring(
+  id: string,
+  dueDate: string,
+  amountPaise: number,
+): Promise<{ expense: Expense; recurring: RecurringExpense }> {
+  return sendJson(`/api/recurring-expenses/${encodeURIComponent(id)}/confirm`, 'POST', { dueDate, amountPaise })
+}
+
+/** Moves on a month without logging anything. */
+export function skipRecurring(id: string, dueDate: string): Promise<RecurringExpense> {
+  return sendJson<RecurringExpense>(`/api/recurring-expenses/${encodeURIComponent(id)}/skip`, 'POST', { dueDate })
+}
+
 /** Asks for a reset email. The server answers the same whether or not the account exists. */
 export async function requestPasswordReset(email: string): Promise<void> {
   await sendJson<null>('/api/auth/forgot-password', 'POST', { email })

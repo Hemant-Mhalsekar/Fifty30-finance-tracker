@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard'
 import Expenses from './pages/Expenses'
 import More from './pages/More'
 import Onboarding from './pages/Onboarding'
+import Recurring from './pages/Recurring'
 import ResetPassword from './pages/ResetPassword'
 import Settings from './pages/Settings'
 
@@ -186,6 +187,7 @@ export default function App() {
         <Route path="expenses" element={<Expenses />} />
         <Route path="more" element={<More email={me.email} onLogout={handleLogout} loggingOut={loggingOut} />} />
         <Route path="categories" element={<Categories />} />
+        <Route path="recurring" element={<Recurring />} />
         <Route path="settings" element={<Settings me={me} onUserChanged={loadUser} />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

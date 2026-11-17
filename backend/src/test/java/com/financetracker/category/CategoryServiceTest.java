@@ -21,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.financetracker.common.BudgetType;
 import com.financetracker.expense.ExpenseRepository;
+import com.financetracker.recurring.RecurringExpenseRepository;
 
 class CategoryServiceTest {
 
@@ -35,7 +36,8 @@ class CategoryServiceTest {
     void setUp() {
         categoryRepository = mock(CategoryRepository.class);
         expenseRepository = mock(ExpenseRepository.class);
-        categoryService = new CategoryService(categoryRepository, expenseRepository);
+        categoryService = new CategoryService(
+                categoryRepository, expenseRepository, mock(RecurringExpenseRepository.class));
     }
 
     @Test

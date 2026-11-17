@@ -17,6 +17,21 @@ function addDays(iso, days) {
   return date.toISOString().slice(0, 10)
 }
 
+// Monthly due dates, as in MonthlySchedule.java: days past the end of a month fall on its last day.
+function occurrenceIn(year, month, day) {
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return `${year}-${String(month).padStart(2, '0')}-${String(Math.min(day, last)).padStart(2, '0')}`
+}
+function firstOnOrAfter(iso, day) {
+  const [y, m] = iso.split('-').map(Number)
+  const here = occurrenceIn(y, m, day)
+  return here >= iso ? here : m === 12 ? occurrenceIn(y + 1, 1, day) : occurrenceIn(y, m + 1, day)
+}
+function following(iso, day) {
+  const [y, m] = iso.split('-').map(Number)
+  return m === 12 ? occurrenceIn(y + 1, 1, day) : occurrenceIn(y, m + 1, day)
+}
+
 function split(salaryPaise) {
   const needsPaise = Math.floor((salaryPaise * 50) / 100)
   const wantsPaise = Math.floor((salaryPaise * 30) / 100)
@@ -76,6 +91,7 @@ function reset({ onboarded = true } = {}) {
       : [],
     categories,
     expenses,
+    recurring: [],
   }
 }
 reset()
@@ -126,6 +142,26 @@ function report(cycle) {
     lastExpenseLoggedOn: state.expenses.length ? today() : null,
     daysSinceLastExpenseLogged: state.expenses.length ? 0 : null,
   }
+}
+
+const recurringView = (r) => ({ ...r, due: !r.paused && r.nextDueDate <= today() })
+
+function addExpense(res, body) {
+  const category = state.categories.find((c) => c.id === body.categoryId)
+  if (!category) return fail(res, 404, 'Category not found')
+  if (category.archived) return fail(res, 409, 'This category is archived')
+  if (category.type === null && !body.type) return fail(res, 400, 'Type is required for this category')
+  const expense = {
+    id: state.id('e'),
+    categoryId: category.id,
+    type: category.type ?? body.type,
+    amountPaise: body.amountPaise,
+    expenseDate: body.expenseDate ?? today(),
+    description: body.description,
+    createdOrder: 1000 + state.expenses.length,
+  }
+  state.expenses.push(expense)
+  return expense
 }
 
 const publicExpense = ({ createdOrder: _ignored, ...expense }) => expense
@@ -220,6 +256,9 @@ function handle(req, res, body) {
       if (state.expenses.some((e) => e.categoryId === category.id)) {
         return fail(res, 409, 'This category has expenses.')
       }
+      if (state.recurring.some((r) => r.categoryId === category.id)) {
+        return fail(res, 409, 'A recurring expense uses this category.')
+      }
       state.categories = state.categories.filter((c) => c !== category)
       return send(res, 204)
     }
@@ -252,21 +291,8 @@ function handle(req, res, body) {
     })
   }
   if (path === '/api/expenses' && method === 'POST') {
-    const category = state.categories.find((c) => c.id === body.categoryId)
-    if (!category) return fail(res, 404, 'Category not found')
-    if (category.archived) return fail(res, 409, 'This category is archived')
-    if (category.type === null && !body.type) return fail(res, 400, 'Type is required for this category')
-    const expense = {
-      id: state.id('e'),
-      categoryId: category.id,
-      type: category.type ?? body.type,
-      amountPaise: body.amountPaise,
-      expenseDate: body.expenseDate ?? today(),
-      description: body.description,
-      createdOrder: 1000 + state.expenses.length,
-    }
-    state.expenses.push(expense)
-    return send(res, 201, publicExpense(expense))
+    const expense = addExpense(res, body)
+    return expense && send(res, 201, publicExpense(expense))
   }
   match = path.match(/^\/api\/expenses\/([^/]+)$/)
   if (match) {
@@ -289,6 +315,78 @@ function handle(req, res, body) {
       description: body.description,
     })
     return send(res, 200, publicExpense(expense))
+  }
+
+  if (path === '/api/recurring-expenses' && method === 'GET') {
+    const sorted = state.recurring
+      .map(recurringView)
+      .sort((a, b) => Number(b.due) - Number(a.due) || a.nextDueDate.localeCompare(b.nextDueDate))
+    return send(res, 200, sorted)
+  }
+  if (path === '/api/recurring-expenses' && method === 'POST') {
+    const category = state.categories.find((c) => c.id === body.categoryId)
+    if (!category) return fail(res, 404, 'Category not found')
+    if (category.type === null && !body.type) return fail(res, 400, 'Type is required for this category')
+    const recurring = {
+      id: state.id('r'),
+      categoryId: category.id,
+      type: category.type === null ? body.type : null,
+      amountPaise: body.amountPaise,
+      description: body.description.trim(),
+      dayOfMonth: body.dayOfMonth,
+      nextDueDate: firstOnOrAfter(today(), body.dayOfMonth),
+      paused: false,
+    }
+    state.recurring.push(recurring)
+    return send(res, 201, recurringView(recurring))
+  }
+  match = path.match(/^\/api\/recurring-expenses\/([^/]+)(?:\/(confirm|skip))?$/)
+  if (match) {
+    const recurring = state.recurring.find((r) => r.id === match[1])
+    if (!recurring) return fail(res, 404, 'Recurring expense not found')
+    const action = match[2]
+    if (action) {
+      if (body.dueDate !== recurring.nextDueDate) return fail(res, 409, 'This payment was already handled')
+      if (recurring.paused) return fail(res, 409, 'This recurring expense is paused')
+      if (body.dueDate > today()) return fail(res, 409, 'This payment is not due yet')
+      let expense = null
+      if (action === 'confirm') {
+        expense = addExpense(res, {
+          categoryId: recurring.categoryId,
+          type: recurring.type,
+          amountPaise: body.amountPaise,
+          expenseDate: body.expenseDate ?? body.dueDate,
+          description: recurring.description,
+        })
+        if (!expense) return
+      }
+      recurring.nextDueDate = following(recurring.nextDueDate, recurring.dayOfMonth)
+      return action === 'confirm'
+        ? send(res, 201, { expense: publicExpense(expense), recurring: recurringView(recurring) })
+        : send(res, 200, recurringView(recurring))
+    }
+    if (method === 'DELETE') {
+      state.recurring = state.recurring.filter((r) => r !== recurring)
+      return send(res, 204)
+    }
+    const category = state.categories.find((c) => c.id === body.categoryId)
+    if (!category) return fail(res, 404, 'Category not found')
+    if (body.dayOfMonth !== recurring.dayOfMonth) {
+      const [y, m] = recurring.nextDueDate.split('-').map(Number)
+      recurring.nextDueDate = occurrenceIn(y, m, body.dayOfMonth)
+    }
+    if (recurring.paused && !body.paused && recurring.nextDueDate < today()) {
+      recurring.nextDueDate = firstOnOrAfter(today(), body.dayOfMonth)
+    }
+    Object.assign(recurring, {
+      categoryId: category.id,
+      type: category.type === null ? body.type : null,
+      amountPaise: body.amountPaise,
+      description: body.description.trim(),
+      dayOfMonth: body.dayOfMonth,
+      paused: body.paused,
+    })
+    return send(res, 200, recurringView(recurring))
   }
 
   fail(res, 404, 'Not found')

@@ -11,8 +11,8 @@ type Props = {
 // middle; Categories, Settings and Log out live under More.
 export default function AppShell({ email, onLogout, loggingOut }: Props) {
   const { pathname } = useLocation()
-  // Categories and Settings are reached through More on a phone, so More stays highlighted there.
-  const inMoreSection = ['/more', '/categories', '/settings'].some((path) => pathname.startsWith(path))
+  // Recurring, Categories and Settings are reached through More on a phone, so More stays highlighted there.
+  const inMoreSection = ['/more', '/recurring', '/categories', '/settings'].some((path) => pathname.startsWith(path))
 
   return (
     <div className="shell">
@@ -27,6 +27,7 @@ export default function AppShell({ email, onLogout, loggingOut }: Props) {
           </NavLink>
           <NavLink to="/add">Add expense</NavLink>
           <NavLink to="/expenses">Expenses</NavLink>
+          <NavLink to="/recurring">Recurring</NavLink>
           <NavLink to="/categories">Categories</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
