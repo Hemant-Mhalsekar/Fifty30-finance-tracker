@@ -42,7 +42,7 @@ test('adding expenses updates the dashboard and flags overspending', async ({ pa
   await expect(rent).toHaveAttribute('aria-pressed', 'true')
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboard' }).click()
-  const needs = page.locator('.card', { has: page.getByRole('heading', { name: 'Needs' }) })
+  const needs = page.locator('.budget-row', { hasText: 'Needs' })
   await expect(needs).toHaveClass(/over/)
   await expect(needs).toContainText('Over by')
 })

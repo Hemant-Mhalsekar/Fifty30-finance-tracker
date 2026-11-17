@@ -35,3 +35,12 @@ const DISPLAY = new Intl.DateTimeFormat('en-IN', {
 export function formatDate(iso: string): string {
   return DISPLAY.format(parseIso(iso))
 }
+
+const DAY_MONTH = new Intl.DateTimeFormat('en-IN', { timeZone: 'UTC', day: 'numeric', month: 'short' })
+
+/** "30 Oct – 29 Nov 2026"; the year is written once unless the range crosses into a new year. */
+export function formatRange(fromIso: string, toIso: string): string {
+  const sameYear = fromIso.slice(0, 4) === toIso.slice(0, 4)
+  const from = sameYear ? DAY_MONTH.format(parseIso(fromIso)) : formatDate(fromIso)
+  return `${from} – ${formatDate(toIso)}`
+}

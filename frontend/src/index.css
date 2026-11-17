@@ -763,7 +763,7 @@ form,
 }
 
 .hero .big {
-  font-size: 2.25rem;
+  font-size: 2rem;
   line-height: 1.15;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -781,26 +781,6 @@ form,
   font-variant-numeric: tabular-nums;
 }
 
-.cards {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.75rem;
-}
-
-.type-card h2 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.type-card p + p {
-  margin-top: 0.15rem;
-}
-
-.type-card.over {
-  border-color: var(--danger);
-}
-
 .bar {
   height: 8px;
   margin: 0.6rem 0 0.4rem;
@@ -815,7 +795,7 @@ form,
   background: var(--c);
 }
 
-.type-card.over .bar-fill {
+.budget-row.over .bar-fill {
   background: var(--danger);
 }
 
@@ -823,12 +803,6 @@ form,
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
-}
-
-@media (min-width: 768px) {
-  .cards {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }
 
 @media (min-width: 960px) {
@@ -1251,7 +1225,7 @@ fieldset.field > legend {
 }
 
 .hero .sub svg,
-.type-card svg,
+.budget-note svg,
 .hbar-note svg,
 .warnings svg {
   flex: none;
@@ -1286,23 +1260,6 @@ fieldset.field > legend {
 
 .topbar .brand {
   min-height: var(--tap);
-}
-
-/* Phone: needs and wants side by side, savings across the full width. */
-.cards.phone-only {
-  grid-template-columns: 1fr 1fr;
-}
-
-.cards .span-2 {
-  grid-column: 1 / -1;
-}
-
-.type-card .big {
-  font-size: 1.25rem;
-}
-
-.type-card p {
-  font-size: 0.9375rem;
 }
 
 .expenses-results > p.muted {
@@ -1681,4 +1638,69 @@ fieldset.field > legend {
   background: var(--brand-soft);
   color: var(--brand-soft-text);
   font-weight: 700;
+}
+
+/* ---- phone dashboard (18 Nov 2026): a smaller hero and one budget card ---- */
+
+.budget-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.budget-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.budget-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.budget-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.budget-row .bar {
+  margin: 0.4rem 0 0.25rem;
+}
+
+.budget-note {
+  font-size: 0.875rem;
+}
+
+@media (max-width: 767px) {
+  .dashboard {
+    gap: 0.75rem;
+  }
+
+  .hero {
+    padding: 0.875rem 1rem;
+  }
+
+  .hero .label {
+    font-size: 0.875rem;
+  }
+
+  .hero .big {
+    font-size: 1.75rem;
+  }
+
+  .hero .sub {
+    font-size: 0.9375rem;
+    margin-top: 0.125rem;
+  }
+
+  .cycle-header p {
+    font-size: 0.9375rem;
+  }
 }
