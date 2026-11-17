@@ -32,6 +32,9 @@ test('recurring: due today shows on the dashboard and Add logs the expense once'
   await expect(page.getByRole('status')).toContainText('SIP added. It is due today')
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboard' }).click()
+  // The Recurring page has the same card, so wait for the dashboard before typing into it;
+  // otherwise the amount can go into the old page's card just before it is replaced.
+  await expect(page.getByText('Left to spend on needs and wants')).toBeVisible()
   const due = page.getByRole('article', { name: 'Due recurring expenses' })
   await expect(due).toContainText('SIP')
   await expect(due).toContainText('Due today')

@@ -19,7 +19,7 @@ export default function AppShell({ email, onLogout, loggingOut }: Props) {
       <header className="topbar">
         <Link to="/" className="brand" aria-label="Fifty30 home">
           <BrandMark />
-          Fifty30
+          <span className="brand-text">Fifty30</span>
         </Link>
         <nav className="topnav" aria-label="Main">
           <NavLink to="/" end>

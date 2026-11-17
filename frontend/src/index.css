@@ -1394,7 +1394,7 @@ fieldset.field > legend {
   white-space: nowrap;
 }
 
-@media (min-width: 768px) and (max-width: 1099px) {
+@media (min-width: 768px) and (max-width: 1199px) {
   .topbar {
     gap: 0.5rem;
   }
@@ -1408,7 +1408,12 @@ fieldset.field > legend {
   }
 }
 
-@media (min-width: 768px) and (max-width: 899px) {
+@media (min-width: 768px) and (max-width: 959px) {
+  /* The logo alone is enough here; the link keeps its "Fifty30 home" name. */
+  .topbar .brand-text {
+    display: none;
+  }
+
   .topnav {
     gap: 0;
   }
