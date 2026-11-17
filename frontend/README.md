@@ -25,10 +25,18 @@ npm run lint    # run Oxlint
 
 `vercel.json` sends `/api/*` to the backend on Render, so the browser sees one origin and the refresh cookie works. Every other path goes to `index.html` so deep links such as `/expenses` survive a reload.
 
+## Error monitoring
+
+Set `VITE_SENTRY_DSN` in Vercel (Project settings > Environment variables) and redeploy. Only production builds with a DSN load the Sentry SDK, on demand; without it nothing is added to the app. No personal data, cookies, headers, bodies or query strings are sent, and reset tokens are removed from URLs (`src/monitoring.ts`). A crash shows a "Something went wrong" screen with a Reload button instead of a blank page.
+
+## Offline expenses
+
+Add expense works without a connection: the expense is saved on the phone and sent by itself when the connection is back (on reconnect, when the app comes to the front, and every minute while some are waiting). Each one carries a `clientId`, so a retry never stores it twice. If the server refuses one (for example its category was archived meanwhile), it stays on the Add expense page with Try again and Discard. The app also opens offline for the user who last signed in on that phone, using their remembered categories. See `src/offline.ts`.
+
 ## Tests
 
 ```sh
-npm test            # unit tests (Vitest): money and date helpers
+npm test            # unit tests (Vitest): money, dates, charts, reports, offline queue
 npm run test:e2e    # browser tests (Playwright) against a mock API
 ```
 

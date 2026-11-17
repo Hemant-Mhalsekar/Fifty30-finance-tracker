@@ -20,6 +20,8 @@ Spring Boot app (Maven, Java).
 | `BREVO_API_KEY` | Optional | `backend/.env` locally, Render dashboard in production | Brevo API key for sending email. Without it (or without `MAIL_FROM_ADDRESS`) the app runs but sends no email. |
 | `MAIL_FROM_ADDRESS` | Optional | `backend/.env` locally, Render dashboard in production | Sender address. Must be a sender verified in Brevo. |
 | `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE` | Optional | `backend/.env` locally, Render dashboard in production | Overrides the default pool size. |
+| `SENTRY_DSN` | Optional | Render dashboard | Sentry project DSN. Without it, error monitoring is off and nothing is sent. |
+| `SENTRY_ENVIRONMENT` | Optional | Render dashboard | Environment name shown in Sentry. Defaults to `production`. |
 
 Set these in `backend/.env` locally (never commit it) and in the Render dashboard in production. Never put real values in the repository.
 
@@ -59,7 +61,13 @@ cd backend
 - `PUT /api/cycles/current/salary` changes the salary of the current cycle (later cycles copy it).
 - `PUT /api/settings/pay-day` schedules a pay day change. It waits one full cycle: the current and next cycle keep the old pay day.
 - `GET /api/cycles/current/report` returns spending against the plan for the current cycle: needs, wants, savings, investments, a per-category breakdown and overspend flags.
-- `GET /api/cycles/report?date=YYYY-MM-DD` returns the same report for the cycle containing that date.
+- `GET /api/cycles/report?date=YYYY-MM-DD` returns the same report for the cycle containing that date. Both include daily totals.
+- `POST /api/cycles/current/salary/confirm` answers "Did your salary change?" with "no" for the current cycle.
+- `GET /api/cycles/history?date=&count=` returns up to 12 cycles with their totals, oldest first.
+- `GET /api/reports/cycles` returns every cycle with its totals and expense count (yearly and savings reports).
+- `GET /api/reports/weekly?weeks=` returns daily totals and the overlapping cycles for the last 1 to 26 Monday-to-Sunday weeks.
+- `POST /api/expenses` accepts an optional `clientId` (UUID). Sending the same `clientId` again returns the expense already stored, so offline retries never add it twice.
+- `/api/recurring-expenses`: list, create, update, delete, and `POST /{id}/confirm` or `/{id}/skip` for the month that is due.
 
 ## Rate limiting
 
