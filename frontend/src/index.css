@@ -38,33 +38,64 @@
   --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* Dark: slate grey-blue rather than near-black (chosen 18 Nov 2026). It applies when the device is
+   dark and no Light choice is saved, or when Dark is chosen in Settings (data-theme on <html>).
+   The two blocks must stay identical. All text passes 4.5:1 on --bg, --surface and --surface-2;
+   the series colours stay above 3:1 on --surface. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     color-scheme: dark;
-    --bg: #121412;
-    --surface: #1a1c1a;
-    --surface-2: #232623;
-    --border: #30342f;
-    --text: #eef1ee;
-    --text-2: #c9cfc9;
-    --muted: #a3aba4;
+    --bg: #1b2028;
+    --surface: #232a34;
+    --surface-2: #2b3340;
+    --border: #323b47;
+    --text: #e8ecf1;
+    --text-2: #c7cfd9;
+    --muted: #a3adba;
     --brand: #3cc48f;
     --brand-hover: #5bd3a3;
     --brand-text: #06231a;
-    --brand-soft: #173327;
+    --brand-soft: #1d3a31;
     --brand-soft-text: #8fe3bf;
     --need: #3987e5;
     --want: #d95926;
     --save: #199e70;
-    --track: #2b2f2b;
+    --track: #323b47;
     --danger: #f27a7a;
-    --danger-soft: #3a1d1d;
+    --danger-soft: #3d2328;
     --success: #6fd6a6;
-    --warn-bg: #2f2711;
+    --warn-bg: #352d1a;
     --warn-border: #c98500;
     --focus: #5bd3a3;
-    --shadow: none;
+    --shadow: 0 1px 2px rgb(0 0 0 / 25%);
   }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #1b2028;
+  --surface: #232a34;
+  --surface-2: #2b3340;
+  --border: #323b47;
+  --text: #e8ecf1;
+  --text-2: #c7cfd9;
+  --muted: #a3adba;
+  --brand: #3cc48f;
+  --brand-hover: #5bd3a3;
+  --brand-text: #06231a;
+  --brand-soft: #1d3a31;
+  --brand-soft-text: #8fe3bf;
+  --need: #3987e5;
+  --want: #d95926;
+  --save: #199e70;
+  --track: #323b47;
+  --danger: #f27a7a;
+  --danger-soft: #3d2328;
+  --success: #6fd6a6;
+  --warn-bg: #352d1a;
+  --warn-border: #c98500;
+  --focus: #5bd3a3;
+  --shadow: 0 1px 2px rgb(0 0 0 / 25%);
 }
 
 /* ---- base ---- */
@@ -324,7 +355,7 @@ form,
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
+  min-height: var(--tap);
   border-radius: 6px;
   font-weight: 500;
   cursor: pointer;
@@ -471,7 +502,7 @@ form,
 }
 
 .page {
-  max-width: 1080px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 1rem 1rem calc(var(--tabbar-h) + 1.5rem + env(safe-area-inset-bottom));
 }
@@ -1274,7 +1305,7 @@ fieldset.field > legend {
   font-size: 0.9375rem;
 }
 
-.expenses > p.muted {
+.expenses-results > p.muted {
   margin-bottom: 0.75rem;
 }
 
@@ -1425,5 +1456,174 @@ fieldset.field > legend {
 
   .account button {
     white-space: nowrap;
+  }
+}
+
+/* ---- wide-screen layouts (18 Nov 2026) ----
+   Phones keep one column. From 1024px pages use the width in columns instead of one narrow
+   column in the middle. Forms keep a readable width; lists and groups take the rest. */
+
+.desk-only {
+  display: none;
+}
+
+.split,
+.recurring-layout,
+.category-grid,
+.settings-grid,
+.expenses-layout,
+.dash-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+/* One column below 1024px: forms stay at a comfortable width instead of stretching. */
+.split-main,
+.settings-grid,
+.recurring-layout {
+  max-width: 36rem;
+}
+
+.recurring > h1 + p {
+  max-width: 48rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.recurring > .toast {
+  margin-bottom: 1rem;
+}
+
+.settings > h1 {
+  margin-bottom: 1rem;
+}
+
+.recurring-layout {
+  grid-template-areas:
+    'due'
+    'form'
+    'list';
+}
+
+.area-due {
+  grid-area: due;
+}
+
+.area-form {
+  grid-area: form;
+}
+
+.area-list {
+  grid-area: list;
+}
+
+/* An empty due area (nothing due) takes no space. */
+.area-due:empty {
+  display: none;
+}
+
+.area-form > button {
+  width: 100%;
+}
+
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recent-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+}
+
+.recent-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+@media (min-width: 768px) {
+  .category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .desk-only {
+    display: block;
+  }
+
+  .split {
+    grid-template-columns: minmax(0, 36rem) minmax(0, 1fr);
+    gap: 2rem;
+  }
+
+  .split-main {
+    max-width: none;
+  }
+
+  .split-side {
+    position: sticky;
+    top: calc(56px + 1.5rem);
+  }
+
+  .settings-grid {
+    max-width: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .category-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .recurring-layout {
+    max-width: none;
+    grid-template-columns: minmax(0, 32rem) minmax(0, 1fr);
+    grid-template-areas:
+      'form due'
+      'form list';
+    /* The tall form must not stretch the gap between the due card and the list. */
+    grid-template-rows: auto 1fr;
+    gap: 1rem 2rem;
+  }
+
+  .recurring-layout .area-form {
+    position: sticky;
+    top: calc(56px + 1.5rem);
+  }
+
+  .expenses-layout {
+    grid-template-columns: 18rem minmax(0, 1fr);
+    gap: 2rem;
+  }
+
+  .expenses-filters {
+    position: sticky;
+    top: calc(56px + 1.5rem);
+  }
+
+  .expenses-layout .filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .expenses-layout .filter-grid button {
+    width: 100%;
+  }
+
+  /* The sidebar always shows the filters themselves, so the one-line summary is not needed. */
+  .expenses-filters summary .muted {
+    display: none;
+  }
+
+  .dash-top {
+    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+    align-items: stretch;
+  }
+
+  .dash-top > .hero {
+    order: -1;
   }
 }

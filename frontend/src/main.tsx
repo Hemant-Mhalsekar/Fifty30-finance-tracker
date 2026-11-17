@@ -5,6 +5,7 @@ import './index.css'
 import App from './App.tsx'
 import { captureInstallPrompt } from './pwa'
 import { registerServiceWorker } from './registerServiceWorker'
+import { applyTheme } from './theme'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -14,5 +15,6 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
+applyTheme()
 captureInstallPrompt()
 registerServiceWorker()

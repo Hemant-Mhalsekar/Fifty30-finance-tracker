@@ -146,15 +146,17 @@ export default function Dashboard() {
         </p>
       )}
 
-      {isCurrent && recurring && (
-        <DueRecurring
-          items={recurring}
-          onUpdated={(updated) => setRecurring((all) => all?.map((r) => (r.id === updated.id ? updated : r)) ?? null)}
-          onExpenseAdded={() => setReloads((n) => n + 1)}
-        />
-      )}
-
-      <Hero left={left} isCurrent={isCurrent} daysLeftIncludingToday={days.remaining + 1} />
+      {/* Phone: due list above the hero. Wide: side by side, hero first. */}
+      <div className="dash-top">
+        {isCurrent && recurring && (
+          <DueRecurring
+            items={recurring}
+            onUpdated={(updated) => setRecurring((all) => all?.map((r) => (r.id === updated.id ? updated : r)) ?? null)}
+            onExpenseAdded={() => setReloads((n) => n + 1)}
+          />
+        )}
+        <Hero left={left} isCurrent={isCurrent} daysLeftIncludingToday={days.remaining + 1} />
+      </div>
 
       <Warnings report={report} isCurrent={isCurrent} />
 

@@ -1,12 +1,5 @@
 import { useEffect, useId, useState, type CSSProperties, type FormEvent } from 'react'
-import {
-  createCategory,
-  deleteCategory,
-  listCategories,
-  updateCategory,
-  type BudgetType,
-  type Category,
-} from '../api'
+import { createCategory, deleteCategory, listCategories, updateCategory, type BudgetType, type Category } from '../api'
 import { TYPE_COLORS, TYPE_LABELS } from '../labels'
 
 const MAX_NAME_LENGTH = 50
@@ -65,7 +58,7 @@ export default function Categories() {
   const protectedOnes = active.filter((c) => c.type === null).sort(byName)
 
   return (
-    <section className="categories narrow sections">
+    <section className="categories sections">
       <h1>Categories</h1>
       <p className="muted">
         Changing a category&apos;s type affects new expenses only. Expenses already logged keep the type they had.
@@ -73,55 +66,57 @@ export default function Categories() {
 
       <AddCategoryForm onAdded={(c) => setCategories((all) => [...(all ?? []), c])} />
 
-      {TYPES.map((type) => {
-        const group = active.filter((c) => c.type === type).sort(byName)
-        return (
-          <article key={type} className="card">
-            <h2 className="category-name">
-              <span className="dot" style={{ '--c': TYPE_COLORS[type] } as CSSProperties} aria-hidden="true" />
-              {GROUP_TITLES[type]}
-            </h2>
-            {group.length === 0 ? (
-              <p className="muted">None</p>
-            ) : (
-              <ul className="category-list">
-                {group.map((c) => (
-                  <CategoryRow key={c.id} category={c} onChanged={replace} onDeleted={remove} />
-                ))}
-              </ul>
-            )}
+      <div className="category-grid">
+        {TYPES.map((type) => {
+          const group = active.filter((c) => c.type === type).sort(byName)
+          return (
+            <article key={type} className="card">
+              <h2 className="category-name">
+                <span className="dot" style={{ '--c': TYPE_COLORS[type] } as CSSProperties} aria-hidden="true" />
+                {GROUP_TITLES[type]}
+              </h2>
+              {group.length === 0 ? (
+                <p className="muted">None</p>
+              ) : (
+                <ul className="category-list">
+                  {group.map((c) => (
+                    <CategoryRow key={c.id} category={c} onChanged={replace} onDeleted={remove} />
+                  ))}
+                </ul>
+              )}
+            </article>
+          )
+        })}
+
+        {protectedOnes.length > 0 && (
+          <article className="card">
+            <h2>Pick the type each time</h2>
+            <ul className="category-list">
+              {protectedOnes.map((c) => (
+                <li key={c.id} className="category-row">
+                  <div className="category-summary">
+                    <span className="category-name">{c.name}</span>
+                    <span className="muted">Built in</span>
+                  </div>
+                  <p className="hint">You choose need, want or investment for each expense.</p>
+                </li>
+              ))}
+            </ul>
           </article>
-        )
-      })}
+        )}
 
-      {protectedOnes.length > 0 && (
-        <article className="card">
-          <h2>Pick the type each time</h2>
-          <ul className="category-list">
-            {protectedOnes.map((c) => (
-              <li key={c.id} className="category-row">
-                <div className="category-summary">
-                  <span className="category-name">{c.name}</span>
-                  <span className="muted">Built in</span>
-                </div>
-                <p className="hint">You choose need, want or investment for each expense.</p>
-              </li>
-            ))}
-          </ul>
-        </article>
-      )}
-
-      {archived.length > 0 && (
-        <article className="card">
-          <h2>Archived</h2>
-          <p className="muted">Hidden when adding expenses. Past expenses still count in reports.</p>
-          <ul className="category-list">
-            {archived.map((c) => (
-              <CategoryRow key={c.id} category={c} onChanged={replace} onDeleted={remove} />
-            ))}
-          </ul>
-        </article>
-      )}
+        {archived.length > 0 && (
+          <article className="card">
+            <h2>Archived</h2>
+            <p className="muted">Hidden when adding expenses. Past expenses still count in reports.</p>
+            <ul className="category-list">
+              {archived.map((c) => (
+                <CategoryRow key={c.id} category={c} onChanged={replace} onDeleted={remove} />
+              ))}
+            </ul>
+          </article>
+        )}
+      </div>
     </section>
   )
 }
@@ -288,7 +283,9 @@ function CategoryRow({ category, onChanged, onDeleted }: RowProps) {
               type="button"
               className="secondary"
               disabled={busy}
-              onClick={() => run(async () => onChanged(await updateCategory(category.id, { archived: !category.archived })))}
+              onClick={() =>
+                run(async () => onChanged(await updateCategory(category.id, { archived: !category.archived })))
+              }
             >
               {category.archived ? 'Restore' : 'Archive'}
             </button>

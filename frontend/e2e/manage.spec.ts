@@ -176,3 +176,47 @@ test('every control on a phone is at least 44px tall and fields are at least 16p
     expect(problems, path).toEqual([])
   }
 })
+
+test('appearance: a Light or Dark choice overrides the device and survives a reload', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.goto('/settings')
+  const html = page.locator('html')
+  await expect(page.getByLabel('System')).toBeChecked()
+  await expect(html).not.toHaveAttribute('data-theme', /.*/)
+
+  await page.getByLabel('Light').check()
+  await expect(html).toHaveAttribute('data-theme', 'light')
+  await page.reload()
+  await expect(page.getByLabel('Light')).toBeChecked()
+  await expect(html).toHaveAttribute('data-theme', 'light')
+  // Light page background even though the device is dark.
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(246, 247, 245)')
+
+  await page.getByLabel('Dark').check()
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(27, 32, 40)')
+
+  await page.getByLabel('System').check()
+  await expect(html).not.toHaveAttribute('data-theme', /.*/)
+})
+
+test('wide screens use columns instead of one narrow column', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/add')
+  // The latest expenses sit beside the form.
+  const form = page.locator('.split-main')
+  const latest = page.getByRole('complementary', { name: 'Latest expenses' })
+  await expect(latest).toBeVisible()
+  const formBox = (await form.boundingBox())!
+  const latestBox = (await latest.boundingBox())!
+  expect(latestBox.x).toBeGreaterThan(formBox.x + formBox.width)
+
+  await page.goto('/categories')
+  const groups = page.locator('.category-grid > .card')
+  const first = (await groups.nth(0).boundingBox())!
+  const second = (await groups.nth(1).boundingBox())!
+  expect(second.y).toBeCloseTo(first.y, 0)
+
+  await page.goto('/recurring')
+  // The form is open in its own column without tapping anything.
+  await expect(page.getByRole('heading', { name: 'New recurring expense' })).toBeVisible()
+})
