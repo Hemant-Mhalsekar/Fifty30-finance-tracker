@@ -12,7 +12,7 @@ import {
 import BarChart, { type BarRow } from '../components/BarChart'
 import DueRecurring from '../components/DueRecurring'
 import { AlertIcon, ChevronLeftIcon, ChevronRightIcon } from '../components/icons'
-import { addDays, formatDate, todayIst } from '../dates'
+import { addDays, formatRange, todayIst } from '../dates'
 import { TYPE_COLORS, TYPE_LABELS } from '../labels'
 import { formatPaise, formatPaiseShort } from '../money'
 
@@ -97,7 +97,7 @@ export default function Dashboard() {
     )
   }
 
-  const { cycle, days, needs, wants, savings } = report
+  const { cycle, days, needs, wants } = report
   const isCurrent = cycle.periodEnd >= todayIst()
   const left = needs.remainingPaise + wants.remainingPaise
 
@@ -105,12 +105,10 @@ export default function Dashboard() {
     <section className="dashboard" aria-busy={loading}>
       <div className="cycle-header">
         <div>
-          <h1>
-            {formatDate(cycle.periodStart)} – {formatDate(cycle.periodEnd)}
-          </h1>
+          <h1>{formatRange(cycle.periodStart, cycle.periodEnd)}</h1>
           <p className="muted">
             {isCurrent ? `Day ${days.elapsed} of ${days.total}` : 'Past cycle'} · Salary{' '}
-            <span className="num">{formatPaise(cycle.salaryPaise)}</span>
+            <span className="num">{formatPaiseShort(cycle.salaryPaise)}</span>
           </p>
         </div>
         <div className="cycle-nav">
@@ -160,22 +158,8 @@ export default function Dashboard() {
 
       <Warnings report={report} isCurrent={isCurrent} />
 
-      {/* Phone: compact cards. Wide screens show the same numbers as the "Spent vs plan" chart. */}
-      <div className="cards phone-only">
-        <BudgetCard title="Needs" color={TYPE_COLORS.NEED} line={needs} />
-        <BudgetCard title="Wants" color={TYPE_COLORS.WANT} line={wants} />
-        <article className="card type-card span-2">
-          <h2>
-            <span className="dot" style={{ '--c': 'var(--save)' } as CSSProperties} aria-hidden="true" />
-            Savings
-          </h2>
-          <p className={`big ${savings.deficit ? 'negative' : ''}`}>{formatPaise(savings.savedPaise)}</p>
-          <p className="muted">
-            {isCurrent ? 'If you stop spending now' : 'Saved this cycle'} · plan {formatPaiseShort(savings.plannedPaise)}
-          </p>
-          <p className="muted">Invested {formatPaise(savings.investedPaise)}</p>
-        </article>
-      </div>
+      {/* Phone: one compact card. Wide screens show the same numbers as the "Spent vs plan" chart. */}
+      <BudgetSummary report={report} isCurrent={isCurrent} />
 
       <div className="charts">
         <div className="wide-only">
@@ -193,7 +177,7 @@ function Hero({ left, isCurrent, daysLeftIncludingToday }: { left: number; isCur
   return (
     <article className="card hero">
       <p className="label">{isCurrent ? 'Left to spend on needs and wants' : 'Left unspent on needs and wants'}</p>
-      <p className={`big ${left < 0 ? 'negative' : ''}`}>{formatPaise(left)}</p>
+      <p className={`big ${left < 0 ? 'negative' : ''}`}>{formatPaiseShort(left)}</p>
       {left < 0 ? (
         <p className="sub negative">
           <AlertIcon /> Over your needs and wants plan by {formatPaise(-left)}
@@ -249,36 +233,85 @@ function Warnings({ report, isCurrent }: { report: CycleReport; isCurrent: boole
   )
 }
 
-function BudgetCard({ title, color, line }: { title: string; color: string; line: BudgetLine }) {
-  const used = line.allocatedPaise > 0 ? Math.min(100, (line.spentPaise / line.allocatedPaise) * 100) : 100
+// Phone: needs, wants and savings as three rows in one card instead of three big cards.
+function BudgetSummary({ report, isCurrent }: { report: CycleReport; isCurrent: boolean }) {
+  const { needs, wants, savings } = report
   return (
-    <article className={`card type-card ${line.overspent ? 'over' : ''}`}>
-      <h2>
-        <span className="dot" style={{ '--c': color } as CSSProperties} aria-hidden="true" />
-        {title}
-      </h2>
-      <p className="big">{formatPaise(line.spentPaise)}</p>
-      <p className="muted">of {formatPaise(line.allocatedPaise)}</p>
-      <div
-        className="bar"
-        role="progressbar"
-        aria-label={`${title} used`}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(used)}
-      >
-        <div className="bar-fill" style={{ width: `${used}%`, '--c': color } as CSSProperties} />
+    <article className="card budget-card phone-only" aria-labelledby="budget-title">
+      <h2 id="budget-title">This cycle</h2>
+      <ul className="budget-rows">
+        <BudgetRow name="Needs" color={TYPE_COLORS.NEED} line={needs} />
+        <BudgetRow name="Wants" color={TYPE_COLORS.WANT} line={wants} />
+        <li className={`budget-row ${savings.deficit ? 'over' : ''}`}>
+          <div className="budget-line">
+            <span className="budget-name">
+              <span className="dot" style={{ '--c': 'var(--save)' } as CSSProperties} aria-hidden="true" />
+              Savings
+            </span>
+            <span className="budget-amount">
+              <strong className={savings.deficit ? 'negative' : ''}>{formatPaiseShort(savings.savedPaise)}</strong>
+              <span className="muted"> of {formatPaiseShort(savings.plannedPaise)}</span>
+            </span>
+          </div>
+          <Meter name="Savings" value={savings.savedPaise} max={savings.plannedPaise} color="var(--save)" />
+          <p className="budget-note">
+            {savings.deficit ? (
+              <span className="negative">
+                <AlertIcon /> Deficit of {formatPaiseShort(-savings.savedPaise)}
+              </span>
+            ) : (
+              <span className="muted">
+                {isCurrent ? 'If you stop spending now' : 'Saved this cycle'}
+                {savings.investedPaise > 0 && ` · ${formatPaiseShort(savings.investedPaise)} invested`}
+              </span>
+            )}
+          </p>
+        </li>
+      </ul>
+    </article>
+  )
+}
+
+function BudgetRow({ name, color, line }: { name: string; color: string; line: BudgetLine }) {
+  return (
+    <li className={`budget-row ${line.overspent ? 'over' : ''}`}>
+      <div className="budget-line">
+        <span className="budget-name">
+          <span className="dot" style={{ '--c': color } as CSSProperties} aria-hidden="true" />
+          {name}
+        </span>
+        <span className="budget-amount">
+          <strong>{formatPaiseShort(line.spentPaise)}</strong>
+          <span className="muted"> of {formatPaiseShort(line.allocatedPaise)}</span>
+        </span>
       </div>
-      <p className={line.overspent ? 'negative' : ''}>
+      <Meter name={name} value={line.spentPaise} max={line.allocatedPaise} color={color} />
+      <p className="budget-note">
         {line.overspent ? (
-          <>
-            <AlertIcon /> Over by {formatPaise(-line.remainingPaise)}
-          </>
+          <span className="negative">
+            <AlertIcon /> Over by {formatPaiseShort(-line.remainingPaise)}
+          </span>
         ) : (
-          `${formatPaise(line.remainingPaise)} left`
+          <span className="muted">{formatPaiseShort(line.remainingPaise)} left</span>
         )}
       </p>
-    </article>
+    </li>
+  )
+}
+
+function Meter({ name, value, max, color }: { name: string; value: number; max: number; color: string }) {
+  const used = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 100
+  return (
+    <div
+      className="bar"
+      role="progressbar"
+      aria-label={`${name} used`}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(used)}
+    >
+      <div className="bar-fill" style={{ width: `${used}%`, '--c': color } as CSSProperties} />
+    </div>
   )
 }
 

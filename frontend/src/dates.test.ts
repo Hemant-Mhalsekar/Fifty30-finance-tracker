@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { addDays, formatDate, todayIst } from './dates'
+import { addDays, formatDate, formatRange, todayIst } from './dates'
 
 describe('todayIst', () => {
   afterEach(() => {
@@ -37,5 +37,15 @@ describe('formatDate', () => {
   it('shows day, short month and year', () => {
     expect(formatDate('2026-11-10')).toBe('10 Nov 2026')
     expect(formatDate('2028-02-29')).toBe('29 Feb 2028')
+  })
+})
+
+describe('formatRange', () => {
+  it('writes the year once within a year', () => {
+    expect(formatRange('2026-10-30', '2026-11-29')).toBe('30 Oct – 29 Nov 2026')
+  })
+
+  it('writes both years when the range crosses a new year', () => {
+    expect(formatRange('2026-12-25', '2027-01-24')).toBe('25 Dec 2026 – 24 Jan 2027')
   })
 })
