@@ -172,6 +172,9 @@ function historyItem(cycle) {
 const recurringView = (r) => ({ ...r, due: !r.paused && r.nextDueDate <= today() })
 
 function addExpense(res, body) {
+  // Like the API: the same clientId returns the expense already stored.
+  const existing = body.clientId && state.expenses.find((e) => e.clientId === body.clientId)
+  if (existing) return existing
   const category = state.categories.find((c) => c.id === body.categoryId)
   if (!category) return fail(res, 404, 'Category not found')
   if (category.archived) return fail(res, 409, 'This category is archived')
@@ -184,12 +187,13 @@ function addExpense(res, body) {
     expenseDate: body.expenseDate ?? today(),
     description: body.description,
     createdOrder: 1000 + state.expenses.length,
+    clientId: body.clientId,
   }
   state.expenses.push(expense)
   return expense
 }
 
-const publicExpense = ({ createdOrder: _ignored, ...expense }) => expense
+const publicExpense = ({ createdOrder: _order, clientId: _client, ...expense }) => expense
 
 function send(res, status, body) {
   res.writeHead(status, body === undefined ? {} : { 'content-type': 'application/json' })

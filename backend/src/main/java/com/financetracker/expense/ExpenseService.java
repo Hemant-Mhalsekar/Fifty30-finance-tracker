@@ -3,6 +3,7 @@ package com.financetracker.expense;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -53,6 +54,28 @@ public class ExpenseService {
             String description,
             LocalDate expenseDate,
             BudgetType type) {
+        return create(userId, amountPaise, categoryId, description, expenseDate, type, null);
+    }
+
+    // clientId makes the request safe to repeat: the phone sends the same id when it retries an
+    // expense saved offline, and gets back the one already stored. A rare race between two
+    // copies ends in the unique index (409), and the next retry finds the stored one.
+    @Transactional
+    public ExpenseView create(
+            UUID userId,
+            Long amountPaise,
+            UUID categoryId,
+            String description,
+            LocalDate expenseDate,
+            BudgetType type,
+            UUID clientId) {
+        if (clientId != null) {
+            Optional<Expense> existing = expenseRepository.findByUserIdAndClientId(userId, clientId);
+            if (existing.isPresent()) {
+                return ExpenseView.from(existing.get());
+            }
+        }
+
         ValidatedFields validated = validateFields(amountPaise, categoryId, description, expenseDate);
 
         if (expenseRepository.countByUserId(userId) >= MAX_EXPENSES_PER_USER) {
@@ -66,14 +89,15 @@ public class ExpenseService {
         }
 
         BudgetType resolvedType = resolveType(category, type);
-        Expense expense = expenseRepository.saveAndFlush(new Expense(
+        Expense expense = new Expense(
                 userId,
                 categoryId,
                 resolvedType,
                 validated.amountPaise(),
                 validated.expenseDate(),
-                validated.description()));
-        return ExpenseView.from(expense);
+                validated.description());
+        expense.setClientId(clientId);
+        return ExpenseView.from(expenseRepository.saveAndFlush(expense));
     }
 
     @Transactional

@@ -407,6 +407,8 @@ export type NewExpense = {
   expenseDate: string
   // Only for categories without a type (Other); the API rejects it otherwise.
   type?: BudgetType
+  // Makes the request safe to repeat: the server stores one expense per id.
+  clientId?: string
 }
 
 export function createExpense(expense: NewExpense): Promise<Expense> {

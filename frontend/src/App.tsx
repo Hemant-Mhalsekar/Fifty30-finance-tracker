@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
-import { getMe, logout, onLoggedOut, refreshSession, waitForServer, type Me } from './api'
+import { ApiError, getMe, logout, onLoggedOut, refreshSession, waitForServer, type Me } from './api'
 import AppShell from './AppShell'
 import { BrandMark } from './components/icons'
 import AuthForm from './AuthForm'
@@ -14,6 +14,8 @@ import Recurring from './pages/Recurring'
 import Reports from './pages/Reports'
 import ResetPassword from './pages/ResetPassword'
 import Settings from './pages/Settings'
+import { forgetUser, rememberedUser, rememberUser } from './offline'
+import { useOnline, usePendingSync } from './useOffline'
 
 type Phase = 'waking' | 'offline' | 'serverError' | 'form' | 'ready'
 
@@ -25,6 +27,21 @@ export default function App() {
   const [loggingOut, setLoggingOut] = useState(false)
   // Incrementing this restarts the startup sequence (used by the Retry button).
   const [attempt, setAttempt] = useState(0)
+  // Opened without a connection from the user remembered on this phone: no session yet, so the
+  // user is confirmed with the server as soon as the connection is back.
+  const [startedOffline, setStartedOffline] = useState(false)
+  const online = useOnline()
+
+  // Opens the app for the remembered user when there is no connection, so expenses can still be
+  // added (they wait on the phone). Without one, the "You're offline" screen is all there is.
+  function openOffline(): boolean {
+    const remembered = rememberedUser()
+    if (!remembered || remembered.payDay === null) return false
+    setMe(remembered)
+    setStartedOffline(true)
+    setPhase('ready')
+    return true
+  }
 
   // Startup: wait for the server, then try to restore the session once.
   useEffect(() => {
@@ -33,12 +50,13 @@ export default function App() {
     async function start() {
       // Offline: say so straight away instead of polling a server we cannot reach for 3 minutes.
       if (!navigator.onLine) {
-        setPhase('offline')
+        if (!openOffline()) setPhase('offline')
         return
       }
       const server = await waitForServer(controller.signal)
       if (controller.signal.aborted) return
       if (server !== 'up') {
+        if (server === 'offline' && openOffline()) return
         setPhase(server === 'offline' ? 'offline' : 'serverError')
         return
       }
@@ -47,6 +65,7 @@ export default function App() {
         try {
           const user = await getMe()
           if (controller.signal.aborted) return
+          rememberUser(user)
           setMe(user)
           setPhase('ready')
           return
@@ -62,6 +81,30 @@ export default function App() {
     // Cleanup: stops the ping polling and its timers.
     return () => controller.abort()
   }, [attempt])
+
+  // Back online after opening offline: confirm the user with the server (the first request renews
+  // the session from the cookie). If the session has ended, onLoggedOut below shows the form.
+  useEffect(() => {
+    if (!startedOffline || !online) return
+    let cancelled = false
+    getMe()
+      .then((user) => {
+        if (cancelled) return
+        rememberUser(user)
+        setMe(user)
+        setStartedOffline(false)
+      })
+      .catch((e: unknown) => {
+        // Still no network: wait for the next online event.
+        if (!(e instanceof ApiError) || e.status !== 0) setStartedOffline(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [startedOffline, online])
+
+  // Sends expenses saved offline whenever the app is open and has a connection.
+  const pending = usePendingSync(phase === 'ready' && me ? me.id : null, online && !startedOffline)
 
   // Return to the form if a session refresh ever fails.
   useEffect(
@@ -87,7 +130,9 @@ export default function App() {
   }
 
   async function loadUser() {
-    setMe(await getMe())
+    const user = await getMe()
+    rememberUser(user)
+    setMe(user)
     setPhase('ready')
   }
 
@@ -102,6 +147,9 @@ export default function App() {
 
   async function handleLogout() {
     setLoggingOut(true)
+    // Expenses still waiting stay on the phone for this user's next sign-in.
+    forgetUser()
+    setStartedOffline(false)
     await logout()
     setLoggingOut(false)
     setMe(null)
@@ -131,14 +179,18 @@ export default function App() {
           <BrandMark />
           Fifty30
         </div>
-        <p className="tagline">Split every pay cycle 50/30/20 into needs, wants and savings, and see where your salary goes.</p>
+        <p className="tagline">
+          Split every pay cycle 50/30/20 into needs, wants and savings, and see where your salary goes.
+        </p>
 
         {phase === 'waking' && (
           <div className="card stack" role="status">
             <p>
               <strong>Waking up the server…</strong>
             </p>
-            <p className="muted">On the free hosting plan this can take up to 3 minutes. The page continues by itself.</p>
+            <p className="muted">
+              On the free hosting plan this can take up to 3 minutes. The page continues by itself.
+            </p>
           </div>
         )}
 
@@ -147,7 +199,9 @@ export default function App() {
             <p>
               <strong>You&apos;re offline.</strong>
             </p>
-            <p className="muted">Fifty30 needs a connection to load your budget. It continues by itself when you are back online.</p>
+            <p className="muted">
+              Fifty30 needs a connection to load your budget. It continues by itself when you are back online.
+            </p>
             <button onClick={retry}>Try again</button>
           </div>
         )}
@@ -182,9 +236,19 @@ export default function App() {
 
   return (
     <Routes>
-      <Route element={<AppShell email={me.email} onLogout={handleLogout} loggingOut={loggingOut} />}>
+      <Route
+        element={
+          <AppShell
+            email={me.email}
+            onLogout={handleLogout}
+            loggingOut={loggingOut}
+            offline={!online || startedOffline}
+            pending={pending}
+          />
+        }
+      >
         <Route index element={<Dashboard />} />
-        <Route path="add" element={<AddExpense />} />
+        <Route path="add" element={<AddExpense userId={me.id} />} />
         <Route path="expenses" element={<Expenses />} />
         <Route path="more" element={<More email={me.email} onLogout={handleLogout} loggingOut={loggingOut} />} />
         <Route path="categories" element={<Categories />} />

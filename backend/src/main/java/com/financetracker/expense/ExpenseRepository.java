@@ -22,6 +22,8 @@ public interface ExpenseRepository extends Repository<Expense, UUID> {
 
     Optional<Expense> findByIdAndUserId(UUID id, UUID userId);
 
+    Optional<Expense> findByUserIdAndClientId(UUID userId, UUID clientId);
+
     long deleteByIdAndUserId(UUID id, UUID userId);
 
     boolean existsByUserIdAndCategoryId(UUID userId, UUID categoryId);

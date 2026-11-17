@@ -42,7 +42,10 @@ public class ExpenseController {
 
             LocalDate expenseDate,
 
-            BudgetType type) {
+            BudgetType type,
+
+            // Only for creating: an id from the phone that makes a retry safe. Ignored by PUT.
+            UUID clientId) {
 
         public ExpenseRequest {
             if (description != null) {
@@ -68,7 +71,8 @@ public class ExpenseController {
                 request.categoryId(),
                 request.description(),
                 request.expenseDate(),
-                request.type());
+                request.type(),
+                request.clientId());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 

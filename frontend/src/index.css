@@ -1935,3 +1935,52 @@ fieldset.field > legend {
   gap: 0.4rem;
   max-width: 28rem;
 }
+
+/* ---- offline expenses (18 Nov 2026) ---- */
+
+.offline-banner {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--text);
+  font-size: 0.9375rem;
+}
+
+.offline-banner.sending {
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+
+.pending-card {
+  margin-top: 1rem;
+}
+
+.pending-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.pending-list > li {
+  padding: 0.6rem 0;
+}
+
+.pending-list > li + li {
+  border-top: 1px solid var(--border);
+}
+
+.pending-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pending-problem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
