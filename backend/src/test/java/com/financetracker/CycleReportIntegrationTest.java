@@ -1,5 +1,6 @@
 package com.financetracker;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -14,10 +15,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MvcResult;
 
 import com.financetracker.cycle.BudgetSplit;
 import com.financetracker.cycle.CycleCalculator;
 import com.financetracker.cycle.CyclePeriod;
+
+import tools.jackson.databind.JsonNode;
 
 class CycleReportIntegrationTest extends AbstractIntegrationTest {
 
@@ -197,6 +201,120 @@ class CycleReportIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.expenseCount").value(0))
                 .andExpect(jsonPath("$.lastExpenseLoggedOn").doesNotExist());
+    }
+
+    @Test
+    void reportListsDailyTotalsPerTypeOnlyForDaysWithSpending() throws Exception {
+        String token = registerUserAndGetToken();
+        onboardUser(token, 1_000_000L, 25);
+        CyclePeriod current = CycleCalculator.containing(today(), 25);
+        LocalDate first = current.start();
+
+        logExpense(token, "Groceries", 1_000L, null, first);
+        logExpense(token, "Groceries", 500L, null, first);
+        logExpense(token, "Dining", 300L, null, first);
+        logExpense(token, "Investments", 2_000L, null, first);
+        // Outside the cycle: not listed.
+        logExpense(token, "Groceries", 9_999L, null, first.minusDays(1));
+
+        // Oldest day first; within a day the types come in a fixed order.
+        mockMvc.perform(get("/api/cycles/current/report").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.daily.length()").value(3))
+                .andExpect(jsonPath("$.daily[0].date").value(first.toString()))
+                .andExpect(jsonPath("$.daily[0].type").value("INVESTMENT"))
+                .andExpect(jsonPath("$.daily[0].spentPaise").value(2_000L))
+                .andExpect(jsonPath("$.daily[1].type").value("NEED"))
+                .andExpect(jsonPath("$.daily[1].spentPaise").value(1_500L))
+                .andExpect(jsonPath("$.daily[2].type").value("WANT"))
+                .andExpect(jsonPath("$.daily[2].spentPaise").value(300L));
+
+        if (!first.equals(today())) {
+            logExpense(token, "Dining", 700L, null, today());
+            mockMvc.perform(get("/api/cycles/current/report").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                    .andExpect(jsonPath("$.daily.length()").value(4))
+                    .andExpect(jsonPath("$.daily[3].date").value(today().toString()))
+                    .andExpect(jsonPath("$.daily[3].spentPaise").value(700L));
+        }
+    }
+
+    @Test
+    void historyListsRecentCyclesOldestFirstWithTotals() throws Exception {
+        mockMvc.perform(get("/api/cycles/history")).andExpect(status().isUnauthorized());
+
+        String token = registerUserAndGetToken();
+        mockMvc.perform(get("/api/cycles/history").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isConflict());
+
+        onboardUser(token, 1_000_000L, 25);
+        UUID userId = userId(token);
+
+        // Started three months ago at a lower salary; roll-forward copies it into the later cycles.
+        CyclePeriod old = CycleCalculator.containing(today().minusMonths(3), 25);
+        BudgetSplit split = BudgetSplit.of(800_000L);
+        jdbcTemplate.update("DELETE FROM cycles WHERE user_id = ?", userId);
+        jdbcTemplate.update("""
+                INSERT INTO cycles (user_id, period_start, period_end, salary_paise,
+                                    needs_paise, wants_paise, savings_paise)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                userId, old.start(), old.end(), 800_000L,
+                split.needsPaise(), split.wantsPaise(), split.savingsPaise());
+
+        logExpense(token, "Rent", 300_000L, null, old.start());
+        logExpense(token, "Dining", 50_000L, null, old.end());
+        logExpense(token, "Investments", 100_000L, null, old.end());
+        logExpense(token, "Other", 900_000L, "WANT", today());
+
+        CyclePeriod current = CycleCalculator.containing(today(), 25);
+        MvcResult result = mockMvc.perform(get("/api/cycles/history").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode items = jsonMapper.readTree(result.getResponse().getContentAsString());
+        int n = items.size();
+        // Three months back gives four cycles (three earlier ones and the current one).
+        assertEquals(4, n);
+        assertEquals(old.start().toString(), items.get(0).get("cycle").get("periodStart").asText());
+        assertEquals(300_000L, items.get(0).get("needsSpentPaise").asLong());
+        assertEquals(50_000L, items.get(0).get("wantsSpentPaise").asLong());
+        assertEquals(100_000L, items.get(0).get("investedPaise").asLong());
+        assertEquals(800_000L - 350_000L, items.get(0).get("savedPaise").asLong());
+        // A cycle with nothing logged saves its whole salary.
+        assertEquals(0L, items.get(1).get("needsSpentPaise").asLong());
+        assertEquals(800_000L, items.get(1).get("savedPaise").asLong());
+        // The newest is the current cycle; overspending shows as a negative saving.
+        assertEquals(current.start().toString(), items.get(n - 1).get("cycle").get("periodStart").asText());
+        assertEquals(-100_000L, items.get(n - 1).get("savedPaise").asLong());
+
+        // count limits it to the newest cycles; date picks the newest one to show.
+        mockMvc.perform(get("/api/cycles/history").param("count", "2")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[1].cycle.periodStart").value(current.start().toString()));
+        mockMvc.perform(get("/api/cycles/history").param("date", old.end().toString())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].cycle.periodStart").value(old.start().toString()));
+
+        for (String count : new String[] {"0", "13", "-1"}) {
+            mockMvc.perform(get("/api/cycles/history").param("count", count)
+                            .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Count must be between 1 and 12"));
+        }
+        mockMvc.perform(get("/api/cycles/history").param("date", old.start().minusDays(1).toString())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isNotFound());
+
+        // Another user's expenses never appear.
+        String other = registerUserAndGetToken();
+        onboardUser(other, 1_000_000L, 25);
+        mockMvc.perform(get("/api/cycles/history").header(HttpHeaders.AUTHORIZATION, bearer(other)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].savedPaise").value(1_000_000L));
     }
 
     // ---- helpers ----

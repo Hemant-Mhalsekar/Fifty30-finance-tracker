@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
@@ -24,6 +25,10 @@ public interface CycleRepository extends Repository<Cycle, UUID> {
     Optional<Cycle> findContaining(@Param("userId") UUID userId, @Param("date") LocalDate date);
 
     List<Cycle> findAllByUserIdOrderByPeriodStartDesc(UUID userId);
+
+    // The given cycle and the ones before it, newest first.
+    List<Cycle> findByUserIdAndPeriodStartLessThanEqualOrderByPeriodStartDesc(
+            UUID userId, LocalDate periodStart, Limit limit);
 
     // ON CONFLICT DO NOTHING keeps this safe even if two requests create the same cycle.
     @Modifying

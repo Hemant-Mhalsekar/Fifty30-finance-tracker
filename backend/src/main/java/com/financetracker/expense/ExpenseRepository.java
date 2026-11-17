@@ -56,6 +56,33 @@ public interface ExpenseRepository extends Repository<Expense, UUID> {
             @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
+    // Daily totals for the "spending over the cycle" chart, aggregated in the database.
+    @Query("""
+            select new com.financetracker.expense.DailySpend(e.expenseDate, e.categoryType, sum(e.amountPaise))
+            from Expense e
+            where e.userId = :userId and e.expenseDate between :from and :to
+            group by e.expenseDate, e.categoryType
+            order by e.expenseDate asc, e.categoryType asc
+            """)
+    List<DailySpend> sumByDay(
+            @Param("userId") UUID userId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
+    // Totals per stored cycle and type in one query: each expense is matched to the cycle whose
+    // date range contains it (there is deliberately no foreign key from expenses to cycles).
+    @Query("""
+            select new com.financetracker.expense.CycleTypeSpend(c.periodStart, e.categoryType, sum(e.amountPaise))
+            from Expense e
+            join Cycle c on c.userId = e.userId and e.expenseDate between c.periodStart and c.periodEnd
+            where e.userId = :userId and c.periodStart between :firstStart and :lastStart
+            group by c.periodStart, e.categoryType
+            """)
+    List<CycleTypeSpend> sumByCycle(
+            @Param("userId") UUID userId,
+            @Param("firstStart") LocalDate firstStart,
+            @Param("lastStart") LocalDate lastStart);
+
     @Query("select max(e.createdAt) from Expense e where e.userId = :userId")
     Optional<OffsetDateTime> findLastCreatedAt(@Param("userId") UUID userId);
 }
