@@ -16,7 +16,7 @@ import { formatPaise } from '../money'
 import { scheduleLabel } from '../recurring'
 
 function isWide(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1024px)').matches === true
+  return typeof window !== 'undefined' && window.matchMedia?.('(min-width: 900px)').matches === true
 }
 
 // Same order the server uses: due first, then by next due date.
@@ -95,10 +95,7 @@ export default function Recurring() {
   return (
     <section className="recurring">
       <h1>Recurring expenses</h1>
-      <p className="muted">
-        Bills that repeat every month, like rent, SIPs, EMIs and subscriptions. When one is due, the dashboard asks you
-        to add it (with the amount you actually paid) or skip that month. Nothing is added without your tap.
-      </p>
+      <p className="muted intro">Bills that repeat every month, like rent, SIPs, EMIs and subscriptions.</p>
 
       {toast && (
         <p className="toast" role="status">
@@ -126,6 +123,7 @@ export default function Recurring() {
                 key={formKey}
                 categories={active}
                 submitLabel="Save recurring expense"
+                stickyActions
                 onSubmit={add}
                 onCancel={items.length > 0 && !wide ? () => setAdding(false) : undefined}
               />
@@ -144,6 +142,7 @@ export default function Recurring() {
         </div>
 
         <div className="area-list">
+          {items.length === 0 && <HowItWorks />}
           {items.length > 0 && (
             <article className="card">
               <h2>All recurring expenses</h2>
@@ -307,5 +306,31 @@ function RecurringRow({ item, categories, categoryName, onChanged, onDeleted }: 
         </div>
       )}
     </li>
+  )
+}
+
+// Shown until the first one is saved; afterwards the list takes its place.
+function HowItWorks() {
+  return (
+    <article className="card how-it-works">
+      <h2>How it works</h2>
+      <ol>
+        <li>
+          <strong>Add each bill once</strong>
+          <span className="muted">With its usual amount and the day of the month it is due.</span>
+        </li>
+        <li>
+          <strong>On that day, the dashboard asks</strong>
+          <span className="muted">It shows the bill with the amount filled in.</span>
+        </li>
+        <li>
+          <strong>Tap Add or Skip</strong>
+          <span className="muted">
+            Add logs it as an expense (change the amount if the bill changed). Skip leaves that month out. Nothing is
+            added without your tap.
+          </span>
+        </li>
+      </ol>
+    </article>
   )
 }

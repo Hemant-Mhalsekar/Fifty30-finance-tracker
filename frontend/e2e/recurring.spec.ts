@@ -27,8 +27,10 @@ test('recurring: due today shows on the dashboard and Add logs the expense once'
   await page.getByRole('link', { name: 'Recurring expenses' }).click()
   await expect(page.getByRole('heading', { name: 'Recurring expenses' })).toBeVisible()
 
-  // The first visit opens the form straight away.
+  // The first visit opens the form straight away, with the explanation until something is saved.
+  await expect(page.getByRole('heading', { name: 'How it works' })).toBeVisible()
   await addRecurring(page, { amount: '5000', category: 'Other', type: 'Investment', description: 'SIP', day: istDay() })
+  await expect(page.getByRole('heading', { name: 'How it works' })).toBeHidden()
   await expect(page.getByRole('status')).toContainText('SIP added. It is due today')
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboard' }).click()

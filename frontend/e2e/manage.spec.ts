@@ -219,4 +219,11 @@ test('wide screens use columns instead of one narrow column', async ({ page }) =
   await page.goto('/recurring')
   // The form is open in its own column without tapping anything.
   await expect(page.getByRole('heading', { name: 'New recurring expense' })).toBeVisible()
+
+  // A 1000px laptop window already gets two columns: form left, "How it works" beside it, top-aligned.
+  await page.setViewportSize({ width: 1000, height: 800 })
+  const formCard = (await page.locator('.area-form').boundingBox())!
+  const help = (await page.getByRole('heading', { name: 'How it works' }).locator('..').boundingBox())!
+  expect(help.x).toBeGreaterThan(formCard.x + formCard.width)
+  expect(help.y).toBeCloseTo(formCard.y, 0)
 })

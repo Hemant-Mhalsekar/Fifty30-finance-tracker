@@ -12,12 +12,21 @@ type Props = {
   categories: Category[]
   initial?: RecurringInput
   submitLabel: string
+  // Keeps the save button above the phone's tab bar while the form scrolls.
+  stickyActions?: boolean
   onSubmit: (input: RecurringInput) => Promise<void>
   onCancel?: () => void
 }
 
 // Same fields as an expense, except a day of the month instead of a date.
-export default function RecurringForm({ categories, initial, submitLabel, onSubmit, onCancel }: Props) {
+export default function RecurringForm({
+  categories,
+  initial,
+  submitLabel,
+  stickyActions = false,
+  onSubmit,
+  onCancel,
+}: Props) {
   const id = useId()
   const [amountText, setAmountText] = useState(initial ? paiseToInput(initial.amountPaise) : '')
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '')
@@ -153,7 +162,7 @@ export default function RecurringForm({ categories, initial, submitLabel, onSubm
         </p>
       )}
 
-      <div className="form-actions">
+      <div className={`form-actions${stickyActions ? ' sticky-actions' : ''}`}>
         <button type="submit" disabled={submitting}>
           {submitting ? 'Saving…' : submitLabel}
         </button>
