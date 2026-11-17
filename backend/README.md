@@ -87,10 +87,10 @@ When a limit is reached the API returns `429 Too Many Requests` with a `Retry-Af
 
 Render's free instance sleeps after 15 minutes without traffic and takes about 140 seconds to start again.
 
-- A cron-job.org job calls `https://finance-tracker-h0zi.onrender.com/api/health` every 10 minutes from 08:30 to 18:20 IST (cron `*/10 3-12 * * *` in UTC). `/api/health` also queries the database, which keeps the Supabase project from pausing after a week without activity.
+- A cron-job.org job calls `https://fifty30-finance-tracker.vercel.app/api/health` every 10 minutes from 08:30 to 18:20 IST (cron `*/10 3-12 * * *` in UTC). It goes through Vercel, which forwards to Render: on 17 Nov 2026 pings sent straight to the `onrender.com` address got a fast `503 Service Unavailable` from Render all day while the app itself was healthy. `/api/health` also queries the database, which keeps the Supabase project from pausing after a week without activity.
 - Outside that window the first visitor waits for a cold start; the frontend's waiting screen allows up to 180 seconds.
 - Render gives 750 free instance hours per workspace per month, shared by every free service in it. ShelfSpace is in the same workspace with the same window, so the two use about 640 hours a month together. Never keep a free service awake around the clock here: above 750 hours Render suspends every free service until the next month.
-- Each morning's first ping times out (cron-job.org waits 30 seconds) but still wakes the instance. cron-job.org disables a job only after more than 25 failures in a row.
+- Each morning's first ping may fail (cron-job.org waits only 30 seconds; a cold start takes about 140) but should still wake the instance, so later pings succeed. If failures continue until someone opens the site, automated pings cannot wake the sleeping service and the options are a daily cold start or a paid instance. cron-job.org disables a job only after more than 25 failures in a row.
 - The Render health check stays on `/api/ping`, which does not touch the database.
 
 ## Password reset
