@@ -73,3 +73,14 @@ test('opening the reset page without a token says the link is missing', async ({
   await page.goto('/reset-password')
   await expect(page.getByRole('heading', { name: 'Reset link missing' })).toBeVisible()
 })
+
+test('a gateway error says the server is restarting instead of "Something went wrong"', async ({ page }) => {
+  await loggedOut(page)
+  // What Vercel returns while Render is deploying or waking up.
+  await page.route('**/api/auth/forgot-password', (route) => route.fulfill({ status: 502, body: '' }))
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Forgot password?' }).click()
+  await page.getByLabel('Email').fill('someone@example.com')
+  await page.getByRole('button', { name: 'Send reset link' }).click()
+  await expect(page.getByRole('alert')).toHaveText('The server is restarting or unreachable. Please try again in a minute.')
+})

@@ -1,3 +1,5 @@
+import { errorMessage } from './errors'
+
 // The access token lives only in this module variable (never in any browser storage).
 // It is lost on page reload; the HttpOnly refresh cookie is used to get a new one.
 let accessToken: string | null = null
@@ -162,8 +164,7 @@ async function authenticate(path: string, email: string, password: string): Prom
   }
 
   if (!response.ok) {
-    const body = await readJson(response)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'Something went wrong')
+    throw new Error(errorMessage(response.status, await readJson(response)))
   }
 
   const token = await readAccessToken(response)
@@ -213,11 +214,7 @@ async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> 
   }
   const body: unknown = response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) {
-    const message =
-      typeof body === 'object' && body !== null && typeof (body as { message?: unknown }).message === 'string'
-        ? (body as { message: string }).message
-        : 'Something went wrong'
-    throw new ApiError(response.status, message)
+    throw new ApiError(response.status, errorMessage(response.status, body))
   }
   return body as T
 }
