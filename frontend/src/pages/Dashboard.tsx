@@ -1,7 +1,16 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
-import { ApiError, getCurrentReport, getReportForDate, type BudgetLine, type CycleReport } from '../api'
+import {
+  ApiError,
+  getCurrentReport,
+  getReportForDate,
+  listRecurring,
+  type BudgetLine,
+  type CycleReport,
+  type RecurringExpense,
+} from '../api'
 import BarChart, { type BarRow } from '../components/BarChart'
+import DueRecurring from '../components/DueRecurring'
 import { AlertIcon, ChevronLeftIcon, ChevronRightIcon } from '../components/icons'
 import { addDays, formatDate, todayIst } from '../dates'
 import { TYPE_COLORS, TYPE_LABELS } from '../labels'
@@ -17,6 +26,22 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // Bumped after a recurring expense is added, to reload the report without the loading state.
+  const [reloads, setReloads] = useState(0)
+  // null until loaded; a failure just hides the due list, the dashboard still works.
+  const [recurring, setRecurring] = useState<RecurringExpense[] | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    listRecurring()
+      .then((items) => {
+        if (!cancelled) setRecurring(items)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -41,7 +66,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true
     }
-  }, [viewDate])
+  }, [viewDate, reloads])
 
   // Loading state is set here, in the event, rather than in the effect that fetches.
   function goTo(date: string) {
@@ -119,6 +144,14 @@ export default function Dashboard() {
         <p className="error" role="alert">
           {error}
         </p>
+      )}
+
+      {isCurrent && recurring && (
+        <DueRecurring
+          items={recurring}
+          onUpdated={(updated) => setRecurring((all) => all?.map((r) => (r.id === updated.id ? updated : r)) ?? null)}
+          onExpenseAdded={() => setReloads((n) => n + 1)}
+        />
       )}
 
       <Hero left={left} isCurrent={isCurrent} daysLeftIncludingToday={days.remaining + 1} />

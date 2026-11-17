@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.financetracker.common.BudgetType;
 import com.financetracker.expense.ExpenseRepository;
+import com.financetracker.recurring.RecurringExpenseRepository;
 
 @Service
 public class CategoryService {
@@ -22,6 +23,8 @@ public class CategoryService {
     private static final String PROTECTED_CATEGORY_MESSAGE = "This category cannot be changed";
     private static final String CATEGORY_HAS_EXPENSES_MESSAGE =
             "This category has expenses. Archive it instead.";
+    private static final String CATEGORY_HAS_RECURRING_MESSAGE =
+            "A recurring expense uses this category. Delete or change it first, or archive the category.";
 
     // Sort order: NEED (0), WANT (1), INVESTMENT (2), null type last (3); then name ignoring case.
     private static final Comparator<CategoryView> CATEGORY_ORDER = Comparator
@@ -30,12 +33,15 @@ public class CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final ExpenseRepository expenseRepository;
+    private final RecurringExpenseRepository recurringExpenseRepository;
 
     public CategoryService(
             CategoryRepository categoryRepository,
-            ExpenseRepository expenseRepository) {
+            ExpenseRepository expenseRepository,
+            RecurringExpenseRepository recurringExpenseRepository) {
         this.categoryRepository = categoryRepository;
         this.expenseRepository = expenseRepository;
+        this.recurringExpenseRepository = recurringExpenseRepository;
     }
 
     public List<CategoryView> list(UUID userId, boolean includeArchived) {
@@ -111,6 +117,9 @@ public class CategoryService {
         }
         if (expenseRepository.existsByUserIdAndCategoryId(userId, id)) {
             throw categoryHasExpenses();
+        }
+        if (recurringExpenseRepository.existsByUserIdAndCategoryId(userId, id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, CATEGORY_HAS_RECURRING_MESSAGE);
         }
 
         try {

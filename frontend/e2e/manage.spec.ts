@@ -120,7 +120,7 @@ test('settings: salary change with preview, pay-day change scheduled and cancell
 
 test('no page scrolls sideways on a small phone', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 })
-  for (const path of ['/', '/add', '/expenses', '/categories', '/settings']) {
+  for (const path of ['/', '/add', '/expenses', '/recurring', '/categories', '/settings']) {
     await page.goto(path)
     await expect(page.locator('main h1').first()).toBeVisible()
     const width = await page.evaluate(() => document.documentElement.scrollWidth)
@@ -141,13 +141,19 @@ test('phones get a bottom tab bar with More; wide screens get the top bar', asyn
     'Dashboard',
     'Add expense',
     'Expenses',
+    'Recurring',
     'Categories',
     'Settings',
   ])
+
+  // The narrowest desktop width must still fit every link and Log out without scrolling sideways.
+  await page.setViewportSize({ width: 768, height: 800 })
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Log out' })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(768)
 })
 
 test('every control on a phone is at least 44px tall and fields are at least 16px', async ({ page }) => {
-  for (const path of ['/', '/add', '/expenses', '/categories', '/settings', '/more']) {
+  for (const path of ['/', '/add', '/expenses', '/recurring', '/categories', '/settings', '/more']) {
     await page.goto(path)
     await expect(page.locator('main h1').first()).toBeVisible()
     const problems = await page.$$eval('button, a, select, input, summary', (elements) =>

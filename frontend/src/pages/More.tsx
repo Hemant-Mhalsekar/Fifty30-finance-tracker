@@ -16,6 +16,9 @@ export default function More({ email, onLogout, loggingOut }: Props) {
       <div className="card">
         <ul className="menu-list">
           <li>
+            <Link to="/recurring">Recurring expenses</Link>
+          </li>
+          <li>
             <Link to="/categories">Categories</Link>
           </li>
           <li>
