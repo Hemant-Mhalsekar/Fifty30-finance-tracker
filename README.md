@@ -4,7 +4,7 @@
 
 Live: https://fifty30-finance-tracker.vercel.app
 
-A personal finance tracker for salaried users in India, named after the 50/30/20 budgeting rule. You enter your monthly salary and pay day, each pay cycle is split 50/30/20 into needs, wants and savings, and you log expenses against that plan.
+A personal finance tracker for salaried users in India, named after the 50/30/20 budgeting rule. It works in any browser and can be installed on a phone as an app (PWA). You enter your monthly salary and pay day, each pay cycle is split 50/30/20 into needs, wants and savings, and you log expenses against that plan.
 
 Built as a portfolio project with a Java Spring Boot backend, a React (Vite) frontend, and a PostgreSQL database hosted on Supabase.
 
