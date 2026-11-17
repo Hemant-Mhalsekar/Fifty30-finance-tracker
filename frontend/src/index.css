@@ -1915,3 +1915,23 @@ fieldset.field > legend {
 .svg-chart .grid.zero {
   stroke: var(--text-2);
 }
+
+/* ---- "Did your salary change?" (18 Nov 2026) ---- */
+
+.salary-check {
+  border-left: 4px solid var(--brand);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.salary-check h2 {
+  margin: 0;
+}
+
+.salary-check-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: 28rem;
+}

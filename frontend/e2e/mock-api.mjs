@@ -40,7 +40,7 @@ function split(salaryPaise) {
 
 let state
 
-function reset({ onboarded = true } = {}) {
+function reset({ onboarded = true, salaryConfirmed = true } = {}) {
   let next = 0
   const id = (prefix) => `${prefix}${++next}`
   const start = addDays(today(), -10)
@@ -85,8 +85,8 @@ function reset({ onboarded = true } = {}) {
     me: { id: 'u1', email: 'test@example.com', payDay: onboarded ? 25 : null, pendingPayDay: null, pendingPayDayFrom: null },
     cycles: onboarded
       ? [
-          { periodStart: addDays(start, -31), periodEnd: addDays(start, -1), salaryPaise: 5_000_000, ...split(5_000_000) },
-          { periodStart: start, periodEnd: addDays(start, 30), salaryPaise: 5_000_000, ...split(5_000_000) },
+          { periodStart: addDays(start, -31), periodEnd: addDays(start, -1), salaryPaise: 5_000_000, ...split(5_000_000), salaryConfirmed: true },
+          { periodStart: start, periodEnd: addDays(start, 30), salaryPaise: 5_000_000, ...split(5_000_000), salaryConfirmed },
         ]
       : [],
     categories,
@@ -234,7 +234,7 @@ function handle(req, res, body) {
     if (state.me.payDay !== null) return fail(res, 409, 'Setup already completed')
     state.me.payDay = body.payDay
     const start = addDays(today(), -10)
-    state.cycles.push({ periodStart: start, periodEnd: addDays(start, 30), salaryPaise: body.salaryPaise, ...split(body.salaryPaise) })
+    state.cycles.push({ periodStart: start, periodEnd: addDays(start, 30), salaryPaise: body.salaryPaise, ...split(body.salaryPaise), salaryConfirmed: true })
     return send(res, 201, { payDay: body.payDay, cycle: currentCycle() })
   }
   if (state.me.payDay === null && path.startsWith('/api/cycles')) return fail(res, 409, 'Complete setup first')
@@ -269,8 +269,12 @@ function handle(req, res, body) {
       daily: dailyRows(inRange),
     })
   }
+  if (path === '/api/cycles/current/salary/confirm') {
+    currentCycle().salaryConfirmed = true
+    return send(res, 200, currentCycle())
+  }
   if (path === '/api/cycles/current/salary') {
-    Object.assign(currentCycle(), { salaryPaise: body.salaryPaise, ...split(body.salaryPaise) })
+    Object.assign(currentCycle(), { salaryPaise: body.salaryPaise, ...split(body.salaryPaise), salaryConfirmed: true })
     return send(res, 200, currentCycle())
   }
   if (path === '/api/settings/pay-day') {

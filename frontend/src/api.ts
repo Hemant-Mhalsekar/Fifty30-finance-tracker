@@ -262,6 +262,8 @@ export type Cycle = {
   needsPaise: number
   wantsPaise: number
   savingsPaise: number
+  // False until "Did your salary change?" is answered for this cycle.
+  salaryConfirmed: boolean
 }
 
 export function onboard(salaryPaise: number, payDay: number): Promise<{ payDay: number; cycle: Cycle }> {
@@ -306,6 +308,11 @@ export function getCurrentCycle(): Promise<Cycle> {
 
 export function changeCurrentSalary(salaryPaise: number): Promise<Cycle> {
   return sendJson<Cycle>('/api/cycles/current/salary', 'PUT', { salaryPaise })
+}
+
+/** "Same as before": keeps the salary copied from the last cycle and stops asking for this cycle. */
+export function confirmCurrentSalary(): Promise<Cycle> {
+  return sendJson<Cycle>('/api/cycles/current/salary/confirm', 'POST', {})
 }
 
 export type PayDaySettings = { payDay: number; pendingPayDay: number | null; pendingPayDayFrom: string | null }

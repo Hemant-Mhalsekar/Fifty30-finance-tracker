@@ -55,6 +55,16 @@ public class CycleService {
                 split.needsPaise(),
                 split.wantsPaise(),
                 split.savingsPaise());
+        // Changing the salary answers "Did your salary change?" for this cycle too.
+        current.confirmSalary();
+        return CycleView.from(cycleRepository.saveAndFlush(current));
+    }
+
+    // "Same as before": the salary copied from the previous cycle is right.
+    @Transactional
+    public CycleView confirmCurrentSalary(UUID userId) {
+        Cycle current = currentCycleForLockedUser(lockUser(userId));
+        current.confirmSalary();
         return CycleView.from(cycleRepository.saveAndFlush(current));
     }
 

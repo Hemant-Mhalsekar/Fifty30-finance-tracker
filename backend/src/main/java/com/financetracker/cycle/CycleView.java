@@ -8,7 +8,9 @@ public record CycleView(
         long salaryPaise,
         long needsPaise,
         long wantsPaise,
-        long savingsPaise) {
+        long savingsPaise,
+        // False until "Did your salary change?" is answered for this cycle.
+        boolean salaryConfirmed) {
 
     public static CycleView from(Cycle cycle) {
         return new CycleView(
@@ -17,7 +19,8 @@ public record CycleView(
                 cycle.getSalaryPaise(),
                 cycle.getNeedsPaise(),
                 cycle.getWantsPaise(),
-                cycle.getSavingsPaise());
+                cycle.getSavingsPaise(),
+                cycle.isSalaryConfirmed());
     }
 }
 

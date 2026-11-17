@@ -9,6 +9,7 @@ const cycle = (periodStart: string, periodEnd: string, salaryPaise = 1_000_000) 
   needsPaise: salaryPaise / 2,
   wantsPaise: (salaryPaise * 3) / 10,
   savingsPaise: salaryPaise / 5,
+  salaryConfirmed: true,
 })
 
 const item = (

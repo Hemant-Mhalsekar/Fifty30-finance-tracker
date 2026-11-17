@@ -15,6 +15,7 @@ import BarChart, { type BarRow } from '../components/BarChart'
 import CycleSpendChart from '../components/CycleSpendChart'
 import DueRecurring from '../components/DueRecurring'
 import HistoryChart from '../components/HistoryChart'
+import SalaryCheck from '../components/SalaryCheck'
 import { AlertIcon, ChevronLeftIcon, ChevronRightIcon } from '../components/icons'
 import { addDays, formatRange, todayIst } from '../dates'
 import { TYPE_COLORS, TYPE_LABELS } from '../labels'
@@ -160,6 +161,17 @@ export default function Dashboard() {
         <p className="error" role="alert">
           {error}
         </p>
+      )}
+
+      {isCurrent && !cycle.salaryConfirmed && (
+        <SalaryCheck
+          cycle={cycle}
+          onAnswered={(changed) => {
+            // Hide the question at once; a new salary also changes every number on the page.
+            setReport((r) => (r ? { ...r, cycle: { ...r.cycle, salaryConfirmed: true } } : r))
+            if (changed) setReloads((n) => n + 1)
+          }}
+        />
       )}
 
       {/* Phone: due list above the hero. Wide: side by side, hero first. */}
