@@ -11,9 +11,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f6f7f5" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#121412" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#1b2028" media="(prefers-color-scheme: dark)" />
     <title>Fifty30</title>
     <meta name="description" content="Fifty30: plan each pay cycle 50/30/20 and track your spending against it." />
+      <!-- Applies a saved Light/Dark choice before the first paint (see src/theme.ts). -->
+    <script>
+      try {
+        var t = localStorage.getItem('fifty30-theme')
+        if (t === 'light' || t === 'dark') {
+          document.documentElement.dataset.theme = t
+          document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
+            m.content = t === 'dark' ? '#1b2028' : '#f6f7f5'
+          })
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

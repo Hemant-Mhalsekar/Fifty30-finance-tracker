@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { changeCurrentSalary, changePayDay, getCurrentCycle, type Cycle, type Me } from '../api'
 import { formatDate } from '../dates'
 import { formatPaise, paiseToInput, parseRupeesToPaise, splitBudget } from '../money'
+import { getThemePreference, setThemePreference, type ThemePreference } from '../theme'
 
 const MIN_SALARY_PAISE = 100
 const MAX_SALARY_PAISE = 1_000_000_000
@@ -15,14 +16,17 @@ type Props = {
 
 export default function Settings({ me, onUserChanged }: Props) {
   return (
-    <section className="settings narrow sections">
+    <section className="settings">
       <h1>Settings</h1>
-      <SalarySettings />
-      <PayDaySettings me={me} onUserChanged={onUserChanged} />
-      <article className="card">
-        <h2>Account</h2>
-        <p>{me.email}</p>
-      </article>
+      <div className="settings-grid">
+        <SalarySettings />
+        <PayDaySettings me={me} onUserChanged={onUserChanged} />
+        <AppearanceSettings />
+        <article className="card">
+          <h2>Account</h2>
+          <p>{me.email}</p>
+        </article>
+      </div>
     </section>
   )
 }
@@ -198,6 +202,44 @@ function PayDaySettings({ me, onUserChanged }: Props) {
           {error}
         </p>
       )}
+    </article>
+  )
+}
+
+const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+]
+
+// Saved on this device only, so a phone and a laptop can differ.
+function AppearanceSettings() {
+  const [theme, setTheme] = useState<ThemePreference>(getThemePreference)
+  return (
+    <article className="card">
+      <fieldset className="field">
+        <legend>
+          <h2>Appearance</h2>
+        </legend>
+        <div className="segmented">
+          {THEME_OPTIONS.map((option) => (
+            <label key={option.value}>
+              <input
+                type="radio"
+                name="theme"
+                value={option.value}
+                checked={theme === option.value}
+                onChange={() => {
+                  setTheme(option.value)
+                  setThemePreference(option.value)
+                }}
+              />
+              {option.label}
+            </label>
+          ))}
+        </div>
+        <p className="hint">System follows your device. Saved on this device only.</p>
+      </fieldset>
     </article>
   )
 }

@@ -15,6 +15,10 @@ import { formatDate } from '../dates'
 import { formatPaise } from '../money'
 import { scheduleLabel } from '../recurring'
 
+function isWide(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1024px)').matches === true
+}
+
 // Same order the server uses: due first, then by next due date.
 function sortItems(items: RecurringExpense[]): RecurringExpense[] {
   return [...items].sort(
@@ -29,7 +33,11 @@ export default function Recurring() {
   const [items, setItems] = useState<RecurringExpense[] | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [adding, setAdding] = useState(false)
+  // Wide screens keep the form open in its own column; phones open it on demand.
+  const [wide] = useState(isWide)
+  const [adding, setAdding] = useState(wide)
+  // Changing it gives the next entry an empty form.
+  const [formKey, setFormKey] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
@@ -75,7 +83,8 @@ export default function Recurring() {
   async function add(input: RecurringInput) {
     const created = await createRecurring(input)
     setItems((all) => sortItems([...(all ?? []), created]))
-    setAdding(false)
+    if (!wide) setAdding(false)
+    setFormKey((n) => n + 1)
     setToast(
       created.due
         ? `${created.description} added. It is due today, so it is waiting at the top.`
@@ -84,11 +93,11 @@ export default function Recurring() {
   }
 
   return (
-    <section className="narrow sections">
+    <section className="recurring">
       <h1>Recurring expenses</h1>
       <p className="muted">
-        Bills that repeat every month, like rent, SIPs, EMIs and subscriptions. When one is due, the dashboard asks you to
-        add it (with the amount you actually paid) or skip that month. Nothing is added without your tap.
+        Bills that repeat every month, like rent, SIPs, EMIs and subscriptions. When one is due, the dashboard asks you
+        to add it (with the amount you actually paid) or skip that month. Nothing is added without your tap.
       </p>
 
       {toast && (
@@ -97,53 +106,63 @@ export default function Recurring() {
         </p>
       )}
 
-      <DueRecurring
-        items={items}
-        onUpdated={(r) => {
-          replace(r)
-          setToast(null)
-        }}
-      />
-
-      {adding ? (
-        <article className="card">
-          <h2>New recurring expense</h2>
-          <RecurringForm
-            categories={active}
-            submitLabel="Save recurring expense"
-            onSubmit={add}
-            onCancel={items.length > 0 ? () => setAdding(false) : undefined}
+      {/* Phone: due, form, list in one column. Wide: the form on the left, due and list on the right. */}
+      <div className="recurring-layout">
+        <div className="area-due">
+          <DueRecurring
+            items={items}
+            onUpdated={(r) => {
+              replace(r)
+              setToast(null)
+            }}
           />
-        </article>
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            setAdding(true)
-            setToast(null)
-          }}
-        >
-          New recurring expense
-        </button>
-      )}
+        </div>
 
-      {items.length > 0 && (
-        <article className="card">
-          <h2>All recurring expenses</h2>
-          <ul className="category-list">
-            {items.map((r) => (
-              <RecurringRow
-                key={r.id}
-                item={r}
-                categories={categories}
-                categoryName={categoryName(r.categoryId)}
-                onChanged={replace}
-                onDeleted={(id) => setItems((all) => all?.filter((x) => x.id !== id) ?? null)}
+        <div className="area-form">
+          {adding ? (
+            <article className="card">
+              <h2>New recurring expense</h2>
+              <RecurringForm
+                key={formKey}
+                categories={active}
+                submitLabel="Save recurring expense"
+                onSubmit={add}
+                onCancel={items.length > 0 && !wide ? () => setAdding(false) : undefined}
               />
-            ))}
-          </ul>
-        </article>
-      )}
+            </article>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setAdding(true)
+                setToast(null)
+              }}
+            >
+              New recurring expense
+            </button>
+          )}
+        </div>
+
+        <div className="area-list">
+          {items.length > 0 && (
+            <article className="card">
+              <h2>All recurring expenses</h2>
+              <ul className="category-list">
+                {items.map((r) => (
+                  <RecurringRow
+                    key={r.id}
+                    item={r}
+                    categories={categories}
+                    categoryName={categoryName(r.categoryId)}
+                    onChanged={replace}
+                    onDeleted={(id) => setItems((all) => all?.filter((x) => x.id !== id) ?? null)}
+                  />
+                ))}
+              </ul>
+            </article>
+          )}
+        </div>
+      </div>
     </section>
   )
 }
@@ -224,7 +243,9 @@ function RecurringRow({ item, categories, categoryName, onChanged, onDeleted }: 
         <div className="category-panel" id={panelId}>
           <p className="hint">{scheduleLabel(item.dayOfMonth)}.</p>
           {categoryArchived && (
-            <p className="hint">Its category is archived. Choose another one, or restore the category, to add it again.</p>
+            <p className="hint">
+              Its category is archived. Choose another one, or restore the category, to add it again.
+            </p>
           )}
           <RecurringForm
             categories={choices}
@@ -241,7 +262,9 @@ function RecurringRow({ item, categories, categoryName, onChanged, onDeleted }: 
               type="button"
               className="secondary"
               disabled={busy}
-              onClick={() => run(async () => onChanged(await updateRecurring(item.id, { ...current, paused: !item.paused })))}
+              onClick={() =>
+                run(async () => onChanged(await updateRecurring(item.id, { ...current, paused: !item.paused })))
+              }
             >
               {item.paused ? 'Resume' : 'Pause'}
             </button>
