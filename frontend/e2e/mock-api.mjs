@@ -165,6 +165,7 @@ function historyItem(cycle) {
     wantsSpentPaise: r.wants.spentPaise,
     investedPaise: r.savings.investedPaise,
     savedPaise: r.savings.savedPaise,
+    expenseCount: r.expenseCount,
   }
 }
 
@@ -252,6 +253,21 @@ function handle(req, res, body) {
     const index = state.cycles.findIndex((c) => c.periodStart <= date && date <= c.periodEnd)
     if (index < 0) return fail(res, 404, 'No cycle contains that date')
     return send(res, 200, state.cycles.slice(Math.max(0, index - count + 1), index + 1).map(historyItem))
+  }
+  if (path === '/api/reports/cycles') return send(res, 200, state.cycles.map(historyItem))
+  if (path === '/api/reports/weekly') {
+    const weeks = Number(url.searchParams.get('weeks') ?? 8)
+    if (!(weeks >= 1 && weeks <= 26)) return fail(res, 400, 'Weeks must be between 1 and 26')
+    const [y, m, d] = today().split('-').map(Number)
+    const weekday = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7
+    const from = addDays(today(), -weekday - 7 * (weeks - 1))
+    const inRange = state.expenses.filter((e) => e.expenseDate >= from && e.expenseDate <= today())
+    return send(res, 200, {
+      from,
+      to: today(),
+      cycles: state.cycles.filter((c) => c.periodEnd >= from && c.periodStart <= today()),
+      daily: dailyRows(inRange),
+    })
   }
   if (path === '/api/cycles/current/salary') {
     Object.assign(currentCycle(), { salaryPaise: body.salaryPaise, ...split(body.salaryPaise) })

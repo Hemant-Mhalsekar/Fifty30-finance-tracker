@@ -331,6 +331,27 @@ export type CycleHistoryItem = {
   investedPaise: number
   // Salary - needs - wants; negative is a deficit.
   savedPaise: number
+  // A cycle with nothing logged "saves" its whole salary; the savings report leaves those out.
+  expenseCount: number
+}
+
+/** Every stored cycle with its totals, oldest first. */
+export function getAllCycles(): Promise<CycleHistoryItem[]> {
+  return requestJson<CycleHistoryItem[]>('/api/reports/cycles')
+}
+
+export type WeeklyData = {
+  // A Monday.
+  from: string
+  // Today.
+  to: string
+  cycles: Cycle[]
+  daily: { date: string; type: BudgetType; spentPaise: number }[]
+}
+
+/** The last `weeks` Monday-to-Sunday weeks up to today. */
+export function getWeekly(weeks = 8): Promise<WeeklyData> {
+  return requestJson<WeeklyData>(`/api/reports/weekly?weeks=${weeks}`)
 }
 
 /** The cycle containing the date (today if left out) and up to count - 1 before it, oldest first. */

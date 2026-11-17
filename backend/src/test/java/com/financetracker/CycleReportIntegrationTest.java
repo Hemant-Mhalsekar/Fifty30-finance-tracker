@@ -317,6 +317,91 @@ class CycleReportIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$[0].savedPaise").value(1_000_000L));
     }
 
+    @Test
+    void reportsCyclesListsEveryCycleOldestFirstWithExpenseCounts() throws Exception {
+        mockMvc.perform(get("/api/reports/cycles")).andExpect(status().isUnauthorized());
+        String token = registerUserAndGetToken();
+        mockMvc.perform(get("/api/reports/cycles").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isConflict());
+
+        onboardUser(token, 1_000_000L, 25);
+        UUID userId = userId(token);
+        CyclePeriod old = CycleCalculator.containing(today().minusMonths(3), 25);
+        BudgetSplit split = BudgetSplit.of(1_000_000L);
+        jdbcTemplate.update("DELETE FROM cycles WHERE user_id = ?", userId);
+        jdbcTemplate.update("""
+                INSERT INTO cycles (user_id, period_start, period_end, salary_paise,
+                                    needs_paise, wants_paise, savings_paise)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                userId, old.start(), old.end(), 1_000_000L,
+                split.needsPaise(), split.wantsPaise(), split.savingsPaise());
+        logExpense(token, "Rent", 300_000L, null, old.start());
+        logExpense(token, "Dining", 20_000L, null, old.end());
+        logExpense(token, "Investments", 50_000L, null, old.end());
+        logExpense(token, "Groceries", 1_000L, null, today());
+
+        // More than the history chart's 12-cycle limit would allow: every cycle is listed.
+        mockMvc.perform(get("/api/reports/cycles").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(4))
+                .andExpect(jsonPath("$[0].cycle.periodStart").value(old.start().toString()))
+                .andExpect(jsonPath("$[0].expenseCount").value(3))
+                .andExpect(jsonPath("$[0].needsSpentPaise").value(300_000L))
+                .andExpect(jsonPath("$[0].investedPaise").value(50_000L))
+                .andExpect(jsonPath("$[0].savedPaise").value(1_000_000L - 320_000L))
+                .andExpect(jsonPath("$[1].expenseCount").value(0))
+                .andExpect(jsonPath("$[3].cycle.periodStart")
+                        .value(CycleCalculator.containing(today(), 25).start().toString()))
+                .andExpect(jsonPath("$[3].expenseCount").value(1));
+
+        // The history endpoint carries the count too.
+        mockMvc.perform(get("/api/cycles/history").param("count", "1")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(jsonPath("$[0].expenseCount").value(1));
+    }
+
+    @Test
+    void weeklyReturnsWholeWeeksFromAMondayWithOverlappingCyclesAndDailyTotals() throws Exception {
+        mockMvc.perform(get("/api/reports/weekly")).andExpect(status().isUnauthorized());
+        String token = registerUserAndGetToken();
+        mockMvc.perform(get("/api/reports/weekly").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isConflict());
+
+        onboardUser(token, 1_000_000L, 25);
+        LocalDate monday = today().with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+        LocalDate from = monday.minusWeeks(1);
+        // Onboarding only creates the current cycle; expenses before it still count as spending.
+        logExpense(token, "Groceries", 1_000L, null, today());
+        logExpense(token, "Dining", 2_000L, null, from);
+        logExpense(token, "Dining", 4_000L, null, from.minusDays(1));
+
+        mockMvc.perform(get("/api/reports/weekly").param("weeks", "2")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.from").value(from.toString()))
+                .andExpect(jsonPath("$.to").value(today().toString()))
+                .andExpect(jsonPath("$.cycles.length()").value(1))
+                .andExpect(jsonPath("$.cycles[0].periodStart")
+                        .value(CycleCalculator.containing(today(), 25).start().toString()))
+                .andExpect(jsonPath("$.daily.length()").value(2))
+                .andExpect(jsonPath("$.daily[0].date").value(from.toString()))
+                .andExpect(jsonPath("$.daily[0].spentPaise").value(2_000L))
+                .andExpect(jsonPath("$.daily[1].date").value(today().toString()));
+
+        // The default is 8 weeks.
+        mockMvc.perform(get("/api/reports/weekly").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.from").value(monday.minusWeeks(7).toString()));
+
+        for (String weeks : new String[] {"0", "27"}) {
+            mockMvc.perform(get("/api/reports/weekly").param("weeks", weeks)
+                            .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Weeks must be between 1 and 26"));
+        }
+    }
+
     // ---- helpers ----
 
     private LocalDate today() {

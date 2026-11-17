@@ -72,7 +72,8 @@ public interface ExpenseRepository extends Repository<Expense, UUID> {
     // Totals per stored cycle and type in one query: each expense is matched to the cycle whose
     // date range contains it (there is deliberately no foreign key from expenses to cycles).
     @Query("""
-            select new com.financetracker.expense.CycleTypeSpend(c.periodStart, e.categoryType, sum(e.amountPaise))
+            select new com.financetracker.expense.CycleTypeSpend(
+                c.periodStart, e.categoryType, sum(e.amountPaise), count(e))
             from Expense e
             join Cycle c on c.userId = e.userId and e.expenseDate between c.periodStart and c.periodEnd
             where e.userId = :userId and c.periodStart between :firstStart and :lastStart
