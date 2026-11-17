@@ -13,7 +13,7 @@ import Onboarding from './pages/Onboarding'
 import ResetPassword from './pages/ResetPassword'
 import Settings from './pages/Settings'
 
-type Phase = 'waking' | 'serverError' | 'form' | 'ready'
+type Phase = 'waking' | 'offline' | 'serverError' | 'form' | 'ready'
 
 export default function App() {
   const { pathname } = useLocation()
@@ -29,10 +29,15 @@ export default function App() {
     const controller = new AbortController()
 
     async function start() {
-      const serverUp = await waitForServer(controller.signal)
+      // Offline: say so straight away instead of polling a server we cannot reach for 3 minutes.
+      if (!navigator.onLine) {
+        setPhase('offline')
+        return
+      }
+      const server = await waitForServer(controller.signal)
       if (controller.signal.aborted) return
-      if (!serverUp) {
-        setPhase('serverError')
+      if (server !== 'up') {
+        setPhase(server === 'offline' ? 'offline' : 'serverError')
         return
       }
 
@@ -65,6 +70,14 @@ export default function App() {
       }),
     [],
   )
+
+  // Coming back online from the offline screen starts over by itself.
+  useEffect(() => {
+    if (phase !== 'offline') return
+    const onOnline = () => retry()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [phase])
 
   function retry() {
     setPhase('waking')
@@ -124,6 +137,16 @@ export default function App() {
               <strong>Waking up the server…</strong>
             </p>
             <p className="muted">On the free hosting plan this can take up to 3 minutes. The page continues by itself.</p>
+          </div>
+        )}
+
+        {phase === 'offline' && (
+          <div className="card stack" role="status">
+            <p>
+              <strong>You&apos;re offline.</strong>
+            </p>
+            <p className="muted">Fifty30 needs a connection to load your budget. It continues by itself when you are back online.</p>
+            <button onClick={retry}>Try again</button>
           </div>
         )}
 

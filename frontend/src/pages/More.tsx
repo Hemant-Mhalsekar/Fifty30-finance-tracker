@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import InstallCard from '../components/InstallCard'
 
 type Props = {
   email: string
@@ -11,6 +12,7 @@ export default function More({ email, onLogout, loggingOut }: Props) {
   return (
     <section className="narrow sections">
       <h1>More</h1>
+      <InstallCard />
       <div className="card">
         <ul className="menu-list">
           <li>

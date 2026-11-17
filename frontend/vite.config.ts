@@ -5,6 +5,10 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // Changes on every build, so each deploy installs a fresh service worker and cache.
+    __BUILD_ID__: JSON.stringify(Date.now().toString(36)),
+  },
   server: {
     // Forward API calls to the local Spring Boot backend during development.
     proxy: {

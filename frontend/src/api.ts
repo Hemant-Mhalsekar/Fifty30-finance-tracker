@@ -108,9 +108,18 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 /**
  * Polls GET /api/ping until the server answers "ok". Only for cold starts.
  * Pass a signal to stop polling early (for example on unmount).
+ *
+ * A sleeping server answers slowly or with a 5xx through Vercel; no network at all makes fetch
+ * fail at once. Two instant failures in a row therefore mean "offline", even when the browser
+ * still claims to be online (Wi-Fi without internet).
  */
-export async function waitForServer(signal?: AbortSignal): Promise<boolean> {
+export type ServerState = 'up' | 'down' | 'offline'
+
+const OFFLINE_AFTER_NETWORK_ERRORS = 2
+
+export async function waitForServer(signal?: AbortSignal): Promise<ServerState> {
   const deadline = Date.now() + PING_MAX_TOTAL_MS
+  let networkErrorsInARow = 0
 
   while (!signal?.aborted && Date.now() < deadline) {
     const controller = new AbortController()
@@ -120,11 +129,16 @@ export async function waitForServer(signal?: AbortSignal): Promise<boolean> {
 
     try {
       const response = await fetch('/api/ping', { signal: controller.signal })
+      networkErrorsInARow = 0
       if (response.status === 200 && (await response.text()).trim() === 'ok') {
-        return true
+        return 'up'
       }
     } catch {
-      // Network error or timeout: the server is probably still starting.
+      // A timeout means the server is probably still starting; an instant failure means no network.
+      networkErrorsInARow = controller.signal.aborted ? 0 : networkErrorsInARow + 1
+      if (networkErrorsInARow >= OFFLINE_AFTER_NETWORK_ERRORS && !signal?.aborted) {
+        return 'offline'
+      }
     } finally {
       window.clearTimeout(timeout)
       signal?.removeEventListener('abort', abort)
@@ -132,7 +146,7 @@ export async function waitForServer(signal?: AbortSignal): Promise<boolean> {
 
     await sleep(PING_INTERVAL_MS, signal)
   }
-  return false
+  return 'down'
 }
 
 // --- auth calls ---
