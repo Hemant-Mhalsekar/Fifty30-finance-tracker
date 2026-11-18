@@ -2,6 +2,7 @@ import type { CycleHistoryItem } from '../api'
 import { formatRange } from '../dates'
 import { formatPaiseCompact, formatPaiseShort } from '../money'
 import ColumnChart from './ColumnChart'
+import { incomeOf } from '../splits'
 
 const DAY_MONTH = new Intl.DateTimeFormat('en-IN', { timeZone: 'UTC', day: 'numeric', month: 'short' })
 const shortDate = (iso: string) => DAY_MONTH.format(new Date(`${iso}T00:00:00Z`))
@@ -43,11 +44,11 @@ export default function HistoryChart({ items, currentStart }: Props) {
         plan: item.cycle.needsPaise + item.cycle.wantsPaise,
         topLabel: formatPaiseCompact(item.savedPaise),
         topNegative: item.savedPaise < 0,
-        ariaLabel: `${formatRange(item.cycle.periodStart, item.cycle.periodEnd)}: needs ${formatPaiseShort(item.needsSpentPaise)}, wants ${formatPaiseShort(item.wantsSpentPaise)}, ${savedText(item).toLowerCase()} of salary ${formatPaiseShort(item.cycle.salaryPaise)}`,
+        ariaLabel: `${formatRange(item.cycle.periodStart, item.cycle.periodEnd)}: needs ${formatPaiseShort(item.needsSpentPaise)}, wants ${formatPaiseShort(item.wantsSpentPaise)}, ${savedText(item).toLowerCase()} of income ${formatPaiseShort(incomeOf(item.cycle))}`,
         tooltip: {
           title: formatRange(item.cycle.periodStart, item.cycle.periodEnd),
           lines: [
-            `Salary ${formatPaiseShort(item.cycle.salaryPaise)}`,
+            `Income ${formatPaiseShort(incomeOf(item.cycle))}`,
             `Needs ${formatPaiseShort(item.needsSpentPaise)}`,
             `Wants ${formatPaiseShort(item.wantsSpentPaise)}`,
             savedText(item),
@@ -56,10 +57,10 @@ export default function HistoryChart({ items, currentStart }: Props) {
         },
       }))}
       table={{
-        columns: ['Cycle', 'Salary', 'Needs', 'Wants', 'Saved', 'Invested'],
+        columns: ['Cycle', 'Income', 'Needs', 'Wants', 'Saved', 'Invested'],
         rows: items.map((item) => [
           formatRange(item.cycle.periodStart, item.cycle.periodEnd),
-          formatPaiseShort(item.cycle.salaryPaise),
+          formatPaiseShort(incomeOf(item.cycle)),
           formatPaiseShort(item.needsSpentPaise),
           formatPaiseShort(item.wantsSpentPaise),
           formatPaiseShort(item.savedPaise),

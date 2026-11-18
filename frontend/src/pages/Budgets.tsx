@@ -21,7 +21,7 @@ const COLORS: Record<BudgetType, { c: string; t: string }> = {
   INVESTMENT: { c: 'var(--save)', t: 'var(--save-soft)' },
 }
 
-// The 50/30/20 plan for one cycle, with where each bucket's money went, category by category.
+// The split plan for one cycle, with where each bucket's money went, category by category.
 export default function Budgets() {
   // null = the current cycle; otherwise any date inside the cycle being viewed.
   const [viewDate, setViewDate] = useState<string | null>(null)
@@ -71,7 +71,7 @@ export default function Budgets() {
     <div className="page-head">
       <div>
         <h1>Budget Details</h1>
-        <p className="sub">50/30/20 allocation for your pay cycle (pay day to the day before the next)</p>
+        <p className="sub">How your pay cycle is split (pay day to the day before the next)</p>
       </div>
       {cycleSwitch}
     </div>
@@ -138,7 +138,7 @@ export default function Budgets() {
 
       <div className="dash-grid three">
         <BucketSummary
-          title="Needs • 50%"
+          title={`Needs • ${cycle.needsPct}%`}
           type="NEED"
           figures={[
             ['Allocated', needs.allocatedPaise],
@@ -152,7 +152,7 @@ export default function Budgets() {
           max={needs.allocatedPaise}
         />
         <BucketSummary
-          title="Wants • 30%"
+          title={`Wants • ${cycle.wantsPct}%`}
           type="WANT"
           figures={[
             ['Allocated', wants.allocatedPaise],
@@ -166,7 +166,7 @@ export default function Budgets() {
           max={wants.allocatedPaise}
         />
         <BucketSummary
-          title="Savings • 20%"
+          title={`Savings • ${cycle.savingsPct}%`}
           type="INVESTMENT"
           figures={[
             ['Target', savings.plannedPaise],

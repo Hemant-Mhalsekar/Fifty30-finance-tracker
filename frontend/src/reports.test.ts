@@ -2,14 +2,18 @@ import { describe, expect, it } from 'vitest'
 import type { CycleHistoryItem } from './api'
 import { savingsSummary, weekRows, yearRows } from './reports'
 
-const cycle = (periodStart: string, periodEnd: string, salaryPaise = 1_000_000) => ({
+const cycle = (periodStart: string, periodEnd: string, salaryPaise = 1_000_000, bonusPaise = 0) => ({
   periodStart,
   periodEnd,
   salaryPaise,
-  needsPaise: salaryPaise / 2,
-  wantsPaise: (salaryPaise * 3) / 10,
-  savingsPaise: salaryPaise / 5,
+  needsPaise: (salaryPaise + bonusPaise) / 2,
+  wantsPaise: ((salaryPaise + bonusPaise) * 3) / 10,
+  savingsPaise: (salaryPaise + bonusPaise) / 5,
   salaryConfirmed: true,
+  bonusPaise,
+  needsPct: 50,
+  wantsPct: 30,
+  savingsPct: 20,
 })
 
 const item = (
@@ -78,7 +82,15 @@ describe('yearRows', () => {
       [2025, 1],
       [2026, 2],
     ])
-    expect(rows[1]).toMatchObject({ salaryPaise: 2_000_000, wantsPaise: 50, investedPaise: 10, savedPaise: 1_999_950 })
+    expect(rows[1]).toMatchObject({ incomePaise: 2_000_000, wantsPaise: 50, investedPaise: 10, savedPaise: 1_999_950 })
+  })
+
+  it('counts a bonus as income', () => {
+    const bonusCycle = {
+      ...item('2026-01-25', '2026-02-24'),
+      cycle: cycle('2026-01-25', '2026-02-24', 1_000_000, 200_000),
+    }
+    expect(yearRows([bonusCycle])[0].incomePaise).toBe(1_200_000)
   })
 })
 
@@ -102,5 +114,19 @@ describe('savingsSummary', () => {
     expect(summary.totalInvestedPaise).toBe(100_000)
     expect(summary.skipped).toBe(1)
     expect(summary.current?.cycle.periodStart).toBe('2026-11-25')
+    expect(summary.openingPaise).toBe(0)
+    expect(summary.totalWithOpeningPaise).toBe(0)
+  })
+
+  it('starts the running total at the opening balance', () => {
+    const summary = savingsSummary(
+      [item('2026-08-25', '2026-09-24', { needs: 500_000, wants: 300_000, count: 1 })],
+      '2026-11-30',
+      5_000_000,
+    )
+    expect(summary.rows[0].runningPaise).toBe(5_200_000)
+    // Saved in cycles stays separate from what the user started with.
+    expect(summary.totalSavedPaise).toBe(200_000)
+    expect(summary.totalWithOpeningPaise).toBe(5_200_000)
   })
 })

@@ -123,7 +123,10 @@ test('settings: salary change with preview, pay-day change scheduled and cancell
   await expect(page.getByRole('button', { name: 'Update salary' })).toBeDisabled()
 
   await salary.fill('60,000')
-  await expect(page.getByText('Needs ₹30,000.00')).toBeVisible()
+  // Preview of the new split: needs are 50% of ₹60,000.
+  await expect(page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Salary' }) })).toContainText(
+    'Needs 50%₹30,000',
+  )
   await page.getByRole('button', { name: 'Update salary' }).click()
   await expect(page.getByRole('status')).toContainText('Salary is now ₹60,000.00')
 
@@ -320,7 +323,7 @@ test('budgets: each bucket with its categories, and the cycle can be changed', a
 test('settings: the name can be changed, and hidden from the greeting without losing it', async ({ page }) => {
   await page.goto('/settings')
   await page.getByLabel('Your name', { exact: true }).fill('Arjun Mehta')
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('article', { name: 'Profile' }).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible()
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Home' }).click()
@@ -330,7 +333,7 @@ test('settings: the name can be changed, and hidden from the greeting without lo
   const show = page.getByRole('switch', { name: /Show my name in the greeting/ })
   await expect(show).toBeChecked()
   await show.uncheck()
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('article', { name: 'Profile' }).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible()
   await expect(page.getByLabel('Your name', { exact: true })).toHaveValue('Arjun Mehta')
   await page.goto('/')
@@ -338,8 +341,66 @@ test('settings: the name can be changed, and hidden from the greeting without lo
 
   await page.goto('/settings')
   await page.getByRole('switch', { name: /Show my name in the greeting/ }).check()
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('article', { name: 'Profile' }).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible()
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/, Arjun$/)
+})
+
+test('split: choosing another split redoes this cycle and the dashboard follows', async ({ page }) => {
+  await page.goto('/settings')
+  const card = page.getByRole('article', { name: 'Budget split' })
+  await expect(card.getByLabel(/Balanced/)).toBeChecked()
+  await card.getByLabel(/High rent/).check()
+  // Preview of ₹50,000 at 60/20/20.
+  await expect(card).toContainText('Needs 60%₹30,000')
+  await card.getByRole('button', { name: 'Use this split' }).click()
+  await expect(card.getByRole('status')).toContainText('High rent (60/20/20) now applies')
+
+  await page.goto('/')
+  const needs = page.getByRole('article', { name: 'Needs' })
+  await expect(needs).toContainText('60% • Essentials')
+  await expect(needs).toContainText('of ₹30,000')
+  await page.goto('/budgets')
+  await expect(page.getByRole('article', { name: 'Wants • 20%' })).toContainText('₹10,000')
+})
+
+test('bonus: added to this cycle, split like salary, and removable', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('link', { name: '+ Add a bonus' }).click()
+  const card = page.getByRole('article', { name: 'Bonus this cycle' })
+  await card.getByLabel('Bonus amount (₹)').fill('10000')
+  await card.getByRole('button', { name: 'Add bonus' }).click()
+  await expect(card.getByRole('status')).toContainText('Bonus of ₹10,000.00 added')
+
+  await page.goto('/')
+  const hero = page.getByRole('article', { name: 'Pay cycle budget' })
+  await expect(hero).toContainText('₹60,000')
+  await expect(hero).toContainText('Salary ₹50,000 + bonus ₹10,000')
+  await expect(page.getByRole('article', { name: 'Needs' })).toContainText('of ₹30,000')
+
+  await page.goto('/settings')
+  await card.getByRole('button', { name: 'Remove bonus' }).click()
+  await expect(card.getByRole('status')).toContainText('Bonus removed')
+  await page.goto('/')
+  await expect(hero).toContainText('₹50,000')
+  await expect(page.getByRole('link', { name: '+ Add a bonus' })).toBeVisible()
+})
+
+test('opening balance: total savings in Reports starts from it', async ({ page }) => {
+  await page.goto('/settings')
+  const card = page.getByRole('article', { name: 'Opening balance' })
+  await card.getByLabel('Savings you started with (₹)').fill('1,00,000')
+  await card.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(card.getByRole('status')).toContainText('Opening balance saved')
+
+  await page.goto('/reports?view=savings')
+  const total = page.locator('.stat-tile', { hasText: 'Total savings' })
+  await expect(total).toContainText('Your opening balance of ₹1,00,000')
+
+  await page.goto('/settings')
+  await card.getByRole('button', { name: 'Remove' }).click()
+  await expect(card.getByRole('status')).toContainText('Opening balance removed')
+  await page.goto('/reports?view=savings')
+  await expect(page.locator('.stat-tile', { hasText: 'Total savings' })).toHaveCount(0)
 })

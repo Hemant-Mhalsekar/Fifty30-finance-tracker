@@ -38,7 +38,7 @@ test('past cycles: one column per cycle with totals, newest marked', async ({ pa
   // The cycle on screen has the bold date label.
   await expect(chart.locator('text.strong')).toHaveCount(1)
   // The previous cycle has nothing logged, so it saved its whole salary.
-  await expect(columns.first()).toHaveAccessibleName(/saved ₹50,000 of salary ₹50,000/)
+  await expect(columns.first()).toHaveAccessibleName(/saved ₹50,000 of income ₹50,000/)
   await columns.last().focus()
   await expect(chart.locator('.chart-tooltip')).toContainText('Needs ₹1,332')
 

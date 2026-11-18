@@ -33,7 +33,8 @@ _Screenshots use sample data._
 ## Features
 
 - **Pay cycles, not calendar months.** A cycle runs from one pay day to the day before the next (the 29th–31st fall back to the last day of shorter months). Changing your pay day waits one full cycle, so no cycle is cut short without warning.
-- **50/30/20 plan per cycle.** "Left to spend" on needs and wants, a daily allowance, overspending and deficit warnings.
+- **A split plan per cycle.** 50/30/20 by default, or one of three presets (High rent 60/20/20, Saver 50/20/30, Low cost 40/30/30). "Left to spend" on needs and wants, a daily allowance, overspending and deficit warnings.
+- **Bonus and opening balance.** Add a bonus to the current cycle and it is split like salary. Savings you already had can be added once, and count toward total savings.
 - **Fast expense entry on a phone.** Big amount field, category chips (with icons) ordered by recent use, Today/Yesterday buttons, and a note of which bucket the expense counts toward.
 - **Expense list.** Search by description, filter by type, dates and category, daily totals that stay right across pages, and the time each expense was logged.
 - **Budget details.** Each bucket for any cycle, broken down by category, with a warning when the previous cycle went over.
@@ -125,8 +126,8 @@ Deploys happen on every push to `main` and do not run tests, so pull requests ar
 
 Known trade-offs, mostly from keeping it a free, single-person project:
 
-- **Savings only know what you log.** There is no opening balance, bank sync or bonus income. Unspent money counts as saved, so early in a cycle "saved so far" is high and falls as you spend.
-- **The split is fixed at 50/30/20** for every cycle (the database already stores percentages per cycle, so a custom split is possible later).
+- **Savings only know what you log.** There is no bank sync. Unspent money counts as saved, so early in a cycle "saved so far" is high and falls as you spend.
+- **Four split presets, no custom percentages**, and one bonus amount per cycle (it does not repeat in later cycles).
 - **India only:** rupees, Indian number formatting, and dates in India time.
 - **Recurring expenses are monthly** (on a day of the month); weekly or yearly ones are not supported.
 - **Signing up with an email that is already used says so**, which reveals that the account exists.

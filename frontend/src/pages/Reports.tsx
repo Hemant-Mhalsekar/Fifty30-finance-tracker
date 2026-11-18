@@ -5,6 +5,7 @@ import ColumnChart from '../components/ColumnChart'
 import { formatDate, formatRange, todayIst } from '../dates'
 import { formatPaiseCompact, formatPaiseShort } from '../money'
 import { savingsSummary, weekRows, yearRows } from '../reports'
+import { incomeOf } from '../splits'
 
 type View = 'weekly' | 'yearly' | 'savings'
 const VIEWS: { value: View; label: string }[] = [
@@ -19,7 +20,7 @@ const loadWeekly = () => getWeekly(WEEKS)
 const DAY_MONTH = new Intl.DateTimeFormat('en-IN', { timeZone: 'UTC', day: 'numeric', month: 'short' })
 const shortDate = (iso: string) => DAY_MONTH.format(new Date(`${iso}T00:00:00Z`))
 
-export default function Reports() {
+export default function Reports({ openingBalancePaise }: { openingBalancePaise: number | null }) {
   // The view lives in the address, so a reload or a shared link keeps it.
   const [params, setParams] = useSearchParams()
   const fromAddress = params.get('view')
@@ -54,7 +55,7 @@ export default function Reports() {
           ))}
         </div>
       </fieldset>
-      {view === 'weekly' ? <WeeklyReport /> : <CycleReports view={view} />}
+      {view === 'weekly' ? <WeeklyReport /> : <CycleReports view={view} openingPaise={openingBalancePaise ?? 0} />}
     </section>
   )
 }
@@ -178,10 +179,10 @@ function WeeklyReport() {
   )
 }
 
-function CycleReports({ view }: { view: 'yearly' | 'savings' }) {
+function CycleReports({ view, openingPaise }: { view: 'yearly' | 'savings'; openingPaise: number }) {
   const { data, error } = useLoad<CycleHistoryItem[]>(getAllCycles)
   if (!data) return <Status error={error} />
-  return view === 'yearly' ? <YearlyReport items={data} /> : <SavingsReport items={data} />
+  return view === 'yearly' ? <YearlyReport items={data} /> : <SavingsReport items={data} openingPaise={openingPaise} />
 }
 
 function YearlyReport({ items }: { items: CycleHistoryItem[] }) {
@@ -197,7 +198,7 @@ function YearlyReport({ items }: { items: CycleHistoryItem[] }) {
               key={r.year}
               label={`${r.year} so far`}
               value={formatPaiseShort(r.savedPaise)}
-              note={`Saved from ${formatPaiseShort(r.salaryPaise)} over ${r.cycles} ${r.cycles === 1 ? 'cycle' : 'cycles'}`}
+              note={`Saved from ${formatPaiseShort(r.incomePaise)} over ${r.cycles} ${r.cycles === 1 ? 'cycle' : 'cycles'}`}
               negative={r.savedPaise < 0}
             />
           ))}
@@ -221,11 +222,11 @@ function YearlyReport({ items }: { items: CycleHistoryItem[] }) {
           ],
           topLabel: formatPaiseCompact(r.savedPaise),
           topNegative: r.savedPaise < 0,
-          ariaLabel: `${r.year}: salary ${formatPaiseShort(r.salaryPaise)}, needs ${formatPaiseShort(r.needsPaise)}, wants ${formatPaiseShort(r.wantsPaise)}, saved ${formatPaiseShort(r.savedPaise)}`,
+          ariaLabel: `${r.year}: income ${formatPaiseShort(r.incomePaise)}, needs ${formatPaiseShort(r.needsPaise)}, wants ${formatPaiseShort(r.wantsPaise)}, saved ${formatPaiseShort(r.savedPaise)}`,
           tooltip: {
             title: `${r.year} · ${r.cycles} ${r.cycles === 1 ? 'cycle' : 'cycles'}`,
             lines: [
-              `Salary ${formatPaiseShort(r.salaryPaise)}`,
+              `Income ${formatPaiseShort(r.incomePaise)}`,
               `Needs ${formatPaiseShort(r.needsPaise)}`,
               `Wants ${formatPaiseShort(r.wantsPaise)}`,
               `Saved ${formatPaiseShort(r.savedPaise)}`,
@@ -234,11 +235,11 @@ function YearlyReport({ items }: { items: CycleHistoryItem[] }) {
           },
         }))}
         table={{
-          columns: ['Year', 'Cycles', 'Salary', 'Needs', 'Wants', 'Saved', 'Invested'],
+          columns: ['Year', 'Cycles', 'Income', 'Needs', 'Wants', 'Saved', 'Invested'],
           rows: rows.map((r) => [
             String(r.year),
             String(r.cycles),
-            formatPaiseShort(r.salaryPaise),
+            formatPaiseShort(r.incomePaise),
             formatPaiseShort(r.needsPaise),
             formatPaiseShort(r.wantsPaise),
             formatPaiseShort(r.savedPaise),
@@ -250,14 +251,22 @@ function YearlyReport({ items }: { items: CycleHistoryItem[] }) {
   )
 }
 
-function SavingsReport({ items }: { items: CycleHistoryItem[] }) {
-  const summary = savingsSummary(items, todayIst())
+function SavingsReport({ items, openingPaise }: { items: CycleHistoryItem[]; openingPaise: number }) {
+  const summary = savingsSummary(items, todayIst(), openingPaise)
   const { rows, current } = summary
   const average = rows.length > 0 ? summary.totalSavedPaise / rows.length : null
 
   return (
     <>
       <div className="stat-tiles">
+        {openingPaise > 0 && (
+          <Tile
+            label="Total savings"
+            value={formatPaiseShort(summary.totalWithOpeningPaise)}
+            note={`Your opening balance of ${formatPaiseShort(openingPaise)} plus what finished cycles saved`}
+            negative={summary.totalWithOpeningPaise < 0}
+          />
+        )}
         <Tile
           label="Saved in finished cycles"
           value={formatPaiseShort(summary.totalSavedPaise)}
@@ -287,7 +296,11 @@ function SavingsReport({ items }: { items: CycleHistoryItem[] }) {
       </div>
       <ColumnChart
         title="Saved per cycle"
-        subtitle={rows.length > 0 ? `Running total ${formatPaiseShort(summary.totalSavedPaise)}` : undefined}
+        subtitle={
+          rows.length > 0
+            ? `Running total ${formatPaiseShort(summary.totalWithOpeningPaise)}${openingPaise > 0 ? ' with your opening balance' : ''}`
+            : undefined
+        }
         emptyText="No finished cycles with expenses yet. Your first one appears here after the current cycle ends."
         legend={[
           { name: 'Saved', color: 'var(--save)' },
@@ -316,10 +329,10 @@ function SavingsReport({ items }: { items: CycleHistoryItem[] }) {
           },
         }))}
         table={{
-          columns: ['Cycle', 'Salary', 'Saved', 'Invested', 'Running total'],
+          columns: ['Cycle', 'Income', 'Saved', 'Invested', 'Running total'],
           rows: rows.map(({ item, runningPaise }) => [
             formatRange(item.cycle.periodStart, item.cycle.periodEnd),
-            formatPaiseShort(item.cycle.salaryPaise),
+            formatPaiseShort(incomeOf(item.cycle)),
             formatPaiseShort(item.savedPaise),
             formatPaiseShort(item.investedPaise),
             formatPaiseShort(runningPaise),

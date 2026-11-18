@@ -18,6 +18,7 @@ import com.financetracker.cycle.CycleCalculator;
 import com.financetracker.cycle.CyclePeriod;
 import com.financetracker.cycle.CycleRepository;
 import com.financetracker.cycle.CycleView;
+import com.financetracker.cycle.SplitPreset;
 import com.financetracker.user.UserRepository;
 
 @Service
@@ -40,7 +41,7 @@ public class OnboardingService {
     }
 
     @Transactional
-    public CycleView onboard(UUID userId, long salaryPaise, int payDay) {
+    public CycleView onboard(UUID userId, long salaryPaise, int payDay, SplitPreset preset, Long openingBalancePaise) {
         if (userRepository.claimPayDay(userId, (short) payDay) == 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Setup already completed");
         }
@@ -51,16 +52,19 @@ public class OnboardingService {
 
         LocalDate today = LocalDate.now(clock);
         CyclePeriod period = CycleCalculator.containing(today, payDay);
-        BudgetSplit split = BudgetSplit.of(salaryPaise);
+        BudgetSplit split = preset.split(salaryPaise);
+        if (openingBalancePaise != null) {
+            userRepository.updateOpeningBalance(userId, openingBalancePaise);
+        }
 
         Cycle cycle = cycleRepository.save(new Cycle(
                 userId,
                 period.start(),
                 period.end(),
                 salaryPaise,
-                (short) 50,
-                (short) 30,
-                (short) 20,
+                preset.needsPct(),
+                preset.wantsPct(),
+                preset.savingsPct(),
                 split.needsPaise(),
                 split.wantsPaise(),
                 split.savingsPaise()));

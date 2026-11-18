@@ -24,6 +24,7 @@ import { AlertIcon, BagIcon, ChevronLeftIcon, ChevronRightIcon, HomeIcon, PiggyI
 import { addDays, formatRange, todayIst } from '../dates'
 import { donutSlices, firstName, greeting, initial, paceStatus, percentOf } from '../display'
 import { formatPaise, formatPaiseCompact, formatPaiseShort } from '../money'
+import { incomeOf } from '../splits'
 
 // Nudge only after a few quiet days; daily loggers should not see it.
 const NUDGE_AFTER_DAYS = 3
@@ -193,10 +194,24 @@ export default function Dashboard({ me }: { me: Me }) {
         <LeftToSpend report={report} isCurrent={isCurrent} />
       </div>
 
-      <h2 className="section-title phone-only">50/30/20 breakdown</h2>
+      <h2 className="section-title phone-only">
+        {cycle.needsPct}/{cycle.wantsPct}/{cycle.savingsPct} breakdown
+      </h2>
       <div className="dash-grid three">
-        <SpendCard name="Needs" share="50% • Essentials" icon={<HomeIcon />} kind="need" line={report.needs} />
-        <SpendCard name="Wants" share="30% • Lifestyle" icon={<BagIcon />} kind="want" line={report.wants} />
+        <SpendCard
+          name="Needs"
+          share={`${cycle.needsPct}% • Essentials`}
+          icon={<HomeIcon />}
+          kind="need"
+          line={report.needs}
+        />
+        <SpendCard
+          name="Wants"
+          share={`${cycle.wantsPct}% • Lifestyle`}
+          icon={<BagIcon />}
+          kind="want"
+          line={report.wants}
+        />
         <SavingsCard report={report} isCurrent={isCurrent} />
       </div>
 
@@ -228,7 +243,7 @@ function Warnings({ report, isCurrent }: { report: CycleReport; isCurrent: boole
   const messages: string[] = []
   if (report.spendingExceedsSalary) {
     messages.push(
-      `You logged ${formatPaise(report.totalLoggedPaise)} this cycle, more than your salary of ${formatPaise(report.cycle.salaryPaise)}.`,
+      `You logged ${formatPaise(report.totalLoggedPaise)} this cycle, more than your income of ${formatPaise(incomeOf(report.cycle))}.`,
     )
   }
   if (report.savings.deficit) {
@@ -267,7 +282,8 @@ function Warnings({ report, isCurrent }: { report: CycleReport; isCurrent: boole
 function BudgetHero({ report, isCurrent }: { report: CycleReport; isCurrent: boolean }) {
   const { cycle, needs, wants, savings } = report
   const spent = needs.spentPaise + wants.spentPaise
-  const used = percentOf(spent, cycle.salaryPaise)
+  const income = incomeOf(cycle)
+  const used = percentOf(spent, income)
   const size = 76
   const stroke = 7
   const r = (size - stroke) / 2
@@ -279,10 +295,24 @@ function BudgetHero({ report, isCurrent }: { report: CycleReport; isCurrent: boo
           <p className="label" id="hero-title">
             Pay cycle budget
           </p>
-          <p className="amount">{formatPaiseShort(cycle.salaryPaise)}</p>
-          <p className="range">{formatRange(cycle.periodStart, cycle.periodEnd)} • 50/30/20 allocation</p>
+          <p className="amount">{formatPaiseShort(income)}</p>
+          <p className="range">
+            {formatRange(cycle.periodStart, cycle.periodEnd)} • {cycle.needsPct}/{cycle.wantsPct}/{cycle.savingsPct}{' '}
+            split
+          </p>
+          {cycle.bonusPaise > 0 ? (
+            <p className="range">
+              Salary {formatPaiseShort(cycle.salaryPaise)} + bonus {formatPaiseShort(cycle.bonusPaise)}
+            </p>
+          ) : (
+            isCurrent && (
+              <Link to="/settings#bonus-title" className="hero-link">
+                + Add a bonus
+              </Link>
+            )
+          )}
         </div>
-        <div className="ring" role="img" aria-label={`${used}% of salary used on needs and wants`}>
+        <div className="ring" role="img" aria-label={`${used}% of income used on needs and wants`}>
           <svg width={size} height={size} aria-hidden="true">
             <circle className="track" cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} />
             <circle
@@ -309,7 +339,7 @@ function BudgetHero({ report, isCurrent }: { report: CycleReport; isCurrent: boo
           <strong>{formatPaiseShort(spent)}</strong>
         </div>
         <div className="tile">
-          <p className="label">{savings.deficit ? 'Over salary' : isCurrent ? 'Left of salary' : 'Unspent'}</p>
+          <p className="label">{savings.deficit ? 'Over income' : isCurrent ? 'Left this cycle' : 'Unspent'}</p>
           <strong className={savings.deficit ? 'bad' : 'good'}>{formatPaiseShort(Math.abs(savings.savedPaise))}</strong>
         </div>
       </div>
@@ -456,7 +486,7 @@ function SavingsCard({ report, isCurrent }: { report: CycleReport; isCurrent: bo
         </span>
         <div className="titles">
           <h3>Savings</h3>
-          <small>20% • Goal</small>
+          <small>{report.cycle.savingsPct}% • Goal</small>
         </div>
         <span className={`pill ${savings.deficit ? 'bad' : pct >= 100 ? 'good' : 'save'}`}>
           {pct >= 100 ? 'On track' : `${pct}%`}

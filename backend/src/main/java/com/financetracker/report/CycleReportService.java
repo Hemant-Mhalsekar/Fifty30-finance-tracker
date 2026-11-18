@@ -88,7 +88,8 @@ public class CycleReportService {
             expenseCount += row.expenseCount();
         }
 
-        long saved = cycle.salaryPaise() - needsSpent - wantsSpent;
+        // Salary + bonus: unspent money counts as saved.
+        long saved = cycle.incomePaise() - needsSpent - wantsSpent;
         long totalLogged = needsSpent + wantsSpent + invested;
 
         Optional<LocalDate> lastLoggedOn = expenseRepository.findLastCreatedAt(userId)
@@ -101,7 +102,7 @@ public class CycleReportService {
                 budget(cycle.wantsPaise(), wantsSpent),
                 new CycleReport.Savings(cycle.savingsPaise(), saved, invested, saved < 0),
                 totalLogged,
-                totalLogged > cycle.salaryPaise(),
+                totalLogged > cycle.incomePaise(),
                 expenseCount,
                 categories,
                 lastLoggedOn.orElse(null),
@@ -171,7 +172,7 @@ public class CycleReportService {
             long wants = t[BudgetType.WANT.ordinal()];
             long invested = t[BudgetType.INVESTMENT.ordinal()];
             items.add(new CycleHistoryItem(
-                    CycleView.from(cycle), needs, wants, invested, cycle.getSalaryPaise() - needs - wants, t[3]));
+                    CycleView.from(cycle), needs, wants, invested, cycle.getIncomePaise() - needs - wants, t[3]));
         }
         return items;
     }

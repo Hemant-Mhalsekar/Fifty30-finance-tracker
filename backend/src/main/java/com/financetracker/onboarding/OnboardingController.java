@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.financetracker.cycle.CycleView;
+import com.financetracker.cycle.SplitPreset;
 import com.financetracker.user.DisplayNames;
 import com.financetracker.user.UserRepository;
 
@@ -35,7 +36,15 @@ public class OnboardingController {
             int payDay,
 
             // Optional, for the greeting.
-            String name) {
+            String name,
+
+            // Optional; BALANCED (50/30/20) when left out.
+            SplitPreset split,
+
+            // Optional savings the user already has; null when they said no.
+            @Min(value = 0, message = "Opening balance must be between ₹0 and ₹10,00,00,00,000")
+            @Max(value = 100_000_000_000L, message = "Opening balance must be between ₹0 and ₹10,00,00,00,000")
+            Long openingBalancePaise) {
     }
 
     public record OnboardingResponse(int payDay, CycleView cycle) {
@@ -50,7 +59,8 @@ public class OnboardingController {
     }
 
     @Operation(summary = "Set salary and pay day",
-            description = "Once per account. Creates the first cycle and the default categories. name is optional.")
+            description = "Once per account. Creates the first cycle and the default categories."
+                    + " split (default BALANCED), openingBalancePaise and name are optional.")
     @PostMapping("/api/onboarding")
     public ResponseEntity<OnboardingResponse> onboard(
             @AuthenticationPrincipal Jwt jwt,
@@ -58,7 +68,8 @@ public class OnboardingController {
         UUID userId = UUID.fromString(jwt.getSubject());
         // Checked before onboarding so a bad name cannot leave setup half done.
         String name = DisplayNames.normalize(request.name());
-        CycleView cycle = onboardingService.onboard(userId, request.salaryPaise(), request.payDay());
+        CycleView cycle = onboardingService.onboard(userId, request.salaryPaise(), request.payDay(),
+                request.split() != null ? request.split() : SplitPreset.BALANCED, request.openingBalancePaise());
         if (name != null) {
             users.updateDisplayName(userId, name);
         }

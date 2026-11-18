@@ -45,18 +45,28 @@ public class CycleService {
     @Transactional
     public CycleView changeCurrentSalary(UUID userId, long salaryPaise) {
         Cycle current = currentCycleForLockedUser(lockUser(userId));
-        BudgetSplit split = BudgetSplit.of(
-                salaryPaise, current.getNeedsPct(), current.getWantsPct(), current.getSavingsPct());
-        current.applyBudget(
-                salaryPaise,
-                current.getNeedsPct(),
-                current.getWantsPct(),
-                current.getSavingsPct(),
-                split.needsPaise(),
-                split.wantsPaise(),
-                split.savingsPaise());
+        current.rebudget(salaryPaise, current.getBonusPaise(),
+                current.getNeedsPct(), current.getWantsPct(), current.getSavingsPct());
         // Changing the salary answers "Did your salary change?" for this cycle too.
         current.confirmSalary();
+        return CycleView.from(cycleRepository.saveAndFlush(current));
+    }
+
+    // Same rule as a salary change: this cycle is redone, later cycles copy it, past cycles keep theirs.
+    @Transactional
+    public CycleView changeCurrentSplit(UUID userId, SplitPreset preset) {
+        Cycle current = currentCycleForLockedUser(lockUser(userId));
+        current.rebudget(current.getSalaryPaise(), current.getBonusPaise(),
+                preset.needsPct(), preset.wantsPct(), preset.savingsPct());
+        return CycleView.from(cycleRepository.saveAndFlush(current));
+    }
+
+    // The bonus belongs to the current cycle only; it is split like the salary. 0 removes it.
+    @Transactional
+    public CycleView changeCurrentBonus(UUID userId, long bonusPaise) {
+        Cycle current = currentCycleForLockedUser(lockUser(userId));
+        current.rebudget(current.getSalaryPaise(), bonusPaise,
+                current.getNeedsPct(), current.getWantsPct(), current.getSavingsPct());
         return CycleView.from(cycleRepository.saveAndFlush(current));
     }
 
@@ -112,6 +122,9 @@ public class CycleService {
             }
 
             CyclePeriod next = CycleCalculator.startingOn(nextStart, user.getPayDay());
+            // Split from the salary alone: a bonus in the newest cycle must not carry over.
+            BudgetSplit split = BudgetSplit.of(
+                    newest.getSalaryPaise(), newest.getNeedsPct(), newest.getWantsPct(), newest.getSavingsPct());
             cycleRepository.insertIfAbsent(
                     userId,
                     next.start(),
@@ -120,9 +133,9 @@ public class CycleService {
                     newest.getNeedsPct(),
                     newest.getWantsPct(),
                     newest.getSavingsPct(),
-                    newest.getNeedsPaise(),
-                    newest.getWantsPaise(),
-                    newest.getSavingsPaise());
+                    split.needsPaise(),
+                    split.wantsPaise(),
+                    split.savingsPaise());
             previous = next;
         }
         userRepository.saveAndFlush(user);
