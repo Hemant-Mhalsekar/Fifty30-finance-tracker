@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CycleHistoryItem } from './api'
-import { savingsSummary, weekRows, yearRows } from './reports'
+import { cycleMonth, monthRows, savingsSummary, weekRows, yearRows } from './reports'
 
 const cycle = (periodStart: string, periodEnd: string, salaryPaise = 1_000_000, bonusPaise = 0) => ({
   periodStart,
@@ -73,16 +73,31 @@ describe('weekRows', () => {
 
 describe('yearRows', () => {
   it('groups cycles by the year they start in', () => {
-    const rows = yearRows([
-      item('2025-12-25', '2026-01-24', { needs: 100, count: 1 }),
-      item('2026-01-25', '2026-02-24', { wants: 50, invested: 10, count: 2 }),
-      item('2026-02-25', '2026-03-24'),
-    ])
+    const rows = yearRows(
+      [
+        item('2025-12-25', '2026-01-24', { needs: 100, count: 1 }),
+        item('2026-01-25', '2026-02-24', { wants: 50, invested: 10, count: 2 }),
+        item('2026-02-25', '2026-03-24'),
+      ],
+      '2026-06-01',
+    )
     expect(rows.map((r) => [r.year, r.cycles])).toEqual([
       [2025, 1],
       [2026, 2],
     ])
-    expect(rows[1]).toMatchObject({ incomePaise: 2_000_000, wantsPaise: 50, investedPaise: 10, savedPaise: 1_999_950 })
+    // The cycle with nothing logged is income, but not "saved".
+    expect(rows[1]).toMatchObject({
+      incomePaise: 2_000_000,
+      wantsPaise: 50,
+      investedPaise: 10,
+      savedPaise: 999_950,
+      savedCycles: 1,
+    })
+  })
+
+  it('leaves the current cycle out of saved but keeps its spending', () => {
+    const [row] = yearRows([item('2026-05-25', '2026-06-24', { needs: 300, count: 1 })], '2026-06-01')
+    expect(row).toMatchObject({ needsPaise: 300, savedPaise: 0, savedCycles: 0 })
   })
 
   it('counts a bonus as income', () => {
@@ -90,7 +105,7 @@ describe('yearRows', () => {
       ...item('2026-01-25', '2026-02-24'),
       cycle: cycle('2026-01-25', '2026-02-24', 1_000_000, 200_000),
     }
-    expect(yearRows([bonusCycle])[0].incomePaise).toBe(1_200_000)
+    expect(yearRows([bonusCycle], '2026-06-01')[0].incomePaise).toBe(1_200_000)
   })
 })
 
@@ -128,5 +143,31 @@ describe('savingsSummary', () => {
     // Saved in cycles stays separate from what the user started with.
     expect(summary.totalSavedPaise).toBe(200_000)
     expect(summary.totalWithOpeningPaise).toBe(5_200_000)
+  })
+})
+
+describe('monthRows', () => {
+  it('names a cycle after the month most of it falls in', () => {
+    expect(cycleMonth('2026-10-30', '2026-11-29')).toBe(cycleMonth('2026-11-01', '2026-11-30'))
+    expect(cycleMonth('2026-11-01', '2026-11-30')).toMatch(/Nov.*2026/)
+    expect(cycleMonth('2026-12-25', '2027-01-24')).toMatch(/Jan.*2027/)
+    expect(cycleMonth('2026-03-31', '2026-03-31')).toMatch(/Mar.*2026/)
+  })
+
+  it('keeps the latest cycles, marks the current one and counts only finished cycles with expenses', () => {
+    const items = [
+      item('2026-01-25', '2026-02-24', { needs: 100, count: 1 }),
+      item('2026-02-25', '2026-03-24'),
+      item('2026-03-25', '2026-04-24', { needs: 200, wants: 50, count: 3 }),
+      item('2026-04-25', '2026-05-24', { wants: 10, count: 1 }),
+    ]
+    const rows = monthRows(items, '2026-05-01', 3)
+    expect(rows.map((r) => r.item.cycle.periodStart)).toEqual(['2026-02-25', '2026-03-25', '2026-04-25'])
+    expect(rows.map((r) => [r.current, r.counted])).toEqual([
+      [false, false],
+      [false, true],
+      [true, false],
+    ])
+    expect(rows[1]).toMatchObject({ incomePaise: 1_000_000, planPaise: 800_000, spentPaise: 250 })
   })
 })

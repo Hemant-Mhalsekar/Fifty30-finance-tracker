@@ -44,6 +44,7 @@ public class CategoryService {
         this.recurringExpenseRepository = recurringExpenseRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<CategoryView> list(UUID userId, boolean includeArchived) {
         return categoryRepository.findAllByUserId(userId).stream()
                 .filter(c -> includeArchived || !c.isArchived())

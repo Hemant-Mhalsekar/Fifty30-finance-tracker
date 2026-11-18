@@ -2,18 +2,15 @@ package com.financetracker.settings;
 
 import java.util.UUID;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.financetracker.user.DisplayNames;
 import com.financetracker.user.User;
-import com.financetracker.user.UserRepository;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -53,11 +50,9 @@ public class SettingsController {
     }
 
     private final SettingsService settingsService;
-    private final UserRepository users;
 
-    public SettingsController(SettingsService settingsService, UserRepository users) {
+    public SettingsController(SettingsService settingsService) {
         this.settingsService = settingsService;
-        this.users = users;
     }
 
     @Operation(summary = "Set or remove your opening balance",
@@ -67,7 +62,7 @@ public class SettingsController {
     public OpeningBalanceView changeOpeningBalance(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody OpeningBalanceRequest request) {
-        users.updateOpeningBalance(UUID.fromString(jwt.getSubject()), request.openingBalancePaise());
+        settingsService.changeOpeningBalance(UUID.fromString(jwt.getSubject()), request.openingBalancePaise());
         return new OpeningBalanceView(request.openingBalancePaise());
     }
 
@@ -76,14 +71,8 @@ public class SettingsController {
                     + " but keeps it saved.")
     @PutMapping("/name")
     public NameView changeName(@AuthenticationPrincipal Jwt jwt, @RequestBody NameRequest request) {
-        UUID userId = UUID.fromString(jwt.getSubject());
-        String name = DisplayNames.normalize(request.name());
-        users.updateDisplayName(userId, name);
-        if (request.showName() != null) {
-            users.updateShowName(userId, request.showName());
-        }
-        User user = users.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized"));
+        User user = settingsService.changeName(UUID.fromString(jwt.getSubject()),
+                DisplayNames.normalize(request.name()), request.showName());
         return new NameView(user.getDisplayName(), user.isShowName());
     }
 

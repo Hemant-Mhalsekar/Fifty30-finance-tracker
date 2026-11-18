@@ -2,8 +2,10 @@ package com.financetracker.settings;
 
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.financetracker.cycle.Cycle;
 import com.financetracker.cycle.CycleCalculator;
@@ -41,5 +43,25 @@ public class SettingsService {
             user.schedulePayDayChange((short) newPayDay, next.end().plusDays(1));
         }
         return PayDaySettingsView.from(userRepository.saveAndFlush(user));
+    }
+
+    // One transaction, so a failure cannot leave the name changed but not the greeting setting.
+    // name must already be normalized (DisplayNames). showName null keeps the setting.
+    @Transactional
+    public User changeName(UUID userId, String name, Boolean showName) {
+        userRepository.updateDisplayName(userId, name);
+        if (showName != null) {
+            userRepository.updateShowName(userId, showName);
+        }
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized"));
+    }
+
+    @Transactional
+    public void changeOpeningBalance(UUID userId, Long openingBalancePaise) {
+        // 0 rows: the account was deleted while the token was still valid.
+        if (userRepository.updateOpeningBalance(userId, openingBalancePaise) == 0) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
     }
 }

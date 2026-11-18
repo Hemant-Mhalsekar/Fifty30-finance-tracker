@@ -104,6 +104,7 @@ public class ApiResponsesConfig {
                     err(409, SETUP_FIRST)),
             doc("GET /api/cycles/current/report", 200, "The current cycle's report.", err(409, SETUP_FIRST)),
             doc("GET /api/cycles/report", 200, "The report of the cycle containing the date.",
+                    err(400, "Required parameter 'date' is not present."),
                     err(404, NO_CYCLE),
                     err(409, SETUP_FIRST)),
             doc("GET /api/cycles/history", 200, "Cycles with their totals, oldest first.",

@@ -46,6 +46,32 @@ test('weekly: eight Monday-to-Sunday weeks with this week marked', async ({ page
   await expect(chart.locator('tbody tr')).toHaveCount(8)
 })
 
+test('monthly: one column per pay cycle; saved shows once a cycle with expenses has ended', async ({
+  page,
+  request,
+}) => {
+  // ₹12,000 of needs in the previous cycle (salary ₹50,000) leaves ₹38,000 saved.
+  await logExpense(request, 'Rent', 1_200_000, daysAgo(20))
+  await page.goto('/reports?view=monthly')
+  await expect(page.getByLabel('Monthly')).toBeChecked()
+
+  const chart = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'By pay cycle' }) })
+  await expect(chart.getByRole('button')).toHaveCount(2)
+  await expect(chart.locator('text.strong')).toHaveCount(1)
+  await expect(chart.getByRole('button').last()).toHaveAccessibleName(/\(current cycle\): needs ₹[\d,]+, wants/)
+  await expect(chart.getByRole('button').first()).toHaveAccessibleName(/saved ₹38,000/)
+
+  await expect(page.locator('.stat-tile', { hasText: 'so far' })).toContainText('planned for needs and wants')
+  await expect(page.locator('.stat-tile', { hasText: 'Saved in' })).toContainText('₹38,000')
+
+  await chart.getByText('Show as table').click()
+  const rows = chart.locator('tbody tr')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.first()).toContainText('₹38,000')
+  // The current cycle has no "saved" yet.
+  await expect(rows.last().locator('td').nth(4)).toHaveText('–')
+})
+
 test('yearly: one column per year with this year in bold', async ({ page }) => {
   await page.goto('/reports?view=yearly')
   const chart = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'By year' }) })

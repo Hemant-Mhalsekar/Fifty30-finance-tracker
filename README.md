@@ -5,7 +5,7 @@
 **Live:** https://fifty30-finance-tracker.vercel.app
 **API docs:** https://fifty30-finance-tracker.vercel.app/api/docs (Swagger UI; log in through the page to try the endpoints)
 
-A personal finance tracker for salaried people in India, named after the 50/30/20 budgeting rule. You enter your take-home salary and pay day; every pay cycle is split into **needs (50%)**, **wants (30%)** and **savings (20%)**, and each expense you log is measured against that plan. It runs in any browser and installs on a phone as an app.
+A personal finance tracker for salaried people in India, named after the 50/30/20 budgeting rule. You enter your take-home salary and pay day; every pay cycle is split into **needs (50%)**, **wants (30%)** and **savings (20%)** (or one of three other presets), and each expense you log is measured against that plan. It runs in any browser and installs on a phone as an app.
 
 Built as a portfolio project: a Java 25 / Spring Boot 4 API, a React + TypeScript frontend, and PostgreSQL on Supabase.
 
@@ -19,7 +19,16 @@ Built as a portfolio project: a Java 25 / Spring Boot 4 API, a React + TypeScrip
 | --- | --- |
 | ![Expenses with search and filters](docs/screenshots/expenses.png) | ![Budget details](docs/screenshots/budgets.png) |
 
+| Monthly report | Settings: split presets, bonus, opening balance |
+| --- | --- |
+| ![Monthly report, one column per pay cycle](docs/screenshots/reports-monthly.png) | ![Settings with the split picker](docs/screenshots/settings.png) |
+
+<details>
+<summary>Weekly report</summary>
+
 ![Weekly report](docs/screenshots/reports-weekly.png)
+
+</details>
 
 <details>
 <summary>Dark mode</summary>
@@ -42,7 +51,8 @@ _Screenshots use sample data._
 - **Recurring expenses.** Rent, SIPs, EMIs and subscriptions come due on their day; one tap adds them (with the amount actually paid) or skips the month.
 - **"Did your salary change?"** asked once at the start of each new cycle.
 - **Charts.** Spent vs plan, spending by category, spending over the cycle against an even pace, and past cycles (on the Budgets page).
-- **Reports.** Weekly (against a plan prorated per day), yearly, and savings over time.
+- **Reports.** Weekly (against a plan prorated per day), monthly (one column per pay cycle: needs and wants against the plan, and what was saved), yearly, and savings over time, each with a table view.
+- **Documented API.** Swagger UI lists every endpoint with its real status codes and the exact error messages it can return; a test fails if an endpoint is added without them.
 - **CSV export.** Download the filtered expense list for a spreadsheet; cells that would run as formulas are neutralised.
 - **Installable PWA** with an offline shell, light/dark/system theme, and keyboard and screen-reader support for every chart (each also has a table view or a text legend).
 - **Personal greeting.** Your name is asked when you sign up and used in the greeting; Settings can hide it (it stays saved) or change it.
@@ -57,6 +67,16 @@ _Screenshots use sample data._
 | Frontend | React 19, TypeScript, Vite, React Router, plain CSS (no UI library), hand-drawn SVG charts and icons, Inter (self-hosted) |
 | Tests | JUnit 5, Mockito, Testcontainers (real PostgreSQL), Vitest, Playwright |
 | Hosting | Render (API, Docker), Vercel (frontend, also proxies `/api` so the browser sees one origin), GitHub Actions CI |
+
+## Architecture
+
+- **One origin for the browser.** Vercel serves the React app and forwards `/api/*` to the Spring Boot API on Render, so the refresh-token cookie can be `HttpOnly`, `SameSite=Strict` and scoped to `/api/auth`, with no CORS setup.
+- **Backend in feature packages** (`auth`, `cycle`, `expense`, `recurring`, `report`, `settings`, …). Controllers only map HTTP and read the user id from the JWT; services hold the rules and the transactions; repositories are user-scoped queries. Errors leave through one handler as `{"error", "message"}`.
+- **The pay cycle is the core entity.** A cycle stores its own salary, bonus, split percentages and the three allocations, so changing a salary, split or pay day never rewrites history. Missing cycles are created on demand when a request needs today's cycle, because the free server sleeps and cannot rely on a nightly job.
+- **Thin reports API, logic in tested client code.** The API returns raw totals per cycle or per day from `GROUP BY` queries; grouping into weeks, months and years, prorating weekly plans and running savings totals happen in `reports.ts`, which has unit tests.
+- **Schema owned by Flyway.** Every change is a new migration; Hibernate only validates. Database `CHECK` constraints repeat the key rules (allocations add up to income, amounts in range), so a bug in Java cannot store an impossible budget.
+- **Offline-first expense entry.** The frontend queues expenses in local storage with a client id when there is no connection and sends them later; the API treats a repeated client id as the same expense.
+- **Testing in layers.** Unit tests for the calculations, integration tests against real PostgreSQL in Docker for SQL, locking and security rules, and Playwright tests that drive the real UI against a small mock API.
 
 ## Engineering notes
 
@@ -128,6 +148,7 @@ Known trade-offs, mostly from keeping it a free, single-person project:
 
 - **Savings only know what you log.** There is no bank sync. Unspent money counts as saved, so early in a cycle "saved so far" is high and falls as you spend.
 - **Four split presets, no custom percentages**, and one bonus amount per cycle (it does not repeat in later cycles).
+- **"Monthly" means pay cycle.** The monthly report has one column per pay cycle, named after the month most of it falls in, not calendar months.
 - **India only:** rupees, Indian number formatting, and dates in India time.
 - **Recurring expenses are monthly** (on a day of the month); weekly or yearly ones are not supported.
 - **Signing up with an email that is already used says so**, which reveals that the account exists.
