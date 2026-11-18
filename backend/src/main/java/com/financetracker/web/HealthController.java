@@ -11,6 +11,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Health")
 @RestController
 @RequestMapping("/api")
 public class HealthController {
@@ -21,12 +25,13 @@ public class HealthController {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    // Does not touch the database.
+    @Operation(summary = "Is the server up", description = "Does not touch the database.")
     @GetMapping(value = "/ping", produces = "text/plain")
     public String ping() {
         return "ok";
     }
 
+    @Operation(summary = "Is the server and database up", description = "503 when the database cannot be reached.")
     @GetMapping("/health")
     public ResponseEntity<Map<String, String>> health() {
         boolean dbUp;

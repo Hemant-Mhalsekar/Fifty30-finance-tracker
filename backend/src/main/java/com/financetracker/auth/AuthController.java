@@ -28,6 +28,10 @@ import com.financetracker.web.ApiExceptionHandler.ApiError;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Auth")
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -59,6 +63,9 @@ public class AuthController {
         this.dummyHash = passwordEncoder.encode("not-a-real-password");
     }
 
+    @Operation(summary = "Create an account",
+            description = "Returns an access token and sets the refresh cookie."
+                    + " 409 if the email is already registered.")
     @PostMapping("/register")
     public ResponseEntity<TokenResponse> register(
             @Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
@@ -78,6 +85,9 @@ public class AuthController {
                 .body(new TokenResponse(tokenService.createAccessToken(user.getId())));
     }
 
+    @Operation(summary = "Log in",
+            description = "Returns an access token (paste it into Authorize) and sets the refresh cookie."
+                    + " Rate limited per IP and per email.")
     @PostMapping("/login")
     public ResponseEntity<TokenResponse> login(
             @Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
@@ -108,6 +118,8 @@ public class AuthController {
     }
 
     // Always 202 with no body, whether or not the email has an account, so it reveals nothing.
+    @Operation(summary = "Email a password reset link",
+            description = "Always 202, whether or not the email has an account.")
     @PostMapping("/forgot-password")
     public ResponseEntity<Void> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest httpRequest) {
@@ -116,12 +128,16 @@ public class AuthController {
         return ResponseEntity.accepted().build();
     }
 
+    @Operation(summary = "Set a new password with a reset link token", description = "Ends every other session.")
     @PostMapping("/reset-password")
     public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         passwordResetService.resetPassword(request.token(), request.password());
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Get a new access token",
+            description = "Uses and rotates the refresh cookie."
+                    + " Sending an already used token ends every session of that user.")
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
         Optional<RefreshTokenService.Rotated> rotated =
@@ -141,6 +157,7 @@ public class AuthController {
                 .body(new TokenResponse(tokenService.createAccessToken(userId)));
     }
 
+    @Operation(summary = "Log out", description = "Revokes the refresh token and clears the cookie.")
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
         if (refreshToken != null) {

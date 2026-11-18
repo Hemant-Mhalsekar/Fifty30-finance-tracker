@@ -16,6 +16,10 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Cycles")
 @RestController
 @RequestMapping("/api/cycles")
 public class CycleController {
@@ -34,11 +38,13 @@ public class CycleController {
     }
 
     // A GET that can write: it creates any missing cycles up to today. Safe to repeat.
+    @Operation(summary = "The current pay cycle", description = "Creates any missing cycles up to today first.")
     @GetMapping("/current")
     public CycleView current(@AuthenticationPrincipal Jwt jwt) {
         return cycleService.getCurrent(UUID.fromString(jwt.getSubject()));
     }
 
+    @Operation(summary = "Change the current cycle's salary", description = "Later cycles copy it.")
     @PutMapping("/current/salary")
     public CycleView changeSalary(
             @AuthenticationPrincipal Jwt jwt,
@@ -47,6 +53,7 @@ public class CycleController {
     }
 
     // Answers "Did your salary change?" with "No". Changing the salary answers it too.
+    @Operation(summary = "Keep the salary for this cycle", description = "Answers \"Did your salary change?\" with no.")
     @PostMapping("/current/salary/confirm")
     public CycleView confirmSalary(@AuthenticationPrincipal Jwt jwt) {
         return cycleService.confirmCurrentSalary(UUID.fromString(jwt.getSubject()));

@@ -15,6 +15,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Account")
 @RestController
 @RequestMapping("/api/account")
 public class AccountController {
@@ -30,6 +34,9 @@ public class AccountController {
     }
 
     // 202: accepted now, carried out when the grace period ends.
+    @Operation(summary = "Schedule account deletion",
+            description = "Needs the password. Ends every session; all data is deleted after 7 days"
+                    + " unless you log in before then.")
     @PostMapping("/deletion")
     public ResponseEntity<AccountService.DeletionScheduled> requestDeletion(
             @AuthenticationPrincipal Jwt jwt,

@@ -24,6 +24,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Categories")
 @RestController
 @RequestMapping("/api/categories")
 public class CategoryController {
@@ -52,6 +56,7 @@ public class CategoryController {
         this.categoryService = categoryService;
     }
 
+    @Operation(summary = "List categories")
     @GetMapping
     public List<CategoryView> list(
             @AuthenticationPrincipal Jwt jwt,
@@ -60,6 +65,7 @@ public class CategoryController {
         return categoryService.list(userId, includeArchived);
     }
 
+    @Operation(summary = "Create a category", description = "At most 50 per user.")
     @PostMapping
     public ResponseEntity<CategoryView> create(
             @AuthenticationPrincipal Jwt jwt,
@@ -69,6 +75,8 @@ public class CategoryController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @Operation(summary = "Rename, retype, archive or restore a category",
+            description = "The Other category cannot be changed.")
     @PatchMapping("/{id}")
     public CategoryView update(
             @AuthenticationPrincipal Jwt jwt,
@@ -83,6 +91,8 @@ public class CategoryController {
                 request.archived());
     }
 
+    @Operation(summary = "Delete a category",
+            description = "409 while expenses or recurring expenses use it: archive it instead.")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
             @AuthenticationPrincipal Jwt jwt,

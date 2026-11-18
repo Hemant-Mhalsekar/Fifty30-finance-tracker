@@ -35,6 +35,8 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/ping", "/api/health").permitAll()
+                        // API docs page and its files (springdoc, see OpenApiConfig).
+                        .requestMatchers(HttpMethod.GET, "/api/docs", "/api/docs/**", "/api/swagger-ui/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login",
                                 "/api/auth/refresh", "/api/auth/logout",
                                 "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()

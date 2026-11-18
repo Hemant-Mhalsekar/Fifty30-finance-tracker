@@ -14,6 +14,10 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Settings")
 @RestController
 @RequestMapping("/api/settings")
 public class SettingsController {
@@ -31,6 +35,8 @@ public class SettingsController {
         this.settingsService = settingsService;
     }
 
+    @Operation(summary = "Schedule a pay day change",
+            description = "Waits one full cycle. Sending the current pay day cancels a pending change.")
     @PutMapping("/pay-day")
     public PayDaySettingsView changePayDay(
             @AuthenticationPrincipal Jwt jwt,
