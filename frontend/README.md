@@ -36,7 +36,7 @@ Add expense works without a connection: the expense is saved on the phone and se
 ## Tests
 
 ```sh
-npm test            # unit tests (Vitest): money, dates, charts, reports, offline queue
+npm test            # unit tests (Vitest): money, dates, charts, reports, offline queue, display rules
 npm run test:e2e    # browser tests (Playwright) against a mock API
 ```
 
@@ -56,4 +56,4 @@ How it works:
 - `public/manifest.webmanifest` and the icons in `public/` describe the app.
 - `public/sw.js` is a small hand-written service worker. It caches the app's code so it opens instantly and offline, and never caches anything under `/api`. It is only registered in production builds (`npm run build`), so `npm run dev` behaves like a normal website.
 - Each build gets a new worker URL (`/sw.js?v=<build id>`), which replaces the previous deploy's cache.
-- Offline, the app opens and says it is offline; adding expenses still needs a connection.
+- Offline, the app opens for the user who last signed in on that device, and new expenses wait on the phone until the connection is back (see Offline expenses above).

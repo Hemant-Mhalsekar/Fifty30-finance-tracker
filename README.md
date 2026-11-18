@@ -40,12 +40,12 @@ _Screenshots use sample data._
 - **Works offline.** Expenses added without a connection wait on the phone and are sent when it comes back, never twice.
 - **Recurring expenses.** Rent, SIPs, EMIs and subscriptions come due on their day; one tap adds them (with the amount actually paid) or skips the month.
 - **"Did your salary change?"** asked once at the start of each new cycle.
-- **Charts.** Spent vs plan, spending by category, spending over the cycle against an even pace, and past cycles.
+- **Charts.** Spent vs plan, spending by category, spending over the cycle against an even pace, and past cycles (on the Budgets page).
 - **Reports.** Weekly (against a plan prorated per day), yearly, and savings over time.
 - **CSV export.** Download the filtered expense list for a spreadsheet; cells that would run as formulas are neutralised.
 - **Installable PWA** with an offline shell, light/dark/system theme, and keyboard and screen-reader support for every chart (each also has a table view or a text legend).
-- **Personal touch.** An optional name for the greeting, set during setup or in Settings.
-- **Accounts.** Email and password, password reset by email, short-lived access tokens with rotating refresh tokens, and account deletion (password required, data removed after a 7-day grace period that a login cancels).
+- **Personal greeting.** Your name is asked when you sign up and used in the greeting; Settings can hide it (it stays saved) or change it.
+- **Accounts.** Name, email and password, password reset by email, short-lived access tokens with rotating refresh tokens, and account deletion (password required, data removed after a 7-day grace period that a login cancels).
 
 ## Tech stack
 
@@ -68,7 +68,8 @@ The parts I would point a reviewer to:
 - **Reports come from `GROUP BY` queries**, never from loading expenses into memory. Expenses are matched to cycles by date range in one JPQL join.
 - **Every query is scoped to the user.** Repositories extend Spring Data's bare `Repository`, so there is no `findById` without a user id; another user's data always answers 404.
 - **Privacy-minded logging and monitoring.** No request bodies, tokens, emails or SQL parameters in logs. Sentry is off unless configured, sends no personal data, strips reset tokens from URLs, and is loaded on demand in the browser.
-- **Accessibility.** 44 px touch targets and 16 px inputs (both checked by a browser test), all text at 4.5:1 contrast in both themes, colour never the only signal in charts.
+- **Totals that stay right across pages.** The expense list returns the total for every match and per-day totals counted over all matches, so a day split across two pages still shows its real total. Search, type and date filters share one JPQL fragment with the CSV export.
+- **Accessibility.** 44 px touch targets and 16 px inputs (both checked by a browser test), all text at 4.5:1 contrast in both themes, colour never the only signal in charts (every chart prints its values).
 
 ## Project layout
 
@@ -122,8 +123,13 @@ Deploys happen on every push to `main` and do not run tests, so pull requests ar
 
 ## Limitations
 
-- Savings only know about what you log: there is no opening balance, bank sync or bonus income.
-- India only: rupees, Indian number formatting, and dates in IST.
-- The 50/30/20 split is fixed for now.
-- Registering with an email that is already used says so, which reveals that the account exists.
-- The free Render instance sleeps when idle, so the first visit can take up to about three minutes while it wakes.
+Known trade-offs, mostly from keeping it a free, single-person project:
+
+- **Savings only know what you log.** There is no opening balance, bank sync or bonus income. Unspent money counts as saved, so early in a cycle "saved so far" is high and falls as you spend.
+- **The split is fixed at 50/30/20** for every cycle (the database already stores percentages per cycle, so a custom split is possible later).
+- **India only:** rupees, Indian number formatting, and dates in India time.
+- **Recurring expenses are monthly** (on a day of the month); weekly or yearly ones are not supported.
+- **Signing up with an email that is already used says so**, which reveals that the account exists.
+- **Free hosting:** the Render server sleeps when idle, so the first visit after a quiet spell can take up to about three minutes while it wakes. Rate limits are kept in memory on that single server and reset when it restarts.
+- **Offline expenses wait in the browser's storage** (amount, description, date) until they are sent; clearing site data before reconnecting loses them.
+- **The theme choice is per device**, not saved to the account.
