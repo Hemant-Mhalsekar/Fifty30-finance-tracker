@@ -218,10 +218,24 @@ function handle(req, res, body) {
     res.end('ok')
     return
   }
-  if (['/api/auth/refresh', '/api/auth/login', '/api/auth/register'].includes(path)) {
-    return send(res, 200, { accessToken: 'test-token' })
+  if (path === '/api/auth/refresh' && state.signedOut) return fail(res, 401, 'Invalid refresh token')
+  if (path === '/api/auth/login') {
+    // Logging in during the grace period keeps the account.
+    const accountRestored = state.deletionScheduled === true
+    Object.assign(state, { deletionScheduled: false, signedOut: false })
+    return send(res, 200, { accessToken: 'test-token', accountRestored })
+  }
+  if (['/api/auth/refresh', '/api/auth/register'].includes(path)) {
+    return send(res, 200, { accessToken: 'test-token', accountRestored: false })
   }
   if (path === '/api/auth/logout') return send(res, 204)
+  if (path === '/api/account/deletion') {
+    if (!body.password) return fail(res, 400, 'Password is required')
+    if (body.password !== 'password123') return fail(res, 400, 'Password is incorrect')
+    // Every session ends: the refresh cookie stops working until the next login.
+    Object.assign(state, { deletionScheduled: true, signedOut: true })
+    return send(res, 202, { deleteAfter: `${addDays(today(), 7)}T10:00:00+05:30` })
+  }
   // Reset flow: any email gets 202; only the token below is "valid", and only once.
   if (path === '/api/auth/forgot-password') return send(res, 202)
   if (path === '/api/auth/reset-password') {

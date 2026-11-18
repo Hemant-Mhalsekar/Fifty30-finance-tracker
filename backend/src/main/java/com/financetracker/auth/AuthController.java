@@ -1,6 +1,8 @@
 package com.financetracker.auth;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,12 +41,13 @@ public class AuthController {
     private final boolean cookieSecure;
     private final AuthRateLimits rateLimits;
     private final PasswordResetService passwordResetService;
+    private final Clock clock;
     // Used for unknown emails so login takes about as long whether or not the email exists.
     private final String dummyHash;
 
     public AuthController(UserRepository users, PasswordEncoder passwordEncoder, TokenService tokenService,
             RefreshTokenService refreshTokenService, @Value("${app.cookie.secure}") boolean cookieSecure,
-            AuthRateLimits rateLimits, PasswordResetService passwordResetService) {
+            AuthRateLimits rateLimits, PasswordResetService passwordResetService, Clock clock) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
@@ -52,6 +55,7 @@ public class AuthController {
         this.cookieSecure = cookieSecure;
         this.rateLimits = rateLimits;
         this.passwordResetService = passwordResetService;
+        this.clock = clock;
         this.dummyHash = passwordEncoder.encode("not-a-real-password");
     }
 
@@ -87,9 +91,20 @@ public class AuthController {
         if (user == null || !passwordMatches) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
         }
+
+        // An account past its deletion time is gone, even if the hourly job has not run yet
+        // (the free server sleeps). Before that time, logging in keeps the account.
+        boolean restored = false;
+        if (user.getDeletionScheduledAt() != null) {
+            if (!user.getDeletionScheduledAt().isAfter(OffsetDateTime.now(clock))) {
+                users.deleteScheduledUpTo(OffsetDateTime.now(clock));
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+            }
+            restored = users.cancelDeletion(user.getId()) == 1;
+        }
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshTokenService.issue(user.getId())).toString())
-                .body(new TokenResponse(tokenService.createAccessToken(user.getId())));
+                .body(new TokenResponse(tokenService.createAccessToken(user.getId()), restored));
     }
 
     // Always 202 with no body, whether or not the email has an account, so it reveals nothing.

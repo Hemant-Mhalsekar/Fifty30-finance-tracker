@@ -41,6 +41,10 @@ public class User {
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    // When the account will be deleted (V9); null unless the user asked for deletion.
+    @Column(name = "deletion_scheduled_at")
+    private OffsetDateTime deletionScheduledAt;
+
     protected User() {
         // required by JPA
     }
@@ -76,6 +80,14 @@ public class User {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public OffsetDateTime getDeletionScheduledAt() {
+        return deletionScheduledAt;
+    }
+
+    public void scheduleDeletion(OffsetDateTime at) {
+        this.deletionScheduledAt = at;
     }
 
     public void changePasswordHash(String passwordHash) {

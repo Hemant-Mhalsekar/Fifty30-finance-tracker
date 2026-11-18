@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { ApiError, getMe, logout, onLoggedOut, refreshSession, waitForServer, type Me } from './api'
+import { formatDate } from './dates'
 import AppShell from './AppShell'
 import { BrandMark } from './components/icons'
 import AuthForm from './AuthForm'
@@ -15,7 +16,7 @@ import Reports from './pages/Reports'
 import ResetPassword from './pages/ResetPassword'
 import Settings from './pages/Settings'
 import { setMonitoredUser } from './monitoring'
-import { forgetUser, rememberedUser, rememberUser } from './offline'
+import { forgetUser, pendingExpenses, rememberedUser, rememberUser, removePending } from './offline'
 import { useOnline, usePendingSync } from './useOffline'
 
 type Phase = 'waking' | 'offline' | 'serverError' | 'form' | 'ready'
@@ -32,6 +33,10 @@ export default function App() {
   // user is confirmed with the server as soon as the connection is back.
   const [startedOffline, setStartedOffline] = useState(false)
   const online = useOnline()
+  // One-off messages: above the login form after asking for deletion, and on the first page
+  // after a login that cancelled one.
+  const [loginNotice, setLoginNotice] = useState<string | null>(null)
+  const [flash, setFlash] = useState<string | null>(null)
 
   // Opens the app for the remembered user when there is no connection, so expenses can still be
   // added (they wait on the phone). Without one, the "You're offline" screen is all there is.
@@ -149,6 +154,22 @@ export default function App() {
     navigate('/', { replace: true })
   }
 
+  // The server has already ended every session; this clears the phone too, including expenses
+  // still waiting to be sent, since the account they belong to is going away.
+  async function handleAccountDeleted(deleteAfter: string) {
+    if (me) pendingExpenses(me.id).forEach((p) => removePending(p.clientId))
+    forgetUser()
+    setStartedOffline(false)
+    await logout()
+    setMe(null)
+    setLoginNotice(
+      `Your account and all its data will be deleted on ${formatDate(deleteAfter.slice(0, 10))}. ` +
+        'Log in before then if you change your mind.',
+    )
+    setPhase('form')
+    navigate('/', { replace: true })
+  }
+
   async function handleLogout() {
     setLoggingOut(true)
     // Expenses still waiting stay on the phone for this user's next sign-in.
@@ -221,7 +242,14 @@ export default function App() {
 
         {phase === 'form' && (
           <div className="card">
-            <AuthForm onAuthenticated={loadUser} />
+            <AuthForm
+              notice={loginNotice}
+              onAuthenticated={async (restored) => {
+                await loadUser()
+                setLoginNotice(null)
+                if (restored) setFlash('Welcome back. Your account will not be deleted.')
+              }}
+            />
           </div>
         )}
       </main>
@@ -248,6 +276,8 @@ export default function App() {
             loggingOut={loggingOut}
             offline={!online || startedOffline}
             pending={pending}
+            flash={flash}
+            onDismissFlash={() => setFlash(null)}
           />
         }
       >
@@ -258,7 +288,10 @@ export default function App() {
         <Route path="categories" element={<Categories />} />
         <Route path="reports" element={<Reports />} />
         <Route path="recurring" element={<Recurring />} />
-        <Route path="settings" element={<Settings me={me} onUserChanged={loadUser} />} />
+        <Route
+          path="settings"
+          element={<Settings me={me} onUserChanged={loadUser} onAccountDeleted={handleAccountDeleted} />}
+        />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

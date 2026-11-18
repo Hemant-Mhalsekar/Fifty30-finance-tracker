@@ -10,11 +10,14 @@ type Props = {
   offline: boolean
   // Expenses saved on this phone and not sent yet.
   pending: PendingExpense[]
+  // A one-off message for the top of the page, with an OK button.
+  flash?: string | null
+  onDismissFlash?: () => void
 }
 
 // Desktop: top bar with every page. Phone: a bottom tab bar in thumb reach, with Add in the
 // middle; Categories, Settings and Log out live under More.
-export default function AppShell({ email, onLogout, loggingOut, offline, pending }: Props) {
+export default function AppShell({ email, onLogout, loggingOut, offline, pending, flash, onDismissFlash }: Props) {
   const { pathname } = useLocation()
   // Reports, Recurring, Categories and Settings are reached through More on a phone, so More stays highlighted there.
   const inMoreSection = ['/more', '/reports', '/recurring', '/categories', '/settings'].some((path) =>
@@ -50,6 +53,14 @@ export default function AppShell({ email, onLogout, loggingOut, offline, pending
       </header>
 
       <main className="page">
+        {flash && (
+          <div className="flash" role="status">
+            <span>{flash}</span>
+            <button type="button" className="secondary" onClick={onDismissFlash}>
+              OK
+            </button>
+          </div>
+        )}
         <OfflineBanner offline={offline} pending={pending} />
         <Outlet />
       </main>

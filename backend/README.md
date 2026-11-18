@@ -67,6 +67,7 @@ cd backend
 - `GET /api/reports/cycles` returns every cycle with its totals and expense count (yearly and savings reports).
 - `GET /api/reports/weekly?weeks=` returns daily totals and the overlapping cycles for the last 1 to 26 Monday-to-Sunday weeks.
 - `POST /api/expenses` accepts an optional `clientId` (UUID). Sending the same `clientId` again returns the expense already stored, so offline retries never add it twice.
+- `POST /api/account/deletion` with `{password}` schedules the account and all its data for deletion in 7 days and ends every session. Logging in before then cancels it (the login response then has `accountRestored: true`). A job deletes due accounts hourly while the server is awake.
 - `/api/recurring-expenses`: list, create, update, delete, and `POST /{id}/confirm` or `/{id}/skip` for the month that is due.
 
 ## Rate limiting

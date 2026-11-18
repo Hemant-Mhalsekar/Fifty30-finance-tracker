@@ -5,11 +5,14 @@ import PasswordInput from './components/PasswordInput'
 type Mode = 'login' | 'register' | 'forgot'
 
 type Props = {
-  // Called after a successful login/register. May throw; the message is shown under the form.
-  onAuthenticated: () => Promise<void>
+  // Called after a successful login/register, with whether it cancelled a scheduled account
+  // deletion. May throw; the message is shown under the form.
+  onAuthenticated: (accountRestored: boolean) => Promise<void>
+  // Shown above the form, e.g. after asking for the account to be deleted.
+  notice?: string | null
 }
 
-export default function AuthForm({ onAuthenticated }: Props) {
+export default function AuthForm({ onAuthenticated, notice }: Props) {
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -40,9 +43,9 @@ export default function AuthForm({ onAuthenticated }: Props) {
         setSubmitting(false)
         return
       }
-      await (isRegister ? register : login)(email, password)
+      const restored = await (isRegister ? register : login)(email, password)
       // On success the parent switches views and this form unmounts.
-      await onAuthenticated()
+      await onAuthenticated(restored)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
       setSubmitting(false)
@@ -56,8 +59,8 @@ export default function AuthForm({ onAuthenticated }: Props) {
         {sentTo ? (
           <>
             <p role="status">
-              If an account exists for <strong>{sentTo}</strong>, we have emailed a link to reset the password. It
-              works once and expires in 30 minutes.
+              If an account exists for <strong>{sentTo}</strong>, we have emailed a link to reset the password. It works
+              once and expires in 30 minutes.
             </p>
             <p className="muted">No email after a few minutes? Check your spam folder, or try again.</p>
           </>
@@ -92,6 +95,11 @@ export default function AuthForm({ onAuthenticated }: Props) {
 
   return (
     <form onSubmit={handleSubmit}>
+      {notice && (
+        <p className="notice login-notice" role="status">
+          {notice}
+        </p>
+      )}
       <h1>{isRegister ? 'Create your account' : 'Log in'}</h1>
 
       <label htmlFor="auth-email">Email</label>
@@ -137,7 +145,12 @@ export default function AuthForm({ onAuthenticated }: Props) {
         </p>
       )}
 
-      <button type="button" className="link" onClick={() => switchTo(isRegister ? 'login' : 'register')} disabled={submitting}>
+      <button
+        type="button"
+        className="link"
+        onClick={() => switchTo(isRegister ? 'login' : 'register')}
+        disabled={submitting}
+      >
         {isRegister ? 'Already have an account? Log in' : 'Need an account? Create one'}
       </button>
     </form>
