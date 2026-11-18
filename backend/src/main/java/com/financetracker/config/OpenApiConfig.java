@@ -35,7 +35,8 @@ public class OpenApiConfig {
 
                                 - Money is whole paise (1 rupee = 100 paise) as JSON integers; fractions are rejected.
                                 - Dates are ISO (YYYY-MM-DD), in India time.
-                                - Errors are `{"error", "message"}`. Another user's data always answers 404.
+                                - Errors are `{"error", "message"}`. Another user's data always answers 404. \
+                                Each endpoint lists its error messages under Responses.
 
                                 To try the protected endpoints: call **POST /api/auth/login**, copy `accessToken`, \
                                 click **Authorize** and paste it. Tokens last 15 minutes.
@@ -58,15 +59,19 @@ public class OpenApiConfig {
                         tag("Categories", "Needs, wants and investment categories."),
                         tag("Recurring expenses", "Monthly payments that are asked about when due."),
                         tag("Reports", "Raw totals for the weekly, yearly and savings reports."),
-                        tag("Settings", "Pay day changes."),
+                        tag("Settings", "Name, opening balance and pay day changes."),
                         tag("Account", "Account deletion."),
                         tag("Health", "Liveness and database checks. No token needed.")));
+    }
+
+    static boolean isPublic(String path) {
+        return PUBLIC_PREFIXES.stream().anyMatch(path::startsWith);
     }
 
     @Bean
     OpenApiCustomizer publicEndpointsHaveNoLock() {
         return openApi -> openApi.getPaths().forEach((path, item) -> {
-            if (PUBLIC_PREFIXES.stream().anyMatch(path::startsWith)) {
+            if (isPublic(path)) {
                 item.readOperations().forEach(operation -> operation.setSecurity(List.of()));
             }
         });
