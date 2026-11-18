@@ -7,6 +7,8 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 public record LoginRequest(
         @NotBlank(message = "Email is required")
         @Size(max = 254, message = "Email must be at most 254 characters")
@@ -22,6 +24,8 @@ public record LoginRequest(
     }
 
     // Same limit as registration; also avoids passing over-long input to BCrypt.
+    // A validation check, not a field the client sends: keep it off the API docs page.
+    @Schema(hidden = true)
     @AssertTrue(message = "Password must be at most 72 bytes")
     public boolean isPasswordWithinBcryptLimit() {
         return password == null || password.getBytes(StandardCharsets.UTF_8).length <= 72;
