@@ -54,11 +54,19 @@ export type YearRow = {
   needsPaise: number
   wantsPaise: number
   investedPaise: number
+  // Only from finished cycles with at least one expense, the same rule as the savings report:
+  // the current cycle and empty cycles would count unspent (or unlogged) salary as saved.
   savedPaise: number
+  savedCycles: number
+}
+
+// Finished, and something was logged: the only cycles whose "saved" means anything.
+function countsAsSaved(item: CycleHistoryItem, today: string): boolean {
+  return item.cycle.periodEnd < today && item.expenseCount > 0
 }
 
 /** Cycles grouped by the calendar year they start in, oldest first. */
-export function yearRows(items: CycleHistoryItem[]): YearRow[] {
+export function yearRows(items: CycleHistoryItem[], today: string): YearRow[] {
   const years = new Map<number, YearRow>()
   for (const item of items) {
     const year = Number(item.cycle.periodStart.slice(0, 4))
@@ -70,13 +78,17 @@ export function yearRows(items: CycleHistoryItem[]): YearRow[] {
       wantsPaise: 0,
       investedPaise: 0,
       savedPaise: 0,
+      savedCycles: 0,
     }
     row.cycles += 1
     row.incomePaise += incomeOf(item.cycle)
     row.needsPaise += item.needsSpentPaise
     row.wantsPaise += item.wantsSpentPaise
     row.investedPaise += item.investedPaise
-    row.savedPaise += item.savedPaise
+    if (countsAsSaved(item, today)) {
+      row.savedPaise += item.savedPaise
+      row.savedCycles += 1
+    }
     years.set(year, row)
   }
   return [...years.values()].sort((a, b) => a.year - b.year)
@@ -115,7 +127,7 @@ export function savingsSummary(items: CycleHistoryItem[], today: string, opening
       continue
     }
     if (item.cycle.periodEnd >= today) continue
-    if (item.expenseCount === 0) {
+    if (!countsAsSaved(item, today)) {
       skipped++
       continue
     }
@@ -132,4 +144,41 @@ export function savingsSummary(items: CycleHistoryItem[], today: string, opening
     skipped,
     current,
   }
+}
+
+export type MonthRow = {
+  item: CycleHistoryItem
+  // The month most of the cycle falls in, e.g. "Nov 2026" for 30 Oct to 29 Nov.
+  month: string
+  current: boolean
+  // Finished with at least one expense; only then is "saved" a real figure.
+  counted: boolean
+  incomePaise: number
+  // Needs + wants: what the cycle planned to spend and what it did.
+  planPaise: number
+  spentPaise: number
+}
+
+const MONTH_YEAR = new Intl.DateTimeFormat('en-IN', { timeZone: 'UTC', month: 'short', year: 'numeric' })
+
+/** The month a cycle is named after: the one its middle day falls in. */
+export function cycleMonth(periodStart: string, periodEnd: string): string {
+  const middle = addDays(periodStart, Math.floor((daysBetween(periodStart, periodEnd) - 1) / 2))
+  return MONTH_YEAR.format(new Date(`${middle}T00:00:00Z`))
+}
+
+/** One row per pay cycle, the latest `limit` cycles up to today, oldest first. */
+export function monthRows(items: CycleHistoryItem[], today: string, limit = 12): MonthRow[] {
+  return items
+    .filter((item) => item.cycle.periodStart <= today)
+    .slice(-limit)
+    .map((item) => ({
+      item,
+      month: cycleMonth(item.cycle.periodStart, item.cycle.periodEnd),
+      current: item.cycle.periodStart <= today && today <= item.cycle.periodEnd,
+      counted: countsAsSaved(item, today),
+      incomePaise: incomeOf(item.cycle),
+      planPaise: item.cycle.needsPaise + item.cycle.wantsPaise,
+      spentPaise: item.needsSpentPaise + item.wantsSpentPaise,
+    }))
 }

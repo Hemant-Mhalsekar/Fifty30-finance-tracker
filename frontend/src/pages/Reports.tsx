@@ -4,12 +4,13 @@ import { getAllCycles, getWeekly, type CycleHistoryItem, type WeeklyData } from 
 import ColumnChart from '../components/ColumnChart'
 import { formatDate, formatRange, todayIst } from '../dates'
 import { formatPaiseCompact, formatPaiseShort } from '../money'
-import { savingsSummary, weekRows, yearRows } from '../reports'
+import { monthRows, savingsSummary, weekRows, yearRows, type MonthRow } from '../reports'
 import { incomeOf } from '../splits'
 
-type View = 'weekly' | 'yearly' | 'savings'
+type View = 'weekly' | 'monthly' | 'yearly' | 'savings'
 const VIEWS: { value: View; label: string }[] = [
   { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
   { value: 'yearly', label: 'Yearly' },
   { value: 'savings', label: 'Savings' },
 ]
@@ -32,7 +33,7 @@ export default function Reports({ openingBalancePaise }: { openingBalancePaise: 
       <div className="page-head">
         <div>
           <h1>Reports</h1>
-          <p className="sub">Weekly and yearly spending, and what you have saved over time</p>
+          <p className="sub">Weekly, monthly and yearly spending, and what you have saved over time</p>
         </div>
       </div>
       <fieldset className="field report-switch">
@@ -179,14 +180,117 @@ function WeeklyReport() {
   )
 }
 
-function CycleReports({ view, openingPaise }: { view: 'yearly' | 'savings'; openingPaise: number }) {
+function CycleReports({ view, openingPaise }: { view: Exclude<View, 'weekly'>; openingPaise: number }) {
   const { data, error } = useLoad<CycleHistoryItem[]>(getAllCycles)
   if (!data) return <Status error={error} />
+  if (view === 'monthly') return <MonthlyReport items={data} />
   return view === 'yearly' ? <YearlyReport items={data} /> : <SavingsReport items={data} openingPaise={openingPaise} />
 }
 
+const MONTHS_SHOWN = 12
+
+// One pay cycle is the app's month: it runs from one pay day to the day before the next.
+function MonthlyReport({ items }: { items: CycleHistoryItem[] }) {
+  const rows = monthRows(items, todayIst(), MONTHS_SHOWN)
+  const current = rows.find((r) => r.current)
+  const last = [...rows].reverse().find((r) => r.counted)
+  const counted = rows.filter((r) => r.counted)
+  const averageSaved = counted.length > 1 ? counted.reduce((t, r) => t + r.item.savedPaise, 0) / counted.length : null
+  const saved = (r: MonthRow) => (r.counted ? r.item.savedPaise : null)
+
+  return (
+    <>
+      <div className="stat-tiles">
+        {current && (
+          <Tile
+            label={`${current.month} so far`}
+            value={formatPaiseShort(current.spentPaise)}
+            note={`Spent of ${formatPaiseShort(current.planPaise)} planned for needs and wants`}
+            negative={current.spentPaise > current.planPaise}
+          />
+        )}
+        {last && (
+          <Tile
+            label={`Saved in ${last.month}`}
+            value={formatPaiseShort(last.item.savedPaise)}
+            note={`Target ${formatPaiseShort(last.item.cycle.savingsPaise)}`}
+            negative={last.item.savedPaise < 0}
+          />
+        )}
+        {averageSaved !== null && (
+          <Tile
+            label={`Average saved over ${counted.length} cycles`}
+            value={formatPaiseShort(Math.round(averageSaved / 100) * 100)}
+            negative={averageSaved < 0}
+          />
+        )}
+      </div>
+      <ColumnChart
+        title="By pay cycle"
+        subtitle={`Last ${rows.length} ${rows.length === 1 ? 'cycle' : 'cycles'}, named after the month most of each falls in`}
+        legend={[
+          { name: 'Needs', color: 'var(--need)' },
+          { name: 'Wants', color: 'var(--want)' },
+          { name: 'Saved', color: 'var(--save)' },
+          { name: 'Needs + wants plan', color: 'var(--text)', marker: true },
+        ]}
+        columns={rows.map((r) => {
+          const s = saved(r)
+          return {
+            key: r.item.cycle.periodStart,
+            label: r.month.split(' ')[0],
+            strong: r.current,
+            segments: [
+              { key: 'needs', value: r.item.needsSpentPaise, color: 'var(--need)' },
+              { key: 'wants', value: r.item.wantsSpentPaise, color: 'var(--want)' },
+              { key: 'saved', value: Math.max(0, s ?? 0), color: 'var(--save)' },
+            ],
+            plan: r.planPaise,
+            topLabel: formatPaiseCompact(r.spentPaise),
+            topNegative: r.spentPaise > r.planPaise,
+            ariaLabel: `${r.month}, ${formatRange(r.item.cycle.periodStart, r.item.cycle.periodEnd)}${r.current ? ' (current cycle)' : ''}: needs ${formatPaiseShort(r.item.needsSpentPaise)}, wants ${formatPaiseShort(r.item.wantsSpentPaise)}, plan ${formatPaiseShort(r.planPaise)}${s !== null ? `, saved ${formatPaiseShort(s)}` : ''}`,
+            tooltip: {
+              title: `${r.month} · ${formatRange(r.item.cycle.periodStart, r.item.cycle.periodEnd)}`,
+              lines: [
+                `Income ${formatPaiseShort(r.incomePaise)}`,
+                `Needs ${formatPaiseShort(r.item.needsSpentPaise)} of ${formatPaiseShort(r.item.cycle.needsPaise)}`,
+                `Wants ${formatPaiseShort(r.item.wantsSpentPaise)} of ${formatPaiseShort(r.item.cycle.wantsPaise)}`,
+                s !== null
+                  ? `Saved ${formatPaiseShort(s)}`
+                  : r.current
+                    ? 'Saved: when the cycle ends'
+                    : 'Nothing logged',
+                ...(r.item.investedPaise > 0 ? [`Invested ${formatPaiseShort(r.item.investedPaise)}`] : []),
+              ],
+            },
+          }
+        })}
+        table={{
+          columns: ['Cycle', 'Income', 'Needs', 'Wants', 'Saved', 'Invested'],
+          rows: rows.map((r) => {
+            const s = saved(r)
+            return [
+              `${r.month} (${formatRange(r.item.cycle.periodStart, r.item.cycle.periodEnd)})`,
+              formatPaiseShort(r.incomePaise),
+              `${formatPaiseShort(r.item.needsSpentPaise)} of ${formatPaiseShort(r.item.cycle.needsPaise)}`,
+              `${formatPaiseShort(r.item.wantsSpentPaise)} of ${formatPaiseShort(r.item.cycle.wantsPaise)}`,
+              s !== null ? formatPaiseShort(s) : '–',
+              formatPaiseShort(r.item.investedPaise),
+            ]
+          }),
+        }}
+      >
+        <p className="hint chart-note">
+          Saved shows once a cycle has ended and has expenses logged. Investments are savings, so they are not counted
+          as spending.
+        </p>
+      </ColumnChart>
+    </>
+  )
+}
+
 function YearlyReport({ items }: { items: CycleHistoryItem[] }) {
-  const rows = yearRows(items)
+  const rows = yearRows(items, todayIst())
   const thisYear = Number(todayIst().slice(0, 4))
   return (
     <>
@@ -198,14 +302,18 @@ function YearlyReport({ items }: { items: CycleHistoryItem[] }) {
               key={r.year}
               label={`${r.year} so far`}
               value={formatPaiseShort(r.savedPaise)}
-              note={`Saved from ${formatPaiseShort(r.incomePaise)} over ${r.cycles} ${r.cycles === 1 ? 'cycle' : 'cycles'}`}
+              note={
+                r.savedCycles === 0
+                  ? 'Saved shows once a cycle with expenses has ended'
+                  : `Saved in ${r.savedCycles} finished ${r.savedCycles === 1 ? 'cycle' : 'cycles'}; income ${formatPaiseShort(r.incomePaise)}`
+              }
               negative={r.savedPaise < 0}
             />
           ))}
       </div>
       <ColumnChart
         title="By year"
-        subtitle="Cycles count in the year they start"
+        subtitle="Cycles count in the year they start; saved counts finished cycles with expenses"
         legend={[
           { name: 'Needs', color: 'var(--need)' },
           { name: 'Wants', color: 'var(--want)' },

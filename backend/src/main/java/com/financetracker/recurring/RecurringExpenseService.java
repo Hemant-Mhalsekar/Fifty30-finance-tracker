@@ -53,6 +53,7 @@ public class RecurringExpenseService {
         this.clock = clock;
     }
 
+    @Transactional(readOnly = true)
     public List<RecurringExpenseView> list(UUID userId) {
         LocalDate today = today();
         return recurringRepository.findAllByUserId(userId).stream()
