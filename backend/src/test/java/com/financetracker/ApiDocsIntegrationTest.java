@@ -48,6 +48,13 @@ class ApiDocsIntegrationTest extends AbstractIntegrationTest {
         assertEquals("User", me.path("tags").path(0).asText());
         // The JWT principal comes from the token, not from the caller, so it is not a parameter.
         assertFalse(me.has("parameters"), "Unexpected parameters on /api/me: " + me.path("parameters"));
+        // Bean Validation helpers (isPasswordWithinBcryptLimit) are not request fields.
+        JsonNode schemas = docs.path("components").path("schemas");
+        for (String schema : new String[] {"LoginRequest", "RegisterRequest", "ResetPasswordRequest"}) {
+            JsonNode properties = schemas.path(schema).path("properties");
+            assertTrue(properties.has("password"), schema + " should list password");
+            assertFalse(properties.has("passwordWithinBcryptLimit"), schema + " leaks a validation helper");
+        }
         assertEquals("Download expenses as CSV",
                 paths.path("/api/expenses/export").path("get").path("summary").asText());
     }
