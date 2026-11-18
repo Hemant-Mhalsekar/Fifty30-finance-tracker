@@ -360,6 +360,33 @@ function handle(req, res, body) {
       totalPages: Math.ceil(matching.length / size),
     })
   }
+  if (path === '/api/expenses/export' && method === 'GET') {
+    const from = url.searchParams.get('from')
+    const to = url.searchParams.get('to')
+    const categoryId = url.searchParams.get('categoryId')
+    const names = new Map(state.categories.map((c) => [c.id, c.name]))
+    const labels = { NEED: 'Need', WANT: 'Want', INVESTMENT: 'Investment' }
+    const field = (v) => (/[",\r\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v)
+    const rows = state.expenses
+      .filter((e) => (!from || e.expenseDate >= from) && (!to || e.expenseDate <= to))
+      .filter((e) => !categoryId || e.categoryId === categoryId)
+      .sort((a, b) => a.expenseDate.localeCompare(b.expenseDate) || a.createdOrder - b.createdOrder)
+      .map((e) =>
+        [
+          e.expenseDate,
+          field(e.description),
+          field(names.get(e.categoryId)),
+          labels[e.type],
+          (e.amountPaise / 100).toFixed(2),
+        ].join(','),
+      )
+    const filename = from || to ? `fifty30-expenses-${from ?? 'start'}-to-${to ?? 'today'}.csv` : 'fifty30-expenses.csv'
+    res.writeHead(200, {
+      'content-type': 'text/csv; charset=UTF-8',
+      'content-disposition': `attachment; filename="${filename}"`,
+    })
+    return res.end('\uFEFF' + ['Date,Description,Category,Type,Amount (INR)', ...rows].map((r) => r + '\r\n').join(''))
+  }
   if (path === '/api/expenses' && method === 'POST') {
     const expense = addExpense(res, body)
     return expense && send(res, 201, publicExpense(expense))

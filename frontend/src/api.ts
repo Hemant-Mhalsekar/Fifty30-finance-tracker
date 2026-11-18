@@ -446,6 +446,28 @@ export function listExpenses(query: ExpenseQuery): Promise<ExpensePage> {
   return requestJson<ExpensePage>(`/api/expenses${search ? `?${search}` : ''}`)
 }
 
+/** The matching expenses as a CSV file (oldest first), with the file name the server chose. */
+export async function exportExpensesCsv(
+  query: Pick<ExpenseQuery, 'from' | 'to' | 'categoryId'>,
+): Promise<{ filename: string; blob: Blob }> {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') params.set(key, String(value))
+  }
+  let response: Response
+  try {
+    response = await apiFetch(`/api/expenses/export?${params}`)
+  } catch {
+    throw new ApiError(0, 'Could not reach the server')
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, errorMessage(response.status, await response.json().catch(() => null)))
+  }
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'fifty30-expenses.csv'
+  return { filename, blob: await response.blob() }
+}
+
 /** type is set only for categories without a fixed type (Other). due = waiting for Confirm or Skip. */
 export type RecurringExpense = {
   id: string

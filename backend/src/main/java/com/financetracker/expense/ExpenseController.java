@@ -1,10 +1,14 @@
 package com.financetracker.expense;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.UUID;
 
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -55,9 +59,11 @@ public class ExpenseController {
     }
 
     private final ExpenseService expenseService;
+    private final ExpenseExportService exportService;
 
-    public ExpenseController(ExpenseService expenseService) {
+    public ExpenseController(ExpenseService expenseService, ExpenseExportService exportService) {
         this.expenseService = expenseService;
+        this.exportService = exportService;
     }
 
     @PostMapping
@@ -99,6 +105,24 @@ public class ExpenseController {
         UUID userId = UUID.fromString(jwt.getSubject());
         expenseService.delete(userId, id);
         return ResponseEntity.noContent().build();
+    }
+
+    // CSV of the expenses matching the same filters as the list (all of them when none are given).
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> export(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID categoryId) {
+        ExpenseExportService.Export export =
+                exportService.export(UUID.fromString(jwt.getSubject()), from, to, categoryId);
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(export.filename()).build().toString())
+                // Financial data: never kept by the browser or a proxy cache.
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(export.body());
     }
 
     @GetMapping

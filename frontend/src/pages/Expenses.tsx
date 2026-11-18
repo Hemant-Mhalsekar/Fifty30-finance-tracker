@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
 import {
   deleteExpense,
+  exportExpensesCsv,
   getCurrentCycle,
   listCategories,
   listExpenses,
@@ -34,6 +35,7 @@ export default function Expenses() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   // Defaults: the current cycle, all categories.
   useEffect(() => {
@@ -91,6 +93,28 @@ export default function Expenses() {
   function goToPage(next: number) {
     setQuery((q) => (q ? { ...q, page: next } : q))
     closeEditor()
+  }
+
+  async function handleDownload() {
+    if (!query) return
+    setDownloading(true)
+    setError(null)
+    try {
+      const { filename, blob } = await exportExpensesCsv(query)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.append(link)
+      link.click()
+      link.remove()
+      // Revoked later: some browsers start reading the file only after click() returns.
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong')
+    } finally {
+      setDownloading(false)
+    }
   }
 
   async function handleDelete(expense: Expense) {
@@ -217,10 +241,17 @@ export default function Expenses() {
 
           {page && (
             <>
-              <p className="muted" aria-live="polite">
-                {page.totalItems} {page.totalItems === 1 ? 'expense' : 'expenses'}
-                {loading ? ' · updating…' : ''}
-              </p>
+              <div className="results-bar">
+                <p className="muted" aria-live="polite">
+                  {page.totalItems} {page.totalItems === 1 ? 'expense' : 'expenses'}
+                  {loading ? ' · updating…' : ''}
+                </p>
+                {page.totalItems > 0 && (
+                  <button type="button" className="secondary" disabled={downloading} onClick={handleDownload}>
+                    {downloading ? 'Preparing…' : 'Download CSV'}
+                  </button>
+                )}
+              </div>
 
               {page.items.length === 0 ? (
                 <div className="card stack">
