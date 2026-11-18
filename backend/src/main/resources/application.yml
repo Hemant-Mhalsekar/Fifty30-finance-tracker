@@ -23,6 +23,8 @@ server:
 
 # API docs page (OpenApiConfig). Under /api so the Vercel proxy serves it too.
 springdoc:
+  # Answers are JSON unless an endpoint says otherwise (ping is text, the export is CSV).
+  default-produces-media-type: application/json
   api-docs:
     path: /api/docs/openapi
   swagger-ui:

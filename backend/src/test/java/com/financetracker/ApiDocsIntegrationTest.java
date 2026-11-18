@@ -8,10 +8,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.net.URI;
+import java.util.Set;
+import java.util.TreeSet;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MvcResult;
+
+import com.financetracker.config.ApiResponsesConfig;
 
 import tools.jackson.databind.JsonNode;
 
@@ -57,6 +61,64 @@ class ApiDocsIntegrationTest extends AbstractIntegrationTest {
         }
         assertEquals("Download expenses as CSV",
                 paths.path("/api/expenses/export").path("get").path("summary").asText());
+    }
+
+    @Test
+    void everyEndpointListsItsRealStatusCodesAndErrorMessages() throws Exception {
+        JsonNode docs = jsonMapper.readTree(mockMvc.perform(get("/api/docs/openapi"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        JsonNode paths = docs.path("paths");
+
+        // The table in ApiResponsesConfig and the endpoints must match both ways.
+        Set<String> onPage = new TreeSet<>();
+        paths.properties().forEach(path -> path.getValue().properties().forEach(method ->
+                onPage.add(method.getKey().toUpperCase() + " " + path.getKey())));
+        Set<String> missing = new TreeSet<>(onPage);
+        missing.removeAll(ApiResponsesConfig.documentedEndpoints());
+        assertTrue(missing.isEmpty(), "Add these to ApiResponsesConfig.DOCS: " + missing);
+        Set<String> stale = new TreeSet<>(ApiResponsesConfig.documentedEndpoints());
+        stale.removeAll(onPage);
+        assertTrue(stale.isEmpty(), "No longer endpoints: " + stale);
+
+        JsonNode schemas = docs.path("components").path("schemas");
+        assertTrue(schemas.path("ApiError").path("properties").has("message"));
+        assertFalse(docs.toString().contains("\"*/*\""), "Every answer should name its media type");
+
+        // Created, accepted and no-content answers, not a blanket 200.
+        JsonNode register = paths.path("/api/auth/register").path("post").path("responses");
+        assertFalse(register.has("200"));
+        assertEquals("#/components/schemas/TokenResponse",
+                register.path("201").path("content").path("application/json").path("schema").path("$ref").asText());
+        assertEquals("Unable to register with these details",
+                register.path("409").path("content").path("application/json").path("example").path("message")
+                        .asText());
+        assertTrue(register.path("429").path("headers").has("Retry-After"));
+        assertFalse(register.has("401"), "Register needs no token");
+        JsonNode delete = paths.path("/api/expenses/{id}").path("delete").path("responses");
+        assertTrue(delete.has("204") && !delete.path("204").has("content"), "204 has no body: " + delete);
+        assertTrue(paths.path("/api/auth/forgot-password").path("post").path("responses").has("202"));
+
+        // Shared errors are added to every endpoint they apply to.
+        JsonNode create = paths.path("/api/expenses").path("post").path("responses");
+        assertEquals("Missing or invalid access token",
+                create.path("401").path("content").path("application/json").path("example").path("message")
+                        .asText());
+        String badRequest = create.path("400").path("description").asText();
+        assertTrue(badRequest.contains("Malformed request body") && badRequest.contains("Date cannot be in the future"),
+                badRequest);
+        assertEquals("Not Found",
+                create.path("404").path("content").path("application/json").path("example").path("error").asText());
+        assertTrue(paths.path("/api/expenses/{id}").path("put").path("responses").path("400").path("description")
+                .asText().contains("Invalid value for parameter 'id'"));
+        assertEquals("#/components/schemas/ApiError", create.path("409").path("content").path("application/json")
+                .path("schema").path("$ref").asText());
+
+        assertTrue(paths.path("/api/expenses/export").path("get").path("responses").path("200").path("content")
+                .has("text/csv"));
+        assertTrue(paths.path("/api/health").path("get").path("responses").has("503"));
+        assertEquals("Name, opening balance and pay day changes.", docs.path("tags").findValues("description")
+                .stream().filter(node -> node.asText().startsWith("Name,")).findFirst().orElseThrow().asText());
     }
 
     @Test
