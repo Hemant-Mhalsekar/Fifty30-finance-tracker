@@ -27,7 +27,7 @@ test('an expense added offline waits on the phone and is sent once back online',
   await expect(waiting).toBeHidden()
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Expenses' }).click()
-  await expect(page.locator('.expense-row', { hasText: 'Chai offline' })).toHaveCount(1)
+  await expect(page.locator('.tx-row', { hasText: 'Chai offline' })).toHaveCount(1)
 })
 
 test('an expense the server refuses stays for the user to retry or discard', async ({ page, context, request }) => {
@@ -90,5 +90,5 @@ test('the app opens without a connection for the user who signed in on this phon
   await expect(page.getByRole('article', { name: /Waiting to be sent/ })).toBeHidden()
   await expect(page.getByRole('status').filter({ hasText: "You're offline" })).toBeHidden()
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Expenses' }).click()
-  await expect(page.locator('.expense-row', { hasText: 'Bus snack' })).toHaveCount(1)
+  await expect(page.locator('.tx-row', { hasText: 'Bus snack' })).toHaveCount(1)
 })

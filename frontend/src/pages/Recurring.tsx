@@ -94,8 +94,12 @@ export default function Recurring() {
 
   return (
     <section className="recurring">
-      <h1>Recurring expenses</h1>
-      <p className="muted intro">Bills that repeat every month, like rent, SIPs, EMIs and subscriptions.</p>
+      <div className="page-head">
+        <div>
+          <h1>Recurring expenses</h1>
+          <p className="sub">Bills that repeat every month, like rent, SIPs, EMIs and subscriptions.</p>
+        </div>
+      </div>
 
       {toast && (
         <p className="toast" role="status">

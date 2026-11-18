@@ -125,9 +125,11 @@ public class ExpenseController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) UUID categoryId) {
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) BudgetType type,
+            @RequestParam(required = false) String q) {
         ExpenseExportService.Export export =
-                exportService.export(UUID.fromString(jwt.getSubject()), from, to, categoryId);
+                exportService.export(UUID.fromString(jwt.getSubject()), from, to, categoryId, type, q);
         return ResponseEntity.ok()
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
                 .header(HttpHeaders.CONTENT_DISPOSITION,
@@ -137,17 +139,21 @@ public class ExpenseController {
                 .body(export.body());
     }
 
-    @Operation(summary = "List expenses", description = "Newest first. Pages start at 0; size is at most 100.")
+    @Operation(summary = "List expenses",
+            description = "Newest first. Pages start at 0; size is at most 100. q searches descriptions,"
+                    + " type filters by Need/Want/Investment. totalPaise and dayTotals cover every match.")
     @GetMapping
     public ExpensePage list(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) BudgetType type,
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         UUID userId = UUID.fromString(jwt.getSubject());
-        return expenseService.list(userId, from, to, categoryId, page, size);
+        return expenseService.list(userId, from, to, categoryId, type, q, page, size);
     }
 }
 

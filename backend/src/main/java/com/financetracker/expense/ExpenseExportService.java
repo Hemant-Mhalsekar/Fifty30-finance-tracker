@@ -7,10 +7,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.financetracker.category.Category;
 import com.financetracker.category.CategoryRepository;
@@ -19,8 +17,6 @@ import com.financetracker.common.BudgetType;
 @Service
 public class ExpenseExportService {
 
-    private static final LocalDate DEFAULT_FROM_DATE = LocalDate.of(1900, 1, 1);
-    private static final LocalDate DEFAULT_TO_DATE = LocalDate.of(9999, 12, 31);
     // Makes Excel open the file as UTF-8, so the rupee sign and non-English text show correctly.
     private static final String BYTE_ORDER_MARK = "﻿";
     private static final String HEADER = "Date,Description,Category,Type,Amount (INR)";
@@ -38,18 +34,11 @@ public class ExpenseExportService {
 
     // Same filters as the expense list, oldest first so the file reads like a ledger.
     @Transactional(readOnly = true)
-    public Export export(UUID userId, LocalDate from, LocalDate to, UUID categoryId) {
-        LocalDate effectiveFrom = from != null ? from : DEFAULT_FROM_DATE;
-        LocalDate effectiveTo = to != null ? to : DEFAULT_TO_DATE;
-        if (effectiveFrom.isAfter(effectiveTo)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "From date must not be after to date");
-        }
-
-        List<Expense> expenses = categoryId != null
-                ? expenseRepository.findByUserIdAndCategoryIdAndExpenseDateBetweenOrderByExpenseDateAscCreatedAtAsc(
-                        userId, categoryId, effectiveFrom, effectiveTo)
-                : expenseRepository.findByUserIdAndExpenseDateBetweenOrderByExpenseDateAscCreatedAtAsc(
-                        userId, effectiveFrom, effectiveTo);
+    public Export export(UUID userId, LocalDate from, LocalDate to, UUID categoryId, BudgetType type,
+            String query) {
+        ExpenseFilter filter = ExpenseFilter.of(userId, from, to, categoryId, type, query);
+        List<Expense> expenses = expenseRepository.searchAll(filter.userId(), filter.from(), filter.to(),
+                filter.categoryId(), filter.type(), filter.descriptionPattern());
         Map<UUID, String> names = categoryRepository.findAllByUserId(userId).stream()
                 .collect(Collectors.toMap(Category::getId, Category::getName, (a, b) -> a));
 

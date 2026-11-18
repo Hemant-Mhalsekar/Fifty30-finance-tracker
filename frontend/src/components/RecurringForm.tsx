@@ -1,6 +1,7 @@
-import { useId, useState, type CSSProperties, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import type { BudgetType, Category, RecurringInput } from '../api'
-import { TYPE_COLORS, TYPE_LABELS } from '../labels'
+import { TYPE_LABELS } from '../labels'
+import { CategoryIcon } from './icons'
 import { paiseToInput, parseRupeesToPaise } from '../money'
 import { ordinal } from '../recurring'
 
@@ -109,7 +110,9 @@ export default function RecurringForm({
                 setCategoryId(c.id)
               }}
             >
-              <span className="dot" style={{ '--c': c.type ? TYPE_COLORS[c.type] : 'var(--muted)' } as CSSProperties} />
+              <span className={c.type ? `type-${c.type.toLowerCase()}` : ''}>
+                <CategoryIcon name={c.name} type={c.type} size={16} />
+              </span>
               {c.name}
               {c.archived ? ' (archived)' : ''}
             </button>

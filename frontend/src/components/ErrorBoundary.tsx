@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { reportError } from '../monitoring'
-import { BrandMark } from './icons'
+import { BrandLockup } from './icons'
 
 type State = { failed: boolean }
 
@@ -20,10 +20,7 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, St
     if (!this.state.failed) return this.props.children
     return (
       <main className="welcome">
-        <div className="brand">
-          <BrandMark />
-          Fifty30
-        </div>
+        <BrandLockup />
         <div className="card stack" role="alert">
           <p>
             <strong>Something went wrong.</strong>

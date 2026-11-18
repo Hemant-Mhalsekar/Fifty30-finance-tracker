@@ -12,7 +12,10 @@ function istDay(offsetDays = 0): number {
   return ist.getUTCDate()
 }
 
-async function addRecurring(page: Page, options: { amount: string; category: string; type?: string; description: string; day: number }) {
+async function addRecurring(
+  page: Page,
+  options: { amount: string; category: string; type?: string; description: string; day: number },
+) {
   const form = page.locator('form', { has: page.getByRole('button', { name: 'Save recurring expense' }) })
   await form.getByLabel('Usual amount').fill(options.amount)
   await form.getByRole('button', { name: options.category, exact: true }).click()
@@ -22,7 +25,7 @@ async function addRecurring(page: Page, options: { amount: string; category: str
   await form.getByRole('button', { name: 'Save recurring expense' }).click()
 }
 
-test('recurring: due today shows on the dashboard and Add logs the expense once', async ({ page }) => {
+test('recurring: due today shows on the dashboard and Confirm logs the expense once', async ({ page }) => {
   await page.goto('/more')
   await page.getByRole('link', { name: 'Recurring expenses' }).click()
   await expect(page.getByRole('heading', { name: 'Recurring expenses' })).toBeVisible()
@@ -33,23 +36,35 @@ test('recurring: due today shows on the dashboard and Add logs the expense once'
   await expect(page.getByRole('heading', { name: 'How it works' })).toBeHidden()
   await expect(page.getByRole('status')).toContainText('SIP added. It is due today')
 
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboard' }).click()
-  // The Recurring page has the same card, so wait for the dashboard before typing into it;
-  // otherwise the amount can go into the old page's card just before it is replaced.
-  await expect(page.getByText('Left to spend on needs and wants')).toBeVisible()
-  const due = page.getByRole('article', { name: 'Due recurring expenses' })
-  await expect(due).toContainText('SIP')
-  await expect(due).toContainText('Due today')
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Home' }).click()
+  const upcoming = page.getByRole('article', { name: 'Upcoming recurring payments' })
+  await expect(upcoming).toContainText('SIP')
+  await expect(upcoming).toContainText('Due today')
 
-  // The amount actually paid can differ from the usual one.
+  await upcoming.getByRole('button', { name: 'Confirm SIP' }).click()
+  // Next month is not due yet, so it stays listed without the buttons.
+  await expect(upcoming.getByRole('button', { name: 'Confirm SIP' })).toBeHidden()
+  await expect(upcoming).toContainText('SIP')
+  await expect(upcoming).not.toContainText('Due today')
+
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Expenses' }).click()
+  await expect(page.locator('.tx-row', { hasText: 'SIP' })).toHaveCount(1)
+  await expect(page.locator('.tx-row', { hasText: 'SIP' })).toContainText('₹5,000')
+})
+
+test('recurring: the amount actually paid can differ from the usual one', async ({ page }) => {
+  await page.goto('/recurring')
+  await addRecurring(page, { amount: '5000', category: 'Investments', description: 'SIP', day: istDay() })
+
+  const due = page.getByRole('article', { name: 'Due recurring expenses' })
+  await expect(due).toContainText('Due today')
   await due.getByLabel('Amount for SIP').fill('5100')
   await due.getByRole('button', { name: 'Add SIP' }).click()
   // Next month is not due yet, so the card goes away.
   await expect(due).toBeHidden()
 
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Expenses' }).click()
-  await expect(page.locator('.expense-row', { hasText: 'SIP' })).toHaveCount(1)
-  await expect(page.locator('.expense-row', { hasText: 'SIP' })).toContainText('₹5,100.00')
+  await page.goto('/expenses')
+  await expect(page.locator('.tx-row', { hasText: 'SIP' })).toContainText('₹5,100')
 })
 
 test('recurring: skip moves on without logging anything', async ({ page }) => {
@@ -62,8 +77,8 @@ test('recurring: skip moves on without logging anything', async ({ page }) => {
   await expect(page.locator('.category-row', { hasText: 'Streaming' })).toContainText('Next')
 
   await page.goto('/expenses')
-  await expect(page.getByText('24 expenses')).toBeVisible()
-  await expect(page.locator('.expense-row', { hasText: 'Streaming' })).toHaveCount(0)
+  await expect(page.getByText(/across 24 expenses/)).toBeVisible()
+  await expect(page.locator('.tx-row', { hasText: 'Streaming' })).toHaveCount(0)
 })
 
 test('recurring: edit, pause, resume and delete', async ({ page }) => {

@@ -1,5 +1,7 @@
 import { useEffect, useId, useState, type CSSProperties, type FormEvent } from 'react'
 import { createCategory, deleteCategory, listCategories, updateCategory, type BudgetType, type Category } from '../api'
+import { CategoryIcon } from '../components/icons'
+import { typeClass } from '../display'
 import { TYPE_COLORS, TYPE_LABELS } from '../labels'
 
 const MAX_NAME_LENGTH = 50
@@ -59,10 +61,14 @@ export default function Categories() {
 
   return (
     <section className="categories sections">
-      <h1>Categories</h1>
-      <p className="muted">
-        Changing a category&apos;s type affects new expenses only. Expenses already logged keep the type they had.
-      </p>
+      <div className="page-head">
+        <div>
+          <h1>Categories</h1>
+          <p className="sub">
+            Changing a category&apos;s type affects new expenses only. Expenses already logged keep the type they had.
+          </p>
+        </div>
+      </div>
 
       <AddCategoryForm onAdded={(c) => setCategories((all) => [...(all ?? []), c])} />
 
@@ -95,7 +101,12 @@ export default function Categories() {
               {protectedOnes.map((c) => (
                 <li key={c.id} className="category-row">
                   <div className="category-summary">
-                    <span className="category-name">{c.name}</span>
+                    <span className="category-name">
+                      <span className="badge-icon small">
+                        <CategoryIcon name={c.name} type={null} size={18} />
+                      </span>
+                      {c.name}
+                    </span>
                     <span className="muted">Built in</span>
                   </div>
                   <p className="hint">You choose need, want or investment for each expense.</p>
@@ -228,7 +239,12 @@ function CategoryRow({ category, onChanged, onDeleted }: RowProps) {
   return (
     <li className="category-row">
       <div className="category-summary">
-        <span className="category-name">{category.name}</span>
+        <span className="category-name">
+          <span className={`badge-icon small ${typeClass(category.type)}`}>
+            <CategoryIcon name={category.name} type={category.type} size={18} />
+          </span>
+          {category.name}
+        </span>
         <button
           type="button"
           className="ghost"

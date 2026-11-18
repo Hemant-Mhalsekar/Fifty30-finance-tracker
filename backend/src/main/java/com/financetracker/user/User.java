@@ -41,6 +41,10 @@ public class User {
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    // Optional name for the greeting (V10); null when not given.
+    @Column(name = "display_name")
+    private String displayName;
+
     // When the account will be deleted (V9); null unless the user asked for deletion.
     @Column(name = "deletion_scheduled_at")
     private OffsetDateTime deletionScheduledAt;
@@ -110,5 +114,13 @@ public class User {
         }
         this.payDay = pendingPayDay;
         clearPendingPayDay();
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
     }
 }

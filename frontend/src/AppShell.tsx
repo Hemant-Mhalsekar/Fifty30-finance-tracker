@@ -1,5 +1,23 @@
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { BrandMark, HomeIcon, ListIcon, MoreIcon, PlusIcon } from './components/icons'
+import { getCurrentCycle, type Cycle } from './api'
+import { daysLeftLabel } from './display'
+import { formatRange } from './dates'
+import {
+  BrandMark,
+  ChartIcon,
+  CloudOffIcon,
+  GearIcon,
+  HomeIcon,
+  LogoutIcon,
+  MoreIcon,
+  OverviewIcon,
+  PlusIcon,
+  ReceiptIcon,
+  RepeatIcon,
+  TagIcon,
+  WalletIcon,
+} from './components/icons'
 import type { PendingExpense } from './offline'
 
 type Props = {
@@ -15,73 +33,120 @@ type Props = {
   onDismissFlash?: () => void
 }
 
-// Desktop: top bar with every page. Phone: a bottom tab bar in thumb reach, with Add in the
-// middle; Categories, Settings and Log out live under More.
+const SIDE_LINKS: { to: string; label: string; icon: ReactNode; end?: boolean }[] = [
+  { to: '/', label: 'Overview', icon: <OverviewIcon />, end: true },
+  { to: '/expenses', label: 'Expenses', icon: <ReceiptIcon /> },
+  { to: '/budgets', label: 'Budgets', icon: <WalletIcon /> },
+  { to: '/recurring', label: 'Recurring', icon: <RepeatIcon /> },
+  { to: '/reports', label: 'Reports', icon: <ChartIcon /> },
+  { to: '/categories', label: 'Categories', icon: <TagIcon /> },
+  { to: '/settings', label: 'Settings', icon: <GearIcon /> },
+]
+
+// Wide screens: a sidebar with every page, the current cycle and Add Expense. Phones and tablets:
+// a floating tab bar in thumb reach with Add in the middle; the other pages live under More.
 export default function AppShell({ email, onLogout, loggingOut, offline, pending, flash, onDismissFlash }: Props) {
   const { pathname } = useLocation()
-  // Reports, Recurring, Categories and Settings are reached through More on a phone, so More stays highlighted there.
-  const inMoreSection = ['/more', '/reports', '/recurring', '/categories', '/settings'].some((path) =>
+  const inMoreSection = ['/more', '/budgets', '/recurring', '/categories', '/settings'].some((path) =>
     pathname.startsWith(path),
   )
+  // The sidebar's cycle card. Refreshed on each page change, so a new cycle shows up without a reload.
+  const [cycle, setCycle] = useState<Cycle | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    getCurrentCycle()
+      .then((c) => {
+        if (!cancelled) setCycle(c)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [pathname])
 
   return (
     <div className="shell">
-      <header className="topbar">
+      <aside className="sidebar">
         <Link to="/" className="brand" aria-label="Fifty30 home">
           <BrandMark />
-          <span className="brand-text">Fifty30</span>
-        </Link>
-        <nav className="topnav" aria-label="Main">
-          <NavLink to="/" end>
-            Dashboard
-          </NavLink>
-          <NavLink to="/add">Add expense</NavLink>
-          <NavLink to="/expenses">Expenses</NavLink>
-          <NavLink to="/reports">Reports</NavLink>
-          <NavLink to="/recurring">Recurring</NavLink>
-          <NavLink to="/categories">Categories</NavLink>
-          <NavLink to="/settings">Settings</NavLink>
-        </nav>
-        <div className="account">
-          <span className="muted" title={email}>
-            {email}
+          <span className="brand-name">
+            <strong>Fifty30</strong>
+            <small>50 / 30 / 20</small>
           </span>
-          <button type="button" className="secondary" onClick={onLogout} disabled={loggingOut}>
-            Log out
-          </button>
-        </div>
-      </header>
-
-      <main className="page">
-        {flash && (
-          <div className="flash" role="status">
-            <span>{flash}</span>
-            <button type="button" className="secondary" onClick={onDismissFlash}>
-              OK
+        </Link>
+        <nav className="sidenav" aria-label="Main">
+          {SIDE_LINKS.map((l) => (
+            <NavLink key={l.to} to={l.to} end={l.end}>
+              {l.icon}
+              {l.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="sidebar-foot">
+          {cycle && (
+            <div className="cycle-card">
+              <p className="label">Current pay cycle</p>
+              <strong className="num">{formatRange(cycle.periodStart, cycle.periodEnd)}</strong>
+              <p className="left">{daysLeftLabel(cycle.periodEnd)}</p>
+            </div>
+          )}
+          <Link to="/add" className="button add-button">
+            <PlusIcon size={18} />
+            Add Expense
+          </Link>
+          <div className="account-row">
+            <span className="email" title={email}>
+              {email}
+            </span>
+            <button
+              type="button"
+              className="icon-plain"
+              onClick={onLogout}
+              disabled={loggingOut}
+              aria-label="Log out"
+              title="Log out"
+            >
+              <LogoutIcon size={18} />
             </button>
           </div>
-        )}
-        <OfflineBanner offline={offline} pending={pending} />
-        <Outlet />
-      </main>
+        </div>
+      </aside>
+
+      <div className="main">
+        <main className="page">
+          {flash && (
+            <div className="flash" role="status">
+              <span>{flash}</span>
+              <button type="button" className="secondary" onClick={onDismissFlash}>
+                OK
+              </button>
+            </div>
+          )}
+          <OfflineBanner offline={offline} pending={pending} />
+          <Outlet />
+        </main>
+      </div>
 
       <nav className="tabbar" aria-label="Main">
         <NavLink to="/" end>
-          <HomeIcon />
-          Dashboard
-        </NavLink>
-        <NavLink to="/add" className="tab-add">
-          <span className="tab-add-circle">
-            <PlusIcon />
-          </span>
-          Add
+          <HomeIcon size={22} />
+          Home
         </NavLink>
         <NavLink to="/expenses">
-          <ListIcon />
+          <ReceiptIcon size={22} />
           Expenses
         </NavLink>
+        <NavLink to="/add" className="tab-add" aria-label="Add expense">
+          <span className="tab-add-circle">
+            <PlusIcon size={24} />
+          </span>
+        </NavLink>
+        <NavLink to="/reports">
+          <ChartIcon size={22} />
+          Reports
+        </NavLink>
         <NavLink to="/more" className={inMoreSection ? 'active' : ''}>
-          <MoreIcon />
+          <MoreIcon size={22} />
           More
         </NavLink>
       </nav>
@@ -108,13 +173,16 @@ function OfflineBanner({ offline, pending }: { offline: boolean; pending: Pendin
 
   return (
     <p className={offline ? 'offline-banner' : 'offline-banner sending'} role="status">
-      {parts.join(' ')}
-      {refused > 0 && (
-        <>
-          {' '}
-          <Link to="/add">Review</Link>
-        </>
-      )}
+      <CloudOffIcon size={18} />
+      <span>
+        {parts.join(' ')}
+        {refused > 0 && (
+          <>
+            {' '}
+            <Link to="/add">Review</Link>
+          </>
+        )}
+      </span>
     </p>
   )
 }

@@ -9,7 +9,12 @@ import http from 'node:http'
 
 const PORT = Number(process.env.MOCK_API_PORT ?? 8080)
 
-const IST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' })
+const IST = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Kolkata',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
 const today = () => IST.format(new Date())
 function addDays(iso, days) {
   const [y, m, d] = iso.split('-').map(Number)
@@ -66,6 +71,7 @@ function reset({ onboarded = true, salaryConfirmed = true } = {}) {
         expenseDate: addDays(today(), -(9 - (i % 10))),
         description: `Expense ${i + 1}`,
         createdOrder: i,
+        createdAt: `${addDays(today(), -(9 - (i % 10)))}T06:30:00Z`,
       })
     }
     expenses.push({
@@ -76,17 +82,37 @@ function reset({ onboarded = true, salaryConfirmed = true } = {}) {
       expenseDate: today(),
       description: 'Gift for Asha',
       createdOrder: 99,
+      createdAt: `${today()}T04:54:00Z`,
     })
   }
 
   state = {
     id,
     resetTokenUsed: false,
-    me: { id: 'u1', email: 'test@example.com', payDay: onboarded ? 25 : null, pendingPayDay: null, pendingPayDayFrom: null },
+    me: {
+      id: 'u1',
+      email: 'test@example.com',
+      name: null,
+      payDay: onboarded ? 25 : null,
+      pendingPayDay: null,
+      pendingPayDayFrom: null,
+    },
     cycles: onboarded
       ? [
-          { periodStart: addDays(start, -31), periodEnd: addDays(start, -1), salaryPaise: 5_000_000, ...split(5_000_000), salaryConfirmed: true },
-          { periodStart: start, periodEnd: addDays(start, 30), salaryPaise: 5_000_000, ...split(5_000_000), salaryConfirmed },
+          {
+            periodStart: addDays(start, -31),
+            periodEnd: addDays(start, -1),
+            salaryPaise: 5_000_000,
+            ...split(5_000_000),
+            salaryConfirmed: true,
+          },
+          {
+            periodStart: start,
+            periodEnd: addDays(start, 30),
+            salaryPaise: 5_000_000,
+            ...split(5_000_000),
+            salaryConfirmed,
+          },
         ]
       : [],
     categories,
@@ -188,9 +214,27 @@ function addExpense(res, body) {
     description: body.description,
     createdOrder: 1000 + state.expenses.length,
     clientId: body.clientId,
+    createdAt: new Date().toISOString(),
   }
   state.expenses.push(expense)
   return expense
+}
+
+// The list's filters, like ExpenseFilter on the server: dates, category, type and a description search.
+function filtered(params) {
+  const from = params.get('from') ?? '1900-01-01'
+  const to = params.get('to') ?? '9999-12-31'
+  const categoryId = params.get('categoryId')
+  const type = params.get('type')
+  const q = params.get('q')?.trim().toLowerCase()
+  return state.expenses.filter(
+    (e) =>
+      e.expenseDate >= from &&
+      e.expenseDate <= to &&
+      (!categoryId || e.categoryId === categoryId) &&
+      (!type || e.type === type) &&
+      (!q || e.description.toLowerCase().includes(q)),
+  )
 }
 
 const publicExpense = ({ createdOrder: _order, clientId: _client, ...expense }) => expense
@@ -251,8 +295,15 @@ function handle(req, res, body) {
   if (path === '/api/onboarding') {
     if (state.me.payDay !== null) return fail(res, 409, 'Setup already completed')
     state.me.payDay = body.payDay
+    state.me.name = body.name?.trim() || null
     const start = addDays(today(), -10)
-    state.cycles.push({ periodStart: start, periodEnd: addDays(start, 30), salaryPaise: body.salaryPaise, ...split(body.salaryPaise), salaryConfirmed: true })
+    state.cycles.push({
+      periodStart: start,
+      periodEnd: addDays(start, 30),
+      salaryPaise: body.salaryPaise,
+      ...split(body.salaryPaise),
+      salaryConfirmed: true,
+    })
     return send(res, 201, { payDay: body.payDay, cycle: currentCycle() })
   }
   if (state.me.payDay === null && path.startsWith('/api/cycles')) return fail(res, 409, 'Complete setup first')
@@ -295,6 +346,12 @@ function handle(req, res, body) {
     Object.assign(currentCycle(), { salaryPaise: body.salaryPaise, ...split(body.salaryPaise), salaryConfirmed: true })
     return send(res, 200, currentCycle())
   }
+  if (path === '/api/settings/name') {
+    const name = body.name?.trim().replace(/\s+/g, ' ') || null
+    if (name && name.length > 50) return fail(res, 400, 'Name must be at most 50 characters')
+    state.me.name = name
+    return send(res, 200, { name })
+  }
   if (path === '/api/settings/pay-day') {
     if (body.payDay === state.me.payDay) {
       Object.assign(state.me, { pendingPayDay: null, pendingPayDayFrom: null })
@@ -307,7 +364,11 @@ function handle(req, res, body) {
 
   if (path === '/api/categories' && method === 'GET') {
     const all = url.searchParams.get('includeArchived') === 'true'
-    return send(res, 200, state.categories.filter((c) => all || !c.archived))
+    return send(
+      res,
+      200,
+      state.categories.filter((c) => all || !c.archived),
+    )
   }
   if (path === '/api/categories' && method === 'POST') {
     if (state.categories.some((c) => c.name.toLowerCase() === body.name.toLowerCase())) {
@@ -344,32 +405,31 @@ function handle(req, res, body) {
   }
 
   if (path === '/api/expenses' && method === 'GET') {
-    const from = url.searchParams.get('from') ?? '1900-01-01'
-    const to = url.searchParams.get('to') ?? '9999-12-31'
-    const categoryId = url.searchParams.get('categoryId')
     const page = Number(url.searchParams.get('page') ?? 0)
     const size = Number(url.searchParams.get('size') ?? 20)
-    const matching = state.expenses
-      .filter((e) => e.expenseDate >= from && e.expenseDate <= to && (!categoryId || e.categoryId === categoryId))
-      .sort((a, b) => b.expenseDate.localeCompare(a.expenseDate) || b.createdOrder - a.createdOrder)
+    const matching = filtered(url.searchParams).sort(
+      (a, b) => b.expenseDate.localeCompare(a.expenseDate) || b.createdOrder - a.createdOrder,
+    )
+    const items = matching.slice(page * size, page * size + size)
+    const dates = [...new Set(items.map((e) => e.expenseDate))]
+    const sum = (list) => list.reduce((total, e) => total + e.amountPaise, 0)
     return send(res, 200, {
-      items: matching.slice(page * size, page * size + size).map(publicExpense),
+      items: items.map(publicExpense),
       page,
       size,
       totalItems: matching.length,
       totalPages: Math.ceil(matching.length / size),
+      totalPaise: items.length ? sum(matching) : 0,
+      dayTotals: dates.map((date) => ({ date, totalPaise: sum(matching.filter((e) => e.expenseDate === date)) })),
     })
   }
   if (path === '/api/expenses/export' && method === 'GET') {
     const from = url.searchParams.get('from')
     const to = url.searchParams.get('to')
-    const categoryId = url.searchParams.get('categoryId')
     const names = new Map(state.categories.map((c) => [c.id, c.name]))
     const labels = { NEED: 'Need', WANT: 'Want', INVESTMENT: 'Investment' }
     const field = (v) => (/[",\r\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v)
-    const rows = state.expenses
-      .filter((e) => (!from || e.expenseDate >= from) && (!to || e.expenseDate <= to))
-      .filter((e) => !categoryId || e.categoryId === categoryId)
+    const rows = filtered(url.searchParams)
       .sort((a, b) => a.expenseDate.localeCompare(b.expenseDate) || a.createdOrder - b.createdOrder)
       .map((e) =>
         [

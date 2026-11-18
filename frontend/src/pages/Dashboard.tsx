@@ -1,30 +1,35 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import {
   ApiError,
   getCurrentReport,
-  getHistory,
   getReportForDate,
+  listCategories,
+  listExpenses,
   listRecurring,
   type BudgetLine,
-  type CycleHistoryItem,
+  type Category,
   type CycleReport,
+  type Expense,
+  type Me,
   type RecurringExpense,
 } from '../api'
-import BarChart, { type BarRow } from '../components/BarChart'
 import CycleSpendChart from '../components/CycleSpendChart'
-import DueRecurring from '../components/DueRecurring'
-import HistoryChart from '../components/HistoryChart'
+import Donut from '../components/Donut'
+import ExpenseRow from '../components/ExpenseRow'
+import Meter from '../components/Meter'
 import SalaryCheck from '../components/SalaryCheck'
-import { AlertIcon, ChevronLeftIcon, ChevronRightIcon } from '../components/icons'
+import UpcomingRecurring from '../components/UpcomingRecurring'
+import { AlertIcon, BagIcon, ChevronLeftIcon, ChevronRightIcon, HomeIcon, PiggyIcon } from '../components/icons'
 import { addDays, formatRange, todayIst } from '../dates'
-import { TYPE_COLORS, TYPE_LABELS } from '../labels'
-import { formatPaise, formatPaiseShort } from '../money'
+import { donutSlices, firstName, greeting, initial, paceStatus, percentOf } from '../display'
+import { formatPaise, formatPaiseCompact, formatPaiseShort } from '../money'
 
 // Nudge only after a few quiet days; daily loggers should not see it.
 const NUDGE_AFTER_DAYS = 3
+const RECENT_SHOWN = 4
 
-export default function Dashboard() {
+export default function Dashboard({ me }: { me: Me }) {
   // null = the current cycle; otherwise any date inside the cycle being viewed.
   const [viewDate, setViewDate] = useState<string | null>(null)
   const [report, setReport] = useState<CycleReport | null>(null)
@@ -33,22 +38,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   // Bumped after a recurring expense is added, to reload the report without the loading state.
   const [reloads, setReloads] = useState(0)
-  // null until loaded; a failure just hides the due list, the dashboard still works.
+  // The extras below are null until loaded; a failure just hides their card.
   const [recurring, setRecurring] = useState<RecurringExpense[] | null>(null)
-  // The viewed cycle and the five before it. A failure just hides the chart.
-  const [history, setHistory] = useState<CycleHistoryItem[] | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    getHistory(viewDate ?? undefined)
-      .then((items) => {
-        if (!cancelled) setHistory(items)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [viewDate, reloads])
+  const [recent, setRecent] = useState<Expense[] | null>(null)
+  const [categories, setCategories] = useState<Category[] | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -57,10 +50,27 @@ export default function Dashboard() {
         if (!cancelled) setRecurring(items)
       })
       .catch(() => {})
+    listCategories(true)
+      .then((items) => {
+        if (!cancelled) setCategories(items)
+      })
+      .catch(() => {})
     return () => {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    listExpenses({ size: RECENT_SHOWN })
+      .then((page) => {
+        if (!cancelled) setRecent(page.items)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [reloads])
 
   useEffect(() => {
     let cancelled = false
@@ -96,61 +106,62 @@ export default function Dashboard() {
     setViewDate(date)
   }
 
-  if (error && !report) {
-    return (
-      <section>
-        <h1>Dashboard</h1>
-        <p className="error" role="alert">
-          {error}
-        </p>
-      </section>
-    )
-  }
+  const name = firstName(me.name)
+  const title = `${greeting()}${name ? `, ${name}` : ''}`
 
   if (!report) {
     return (
-      <section>
-        <h1>Dashboard</h1>
-        <p className="muted">Loading…</p>
+      <section className="dashboard">
+        <h1>{title}</h1>
+        {error ? (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        ) : (
+          <p className="muted">Loading…</p>
+        )}
       </section>
     )
   }
 
-  const { cycle, days, needs, wants } = report
+  const { cycle } = report
   const isCurrent = cycle.periodEnd >= todayIst()
-  const left = needs.remainingPaise + wants.remainingPaise
 
   return (
     <section className="dashboard" aria-busy={loading}>
-      <div className="cycle-header">
-        <div>
-          <h1>{formatRange(cycle.periodStart, cycle.periodEnd)}</h1>
-          <p className="muted">
-            {isCurrent ? `Day ${days.elapsed} of ${days.total}` : 'Past cycle'} · Salary{' '}
-            <span className="num">{formatPaiseShort(cycle.salaryPaise)}</span>
-          </p>
+      <header className="dash-head">
+        <div className="titles">
+          <h1>{title}</h1>
+          <p className="hello">Your money, under control.</p>
         </div>
-        <div className="cycle-nav">
-          <button
-            type="button"
-            className="secondary icon"
-            aria-label="Previous cycle"
-            disabled={loading || notice !== null}
-            onClick={() => goTo(addDays(cycle.periodStart, -1))}
-          >
-            <ChevronLeftIcon />
-          </button>
-          <button
-            type="button"
-            className="secondary icon"
-            aria-label="Next cycle"
-            disabled={loading || isCurrent}
-            onClick={() => goTo(addDays(cycle.periodEnd, 1))}
-          >
-            <ChevronRightIcon />
-          </button>
+        <div className="tools">
+          <div className="cycle-switch">
+            <button
+              type="button"
+              aria-label="Previous cycle"
+              disabled={loading || notice !== null}
+              onClick={() => goTo(addDays(cycle.periodStart, -1))}
+            >
+              <ChevronLeftIcon />
+            </button>
+            <span className="range">
+              <strong>{formatRange(cycle.periodStart, cycle.periodEnd)}</strong>
+              <small>{isCurrent ? `Day ${report.days.elapsed} of ${report.days.total}` : 'Past cycle'}</small>
+            </span>
+            <button
+              type="button"
+              aria-label="Next cycle"
+              disabled={loading || isCurrent}
+              onClick={() => goTo(addDays(cycle.periodEnd, 1))}
+            >
+              <ChevronRightIcon />
+            </button>
+          </div>
+          <Link to="/settings" className="avatar wide-only" aria-label="Settings" title={me.email}>
+            {initial(me.name, me.email)}
+          </Link>
         </div>
-      </div>
+      </header>
 
       {notice && (
         <p className="muted" role="status">
@@ -174,58 +185,41 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Phone: due list above the hero. Wide: side by side, hero first. */}
-      <div className="dash-top">
+      <Warnings report={report} isCurrent={isCurrent} />
+
+      <div className="dash-grid hero-row">
+        <BudgetHero report={report} isCurrent={isCurrent} />
+        <LeftToSpend report={report} isCurrent={isCurrent} />
+      </div>
+
+      <h2 className="section-title phone-only">50/30/20 breakdown</h2>
+      <div className="dash-grid three">
+        <SpendCard name="Needs" share="50% • Essentials" icon={<HomeIcon />} kind="need" line={report.needs} />
+        <SpendCard name="Wants" share="30% • Lifestyle" icon={<BagIcon />} kind="want" line={report.wants} />
+        <SavingsCard report={report} isCurrent={isCurrent} />
+      </div>
+
+      <div className="dash-grid two">
+        <div className="wide-only">
+          <SpentVsPlan report={report} />
+        </div>
+        <CategoryCard report={report} isCurrent={isCurrent} />
+      </div>
+
+      <CycleSpendChart report={report} isCurrent={isCurrent} />
+
+      <div className="dash-grid two">
+        <RecentCard items={recent} categories={categories} />
         {isCurrent && recurring && (
-          <DueRecurring
+          <UpcomingRecurring
             items={recurring}
+            categories={categories ?? []}
             onUpdated={(updated) => setRecurring((all) => all?.map((r) => (r.id === updated.id ? updated : r)) ?? null)}
             onExpenseAdded={() => setReloads((n) => n + 1)}
           />
         )}
-        <Hero left={left} isCurrent={isCurrent} daysLeftIncludingToday={days.remaining + 1} />
-      </div>
-
-      <Warnings report={report} isCurrent={isCurrent} />
-
-      {/* Phone: one compact card. Wide screens show the same numbers as the "Spent vs plan" chart. */}
-      <BudgetSummary report={report} isCurrent={isCurrent} />
-
-      <div className="charts">
-        <div className="wide-only">
-          <PlanChart report={report} isCurrent={isCurrent} />
-        </div>
-        <CategoryChart report={report} isCurrent={isCurrent} />
-      </div>
-
-      <div className="charts charts-history">
-        <CycleSpendChart report={report} isCurrent={isCurrent} />
-        {history && history.length > 0 && <HistoryChart items={history} currentStart={cycle.periodStart} />}
       </div>
     </section>
-  )
-}
-
-function Hero({ left, isCurrent, daysLeftIncludingToday }: { left: number; isCurrent: boolean; daysLeftIncludingToday: number }) {
-  // Whole rupees per day, rounded down so following it never overspends.
-  const perDay = Math.floor(left / daysLeftIncludingToday / 100) * 100
-  return (
-    <article className="card hero">
-      <p className="label">{isCurrent ? 'Left to spend on needs and wants' : 'Left unspent on needs and wants'}</p>
-      <p className={`big ${left < 0 ? 'negative' : ''}`}>{formatPaiseShort(left)}</p>
-      {left < 0 ? (
-        <p className="sub negative">
-          <AlertIcon /> Over your needs and wants plan by {formatPaise(-left)}
-        </p>
-      ) : (
-        isCurrent && (
-          <p className="sub">
-            About <strong className="num">{formatPaiseShort(perDay)}</strong> a day for the next {daysLeftIncludingToday}{' '}
-            {daysLeftIncludingToday === 1 ? 'day' : 'days'}
-          </p>
-        )
-      )}
-    </article>
   )
 }
 
@@ -268,183 +262,368 @@ function Warnings({ report, isCurrent }: { report: CycleReport; isCurrent: boole
   )
 }
 
-// Phone: needs, wants and savings as three rows in one card instead of three big cards.
-function BudgetSummary({ report, isCurrent }: { report: CycleReport; isCurrent: boolean }) {
-  const { needs, wants, savings } = report
+// The dark card: the salary for the cycle, how much of it needs and wants have used, and what is left.
+function BudgetHero({ report, isCurrent }: { report: CycleReport; isCurrent: boolean }) {
+  const { cycle, needs, wants, savings } = report
+  const spent = needs.spentPaise + wants.spentPaise
+  const used = percentOf(spent, cycle.salaryPaise)
+  const size = 76
+  const stroke = 7
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
   return (
-    <article className="card budget-card phone-only" aria-labelledby="budget-title">
-      <h2 id="budget-title">This cycle</h2>
-      <ul className="budget-rows">
-        <BudgetRow name="Needs" color={TYPE_COLORS.NEED} line={needs} />
-        <BudgetRow name="Wants" color={TYPE_COLORS.WANT} line={wants} />
-        <li className={`budget-row ${savings.deficit ? 'over' : ''}`}>
-          <div className="budget-line">
-            <span className="budget-name">
-              <span className="dot" style={{ '--c': 'var(--save)' } as CSSProperties} aria-hidden="true" />
-              Savings
-            </span>
-            <span className="budget-amount">
-              <strong className={savings.deficit ? 'negative' : ''}>{formatPaiseShort(savings.savedPaise)}</strong>
-              <span className="muted"> of {formatPaiseShort(savings.plannedPaise)}</span>
-            </span>
-          </div>
-          <Meter name="Savings" value={savings.savedPaise} max={savings.plannedPaise} color="var(--save)" />
-          <p className="budget-note">
-            {savings.deficit ? (
-              <span className="negative">
-                <AlertIcon /> Deficit of {formatPaiseShort(-savings.savedPaise)}
-              </span>
-            ) : (
-              <span className="muted">
-                {isCurrent ? 'If you stop spending now' : 'Saved this cycle'}
-                {savings.investedPaise > 0 && ` · ${formatPaiseShort(savings.investedPaise)} invested`}
-              </span>
-            )}
+    <article className="hero-card" aria-labelledby="hero-title">
+      <div className="top">
+        <div>
+          <p className="label" id="hero-title">
+            Pay cycle budget
           </p>
-        </li>
-      </ul>
+          <p className="amount">{formatPaiseShort(cycle.salaryPaise)}</p>
+          <p className="range">{formatRange(cycle.periodStart, cycle.periodEnd)} • 50/30/20 allocation</p>
+        </div>
+        <div className="ring" role="img" aria-label={`${used}% of salary used on needs and wants`}>
+          <svg width={size} height={size} aria-hidden="true">
+            <circle className="track" cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} />
+            <circle
+              className={`value ${used > 100 ? 'over' : ''}`}
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              strokeWidth={stroke}
+              strokeLinecap="round"
+              strokeDasharray={c}
+              strokeDashoffset={c * (1 - Math.min(used, 100) / 100)}
+            />
+          </svg>
+          <span className="ring-label" aria-hidden="true">
+            <strong>{used}%</strong>
+            <small>used</small>
+          </span>
+        </div>
+      </div>
+      <div className="tiles">
+        <div className="tile">
+          <p className="label">Spent</p>
+          <strong>{formatPaiseShort(spent)}</strong>
+        </div>
+        <div className="tile">
+          <p className="label">{savings.deficit ? 'Over salary' : isCurrent ? 'Left of salary' : 'Unspent'}</p>
+          <strong className={savings.deficit ? 'bad' : 'good'}>{formatPaiseShort(Math.abs(savings.savedPaise))}</strong>
+        </div>
+      </div>
     </article>
   )
 }
 
-function BudgetRow({ name, color, line }: { name: string; color: string; line: BudgetLine }) {
+function LeftToSpend({ report, isCurrent }: { report: CycleReport; isCurrent: boolean }) {
+  const { needs, wants, days } = report
+  const budget = needs.allocatedPaise + wants.allocatedPaise
+  const left = needs.remainingPaise + wants.remainingPaise
+  const spent = needs.spentPaise + wants.spentPaise
+  const status = paceStatus(report, isCurrent)
+  const daysLeft = days.remaining + 1
+  // Whole rupees per day, rounded down so following it never overspends.
+  const perDay = left > 0 ? Math.floor(left / daysLeft / 100) * 100 : 0
+  const needsShare = budget > 0 ? Math.min(100, (needs.spentPaise / budget) * 100) : 0
+  const wantsShare = budget > 0 ? Math.min(100 - needsShare, (wants.spentPaise / budget) * 100) : 0
+  const spentPct = percentOf(spent, budget)
+
   return (
-    <li className={`budget-row ${line.overspent ? 'over' : ''}`}>
-      <div className="budget-line">
-        <span className="budget-name">
-          <span className="dot" style={{ '--c': color } as CSSProperties} aria-hidden="true" />
-          {name}
+    <article className="card left-card" aria-labelledby="left-title">
+      <div className="card-head">
+        <div>
+          <h2 id="left-title">{isCurrent ? 'Left to spend' : 'Left unspent'}</h2>
+          <p>Remaining needs &amp; wants</p>
+        </div>
+        <span className={`pill ${status.tone}`}>{status.label}</span>
+      </div>
+      <div className="amount-row">
+        <p className={`big ${left < 0 ? 'negative' : ''}`}>{formatPaiseShort(left)}</p>
+        <span className="of">of {formatPaiseShort(budget)}</span>
+      </div>
+      {left < 0 && (
+        <p className="negative">
+          <AlertIcon /> Over your needs and wants plan by {formatPaise(-left)}
+        </p>
+      )}
+      <div
+        className="meter split"
+        role="img"
+        aria-label={`Needs ${formatPaiseShort(needs.spentPaise)} and wants ${formatPaiseShort(wants.spentPaise)} spent of ${formatPaiseShort(budget)}`}
+      >
+        <div className="meter-fill" style={{ width: `${needsShare}%`, '--c': 'var(--need)' } as CSSProperties} />
+        <div className="meter-fill" style={{ width: `${wantsShare}%`, '--c': 'var(--want)' } as CSSProperties} />
+      </div>
+      <div className="meter-legend">
+        <span>{spentPct}% spent</span>
+        <span>{Math.max(0, 100 - spentPct)}% left</span>
+      </div>
+      <div className="stat-pair">
+        {isCurrent ? (
+          <>
+            <div>
+              <p className="label">Daily allowance</p>
+              <strong>{left > 0 ? formatPaiseShort(perDay) : '₹0'}</strong>
+            </div>
+            <div>
+              <p className="label">Days remaining</p>
+              <strong>
+                {daysLeft} {daysLeft === 1 ? 'day' : 'days'}
+              </strong>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <p className="label">Days in cycle</p>
+              <strong>{days.total}</strong>
+            </div>
+            <div>
+              <p className="label">Expenses logged</p>
+              <strong>{report.expenseCount}</strong>
+            </div>
+          </>
+        )}
+      </div>
+    </article>
+  )
+}
+
+const KIND_COLORS = {
+  need: { c: 'var(--need)', t: 'var(--need-soft)' },
+  want: { c: 'var(--want)', t: 'var(--want-soft)' },
+  save: { c: 'var(--save)', t: 'var(--save-soft)' },
+}
+
+function SpendCard({
+  name,
+  share,
+  icon,
+  kind,
+  line,
+}: {
+  name: string
+  share: string
+  icon: ReactNode
+  kind: 'need' | 'want'
+  line: BudgetLine
+}) {
+  const used = percentOf(line.spentPaise, line.allocatedPaise)
+  return (
+    <article className="card bucket-card" aria-label={name}>
+      <div className="head">
+        <span className={`badge-icon ${kind}`}>{icon}</span>
+        <div className="titles">
+          <h3>{name}</h3>
+          <small>{share}</small>
+        </div>
+        <span className={`pill ${line.overspent ? 'bad' : kind}`}>{used}%</span>
+      </div>
+      <div className="amount-row">
+        <strong>{formatPaiseShort(line.spentPaise)}</strong>
+        <span className="of muted">of {formatPaiseShort(line.allocatedPaise)}</span>
+      </div>
+      <Meter
+        label={`${name} used`}
+        value={line.spentPaise}
+        max={line.allocatedPaise}
+        color={line.overspent ? 'var(--danger)' : KIND_COLORS[kind].c}
+        track={KIND_COLORS[kind].t}
+      />
+      {line.overspent ? (
+        <p className="note over">
+          <AlertIcon /> Over by {formatPaiseShort(-line.remainingPaise)}
+        </p>
+      ) : (
+        <p className="note">{formatPaiseShort(line.remainingPaise)} remaining</p>
+      )}
+    </article>
+  )
+}
+
+// Savings is what needs and wants have not used (salary - needs - wants), measured against the plan.
+function SavingsCard({ report, isCurrent }: { report: CycleReport; isCurrent: boolean }) {
+  const { savings } = report
+  const pct = percentOf(Math.max(0, savings.savedPaise), savings.plannedPaise)
+  const short = savings.plannedPaise - savings.savedPaise
+  return (
+    <article className="card bucket-card" aria-label="Savings">
+      <div className="head">
+        <span className="badge-icon save">
+          <PiggyIcon />
         </span>
-        <span className="budget-amount">
-          <strong>{formatPaiseShort(line.spentPaise)}</strong>
-          <span className="muted"> of {formatPaiseShort(line.allocatedPaise)}</span>
+        <div className="titles">
+          <h3>Savings</h3>
+          <small>20% • Goal</small>
+        </div>
+        <span className={`pill ${savings.deficit ? 'bad' : pct >= 100 ? 'good' : 'save'}`}>
+          {pct >= 100 ? 'On track' : `${pct}%`}
         </span>
       </div>
-      <Meter name={name} value={line.spentPaise} max={line.allocatedPaise} color={color} />
-      <p className="budget-note">
-        {line.overspent ? (
-          <span className="negative">
-            <AlertIcon /> Over by {formatPaiseShort(-line.remainingPaise)}
-          </span>
-        ) : (
-          <span className="muted">{formatPaiseShort(line.remainingPaise)} left</span>
-        )}
+      <div className="amount-row">
+        <strong className={savings.deficit ? 'negative' : 'save-text'}>
+          {formatPaiseShort(savings.savedPaise)} <small>{isCurrent ? 'so far' : 'saved'}</small>
+        </strong>
+        <span className="of muted">of {formatPaiseShort(savings.plannedPaise)}</span>
+      </div>
+      <Meter
+        label="Savings goal reached"
+        value={Math.max(0, savings.savedPaise)}
+        max={savings.plannedPaise}
+        color="var(--save)"
+        track={KIND_COLORS.save.t}
+      />
+      <p className={`note ${savings.deficit ? 'over' : ''}`}>
+        {savings.deficit
+          ? `Deficit of ${formatPaiseShort(-savings.savedPaise)}`
+          : short > 0
+            ? `${formatPaiseShort(short)} short of the goal`
+            : isCurrent
+              ? 'If you stop spending now'
+              : 'Goal reached'}
+        {!savings.deficit && savings.investedPaise > 0 && ` • ${formatPaiseShort(savings.investedPaise)} invested`}
       </p>
-    </li>
+    </article>
   )
 }
 
-function Meter({ name, value, max, color }: { name: string; value: number; max: number; color: string }) {
-  const used = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 100
-  return (
-    <div
-      className="bar"
-      role="progressbar"
-      aria-label={`${name} used`}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(used)}
-    >
-      <div className="bar-fill" style={{ width: `${used}%`, '--c': color } as CSSProperties} />
-    </div>
-  )
-}
-
-function percent(part: number, whole: number): string {
-  return whole > 0 ? `${Math.round((part / whole) * 100)}%` : '–'
-}
-
-function PlanChart({ report, isCurrent }: { report: CycleReport; isCurrent: boolean }) {
+// Planned vs actual columns for each bucket, scaled together. Values are always printed below.
+function SpentVsPlan({ report }: { report: CycleReport }) {
   const { needs, wants, savings } = report
-  // Each row is drawn as a share of its own plan, so the plan line sits at the same place on every
-  // row. In rupees, a large "saved so far" would squash the needs and wants bars into slivers.
-  const share = (actual: number, plan: number) => (plan > 0 ? (actual / plan) * 100 : 0)
-  const spendRow = (key: string, name: string, color: string, line: BudgetLine): BarRow => ({
-    key,
-    name,
-    color,
-    value: share(line.spentPaise, line.allocatedPaise),
-    plan: 100,
-    valueLabel: `${formatPaiseShort(line.spentPaise)} of ${formatPaiseShort(line.allocatedPaise)}`,
-    note: line.overspent ? (
-      <span className="negative">
-        <AlertIcon /> Over by {formatPaise(-line.remainingPaise)}
-      </span>
-    ) : (
-      `${formatPaise(line.remainingPaise)} left`
-    ),
-    details: [`${percent(line.spentPaise, line.allocatedPaise)} of plan used`],
-  })
-  const rows: BarRow[] = [
-    spendRow('needs', 'Needs', TYPE_COLORS.NEED, needs),
-    spendRow('wants', 'Wants', TYPE_COLORS.WANT, wants),
+  const groups = [
     {
-      key: 'savings',
+      name: 'Needs',
+      plan: needs.allocatedPaise,
+      actual: needs.spentPaise,
+      color: 'var(--need)',
+      over: needs.overspent,
+    },
+    {
+      name: 'Wants',
+      plan: wants.allocatedPaise,
+      actual: wants.spentPaise,
+      color: 'var(--want)',
+      over: wants.overspent,
+    },
+    {
       name: 'Savings',
+      plan: savings.plannedPaise,
+      actual: Math.max(0, savings.savedPaise),
       color: 'var(--save)',
-      value: share(savings.savedPaise, savings.plannedPaise),
-      plan: 100,
-      valueLabel: `${formatPaiseShort(savings.savedPaise)} of ${formatPaiseShort(savings.plannedPaise)}`,
-      note: savings.deficit ? (
-        <span className="negative">
-          <AlertIcon /> Deficit of {formatPaise(-savings.savedPaise)}
-        </span>
-      ) : (
-        `${isCurrent ? 'If you stop spending now' : 'Saved'} · invested ${formatPaise(savings.investedPaise)}`
-      ),
-      details: [`${percent(savings.savedPaise, savings.plannedPaise)} of the savings plan`],
+      over: false,
     },
   ]
+  // Saved-so-far can be far above its plan early in a cycle; cap the drawing so needs and wants stay readable.
+  const max = Math.max(1, ...groups.map((g) => Math.max(g.plan, Math.min(g.actual, g.plan * 1.5))))
+  const h = (v: number) => `${Math.max(2, (Math.min(v, max) / max) * 100)}%`
   return (
-    <BarChart
-      title="Spent vs plan"
-      subtitle="Share of each plan"
-      rows={rows}
-      scaleMax={150}
-      legend={[{ name: 'Plan (100%)', color: 'var(--text)', marker: true }]}
-      table={{
-        columns: ['', 'Actual', 'Plan', 'Used'],
-        rows: [
-          ['Needs', formatPaise(needs.spentPaise), formatPaise(needs.allocatedPaise), percent(needs.spentPaise, needs.allocatedPaise)],
-          ['Wants', formatPaise(wants.spentPaise), formatPaise(wants.allocatedPaise), percent(wants.spentPaise, wants.allocatedPaise)],
-          ['Savings', formatPaise(savings.savedPaise), formatPaise(savings.plannedPaise), percent(savings.savedPaise, savings.plannedPaise)],
-        ],
-      }}
-    />
+    <article className="card" aria-labelledby="plan-title">
+      <div className="card-head">
+        <div>
+          <h2 id="plan-title">Spent vs Plan</h2>
+          <p>Planned vs actual this cycle</p>
+        </div>
+        <ul className="mini-legend" aria-hidden="true">
+          <li>
+            <span className="swatch" style={{ '--c': 'var(--surface-3)' } as CSSProperties} />
+            Planned
+          </li>
+          <li>
+            <span className="swatch" style={{ '--c': 'var(--text)' } as CSSProperties} />
+            Actual
+          </li>
+        </ul>
+      </div>
+      <div className="plan-columns">
+        {groups.map((g) => (
+          <div className="plan-group" key={g.name}>
+            <div className="plan-bars" aria-hidden="true">
+              <span className="planned" style={{ height: h(g.plan) }} />
+              <span
+                className={`actual ${g.over ? 'over' : ''}`}
+                style={{ height: h(g.actual), '--c': g.color } as CSSProperties}
+              />
+            </div>
+            <span className="name">{g.name}</span>
+            <span className={`vals ${g.over ? 'over' : ''}`}>
+              <span className="visually-hidden">Actual </span>
+              {formatPaiseCompact(g.actual)}
+              <span aria-hidden="true"> / </span>
+              <span className="visually-hidden"> of planned </span>
+              {formatPaiseCompact(g.plan)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </article>
   )
 }
 
-function CategoryChart({ report, isCurrent }: { report: CycleReport; isCurrent: boolean }) {
-  const total = report.categories.reduce((sum, row) => sum + row.spentPaise, 0)
-  const rows: BarRow[] = report.categories.map((row) => ({
-    key: `${row.categoryId}-${row.type}`,
-    name: row.name + (row.archived ? ' (archived)' : ''),
-    color: TYPE_COLORS[row.type],
-    value: row.spentPaise,
-    valueLabel: formatPaiseShort(row.spentPaise),
-    details: [
-      `${TYPE_LABELS[row.type]} · ${percent(row.spentPaise, total)} of spending`,
-      `${row.expenseCount} ${row.expenseCount === 1 ? 'expense' : 'expenses'}`,
-    ],
-  }))
-  // Legend only for the types that actually appear, in a fixed order.
-  const types = (['NEED', 'WANT', 'INVESTMENT'] as const).filter((t) => report.categories.some((c) => c.type === t))
+function CategoryCard({ report, isCurrent }: { report: CycleReport; isCurrent: boolean }) {
+  const slices = donutSlices(report.categories)
+  const total = slices.reduce((sum, s) => sum + s.spentPaise, 0)
+  const count = new Set(report.categories.filter((c) => c.type !== 'INVESTMENT').map((c) => c.categoryId)).size
   return (
-    <BarChart
-      title="By category"
-      subtitle={total > 0 ? `${formatPaiseShort(total)} total` : undefined}
-      rows={rows}
-      legend={types.length > 1 ? types.map((t) => ({ name: TYPE_LABELS[t], color: TYPE_COLORS[t] })) : undefined}
-      emptyText={isCurrent ? 'No expenses in this cycle yet.' : 'No expenses in this cycle.'}
-      table={{
-        columns: ['Category', 'Type', 'Spent', 'Share'],
-        rows: report.categories.map((row) => [
-          row.name,
-          TYPE_LABELS[row.type],
-          formatPaise(row.spentPaise),
-          percent(row.spentPaise, total),
-        ]),
-      }}
-    />
+    <article className="card" aria-labelledby="category-title">
+      <div className="card-head">
+        <div>
+          <h2 id="category-title">Spending by category</h2>
+          {total > 0 && (
+            <p>
+              {formatPaiseShort(total)} across {count} {count === 1 ? 'category' : 'categories'}
+            </p>
+          )}
+        </div>
+      </div>
+      {total === 0 ? (
+        <p className="empty">
+          {isCurrent ? 'No expenses in this cycle yet.' : 'No expenses in this cycle.'}{' '}
+          {isCurrent && <Link to="/add">Add one</Link>}
+        </p>
+      ) : (
+        <div className="donut-layout">
+          <Donut slices={slices.map((s) => ({ key: s.key, value: s.spentPaise, color: s.color }))}>
+            <small>Spent</small>
+            <strong>{formatPaiseCompact(total)}</strong>
+          </Donut>
+          <ul className="donut-legend">
+            {slices.map((s) => (
+              <li key={s.key}>
+                <span className="dot" style={{ '--c': s.color } as CSSProperties} aria-hidden="true" />
+                <span className="name">{s.name}</span>
+                <span className="value">{formatPaiseShort(s.spentPaise)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </article>
+  )
+}
+
+function RecentCard({ items, categories }: { items: Expense[] | null; categories: Category[] | null }) {
+  if (!items) return null
+  const byId = new Map((categories ?? []).map((c) => [c.id, c]))
+  return (
+    <article className="card" aria-labelledby="recent-title">
+      <div className="card-head">
+        <h2 id="recent-title">Recent transactions</h2>
+        <Link to="/expenses">View all</Link>
+      </div>
+      {items.length === 0 ? (
+        <p className="empty">
+          Nothing logged yet. <Link to="/add">Add your first expense</Link>
+        </p>
+      ) : (
+        <ul className="tx-list">
+          {items.map((e) => (
+            <li key={e.id}>
+              <ExpenseRow expense={e} category={byId.get(e.categoryId)} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </article>
   )
 }

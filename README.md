@@ -15,9 +15,11 @@ Built as a portfolio project: a Java 25 / Spring Boot 4 API, a React + TypeScrip
 | --- | --- |
 | <img src="docs/screenshots/phone-dashboard.png" alt="Dashboard on a phone" width="300"> | <img src="docs/screenshots/phone-add.png" alt="Add expense on a phone" width="300"> |
 
-| Weekly report | Recurring expenses |
+| Expenses | Budget details |
 | --- | --- |
-| ![Weekly report](docs/screenshots/reports-weekly.png) | ![Recurring expenses](docs/screenshots/recurring.png) |
+| ![Expenses with search and filters](docs/screenshots/expenses.png) | ![Budget details](docs/screenshots/budgets.png) |
+
+![Weekly report](docs/screenshots/reports-weekly.png)
 
 <details>
 <summary>Dark mode</summary>
@@ -32,14 +34,17 @@ _Screenshots use sample data._
 
 - **Pay cycles, not calendar months.** A cycle runs from one pay day to the day before the next (the 29th–31st fall back to the last day of shorter months). Changing your pay day waits one full cycle, so no cycle is cut short without warning.
 - **50/30/20 plan per cycle.** "Left to spend" on needs and wants, a daily allowance, overspending and deficit warnings.
-- **Fast expense entry on a phone.** Big amount field, category chips ordered by recent use, Today/Yesterday buttons.
+- **Fast expense entry on a phone.** Big amount field, category chips (with icons) ordered by recent use, Today/Yesterday buttons, and a note of which bucket the expense counts toward.
+- **Expense list.** Search by description, filter by type, dates and category, daily totals that stay right across pages, and the time each expense was logged.
+- **Budget details.** Each bucket for any cycle, broken down by category, with a warning when the previous cycle went over.
 - **Works offline.** Expenses added without a connection wait on the phone and are sent when it comes back, never twice.
 - **Recurring expenses.** Rent, SIPs, EMIs and subscriptions come due on their day; one tap adds them (with the amount actually paid) or skips the month.
 - **"Did your salary change?"** asked once at the start of each new cycle.
 - **Charts.** Spent vs plan, spending by category, spending over the cycle against an even pace, and past cycles.
 - **Reports.** Weekly (against a plan prorated per day), yearly, and savings over time.
 - **CSV export.** Download the filtered expense list for a spreadsheet; cells that would run as formulas are neutralised.
-- **Installable PWA** with an offline shell, light/dark/system theme, and keyboard and screen-reader support for every chart (each also has a table view).
+- **Installable PWA** with an offline shell, light/dark/system theme, and keyboard and screen-reader support for every chart (each also has a table view or a text legend).
+- **Personal touch.** An optional name for the greeting, set during setup or in Settings.
 - **Accounts.** Email and password, password reset by email, short-lived access tokens with rotating refresh tokens, and account deletion (password required, data removed after a 7-day grace period that a login cancels).
 
 ## Tech stack
@@ -48,7 +53,7 @@ _Screenshots use sample data._
 | --- | --- |
 | Backend | Java 25, Spring Boot 4.1 (Web MVC, Data JPA, Security, OAuth2 resource server for JWT), Hibernate 7, Flyway, Bucket4j, Sentry, springdoc-openapi |
 | Database | PostgreSQL 17 on Supabase (row-level security on, accessed only through the API) |
-| Frontend | React 19, TypeScript, Vite, React Router, plain CSS (no UI library), hand-drawn SVG charts |
+| Frontend | React 19, TypeScript, Vite, React Router, plain CSS (no UI library), hand-drawn SVG charts and icons, Inter (self-hosted) |
 | Tests | JUnit 5, Mockito, Testcontainers (real PostgreSQL), Vitest, Playwright |
 | Hosting | Render (API, Docker), Vercel (frontend, also proxies `/api` so the browser sees one origin), GitHub Actions CI |
 

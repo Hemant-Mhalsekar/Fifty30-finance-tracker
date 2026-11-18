@@ -5,49 +5,65 @@ test.beforeEach(async ({ request }) => {
   await resetApi(request)
 })
 
-test('expenses: newest first, paging and category filter', async ({ page }) => {
+test('expenses: newest first, paging, day totals and category filter', async ({ page }) => {
   await page.goto('/expenses')
-  await expect(page.getByText('24 expenses')).toBeVisible()
-  await expect(page.locator('.expense-description').first()).toHaveText('Gift for Asha')
+  await expect(page.getByText(/across 24 expenses/)).toBeVisible()
+  await expect(page.locator('.tx-title').first()).toHaveText('Gift for Asha')
+  // Today's total counts every expense of the day: Gift (₹555) + Expense 10 (₹109) + Expense 20 (₹119).
+  await expect(page.locator('.day-card').first().locator('.total')).toContainText('₹783')
 
-  await expect(page.getByText('Page 1 of 2')).toBeVisible()
-  await page.getByRole('button', { name: 'Older →' }).click()
-  await expect(page.getByText('Page 2 of 2')).toBeVisible()
-  await expect(page.locator('.expense-row')).toHaveCount(4)
+  await expect(page.getByText('Showing 1–20 of 24')).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.getByText('Showing 21–24 of 24')).toBeVisible()
+  await expect(page.locator('.tx-row')).toHaveCount(4)
 
-  // Filters start folded away on a phone.
-  await page.getByText('Filters').click()
+  // Dates and category sit behind the date button.
+  await page.locator('.range-picker summary').click()
   await page.getByLabel('Category').selectOption({ label: 'Other' })
-  await expect(page.getByText('1 expense', { exact: true })).toBeVisible()
+  await expect(page.getByText(/across 1 expense$/)).toBeVisible()
   await page.getByRole('button', { name: 'Reset to this cycle' }).click()
-  await expect(page.getByText('24 expenses')).toBeVisible()
+  await expect(page.getByText(/across 24 expenses/)).toBeVisible()
+})
+
+test('expenses: search and type filters narrow the list and its total', async ({ page }) => {
+  await page.goto('/expenses')
+  await page.getByLabel('Search expenses').fill('gift')
+  await expect(page.getByText(/₹555 spent across 1 expense$/)).toBeVisible()
+  await page.getByLabel('Search expenses').fill('')
+  await expect(page.getByText(/across 24 expenses/)).toBeVisible()
+
+  await page.getByRole('button', { name: 'Needs', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Needs', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText(/across 12 expenses/)).toBeVisible()
+  await expect(page.locator('.tx-row', { hasText: 'Gift for Asha' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await expect(page.getByText(/across 24 expenses/)).toBeVisible()
 })
 
 test('expenses: edit keeps the chosen type for Other and saves the new amount', async ({ page }) => {
   await page.goto('/expenses')
   // Tapping a row opens it for editing.
-  await page.getByRole('button', { name: /^Edit Gift for Asha/ }).click()
+  await page.getByRole('button', { name: /^Edit Gift for Asha,/ }).click()
 
-  const form = page.locator('.expense-list form')
+  const form = page.locator('.tx-list form')
   await expect(form.getByLabel('Amount')).toHaveValue('555')
   await expect(form.getByLabel('Want')).toBeChecked()
   await form.getByLabel('Amount').fill('600.25')
   await form.getByRole('button', { name: 'Save changes' }).click()
 
-  await expect(page.locator('.expense-row', { hasText: 'Gift for Asha' })).toContainText('₹600.25')
+  await expect(page.locator('.tx-row', { hasText: 'Gift for Asha' })).toContainText('₹600.25')
 })
 
 test('expenses: delete asks for confirmation first', async ({ page }) => {
   await page.goto('/expenses')
-  // Delete lives inside the edit view and still asks first.
-  await page.locator('.expense-row').first().click()
-  await page.getByRole('button', { name: 'Delete expense' }).click()
+  await page.getByRole('button', { name: 'Delete Gift for Asha' }).click()
   await page.getByRole('button', { name: 'Keep' }).click()
-  await expect(page.getByText('24 expenses')).toBeVisible()
+  await expect(page.getByText(/across 24 expenses/)).toBeVisible()
 
-  await page.getByRole('button', { name: 'Delete expense' }).click()
+  await page.getByRole('button', { name: 'Delete Gift for Asha' }).click()
   await page.getByRole('button', { name: 'Confirm delete' }).click()
-  await expect(page.getByText('23 expenses')).toBeVisible()
+  await expect(page.getByText(/across 23 expenses/)).toBeVisible()
+  await expect(page.locator('.tx-row', { hasText: 'Gift for Asha' })).toHaveCount(0)
 })
 
 test('categories: add, reject duplicates, rename and retype', async ({ page }) => {
@@ -120,7 +136,17 @@ test('settings: salary change with preview, pay-day change scheduled and cancell
 
 test('no page scrolls sideways on a small phone', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 })
-  for (const path of ['/', '/add', '/expenses', '/reports', '/recurring', '/categories', '/settings']) {
+  for (const path of [
+    '/',
+    '/add',
+    '/expenses',
+    '/budgets',
+    '/reports',
+    '/recurring',
+    '/categories',
+    '/settings',
+    '/more',
+  ]) {
     await page.goto(path)
     await expect(page.locator('main h1').first()).toBeVisible()
     const width = await page.evaluate(() => document.documentElement.scrollWidth)
@@ -128,43 +154,55 @@ test('no page scrolls sideways on a small phone', async ({ page }) => {
   }
 })
 
-test('phones get a bottom tab bar with More; wide screens get the top bar', async ({ page }) => {
+test('phones and tablets get the floating tab bar with More; wide screens get the sidebar', async ({ page }) => {
   await page.goto('/')
   const tabs = page.getByRole('navigation', { name: 'Main' })
-  await expect(tabs.getByRole('link')).toHaveText(['Dashboard', 'Add', 'Expenses', 'More'])
+  await expect(tabs.getByRole('link')).toHaveText(['Home', 'Expenses', '', 'Reports', 'More'])
+  await expect(tabs.getByRole('link', { name: 'Add expense' })).toBeVisible()
   await tabs.getByRole('link', { name: 'More' }).click()
+  await expect(page.getByRole('link', { name: 'Budgets' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible()
 
   await page.setViewportSize({ width: 1280, height: 800 })
-  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link')).toHaveText([
-    'Dashboard',
-    'Add expense',
+  const sidebar = page.getByRole('complementary')
+  await expect(sidebar.getByRole('navigation', { name: 'Main' }).getByRole('link')).toHaveText([
+    'Overview',
     'Expenses',
-    'Reports',
+    'Budgets',
     'Recurring',
+    'Reports',
     'Categories',
     'Settings',
   ])
+  await expect(sidebar.getByText('Current pay cycle')).toBeVisible()
+  await expect(sidebar.getByRole('link', { name: 'Add Expense' })).toBeVisible()
+  await expect(sidebar.getByRole('button', { name: 'Log out' })).toBeVisible()
 
-  // The narrowest top-bar width must still fit every link and Log out without scrolling sideways.
-  await page.setViewportSize({ width: 960, height: 800 })
-  await expect(page.getByRole('banner').getByRole('button', { name: 'Log out' })).toBeVisible()
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(960)
+  // The narrowest sidebar width must not scroll sideways.
+  await page.setViewportSize({ width: 1024, height: 800 })
+  await expect(sidebar.getByRole('link', { name: 'Overview' })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1024)
 
-  // A 768px tablet keeps the phone tab bar instead.
+  // A 768px tablet keeps the tab bar instead.
   await page.setViewportSize({ width: 768, height: 800 })
-  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link')).toHaveText([
-    'Dashboard',
-    'Add',
-    'Expenses',
-    'More',
-  ])
+  await expect(sidebar).toBeHidden()
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'More' })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(768)
 })
 
 test('every control on a phone is at least 44px tall and fields are at least 16px', async ({ page }) => {
-  for (const path of ['/', '/add', '/expenses', '/reports', '/recurring', '/categories', '/settings', '/more']) {
+  for (const path of [
+    '/',
+    '/add',
+    '/expenses',
+    '/budgets',
+    '/reports',
+    '/recurring',
+    '/categories',
+    '/settings',
+    '/more',
+  ]) {
     await page.goto(path)
     await expect(page.locator('main h1').first()).toBeVisible()
     const problems = await page.$$eval('button, a, select, input, summary', (elements) =>
@@ -201,10 +239,10 @@ test('appearance: a Light or Dark choice overrides the device and survives a rel
   await expect(page.getByLabel('Light')).toBeChecked()
   await expect(html).toHaveAttribute('data-theme', 'light')
   // Light page background even though the device is dark.
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(246, 247, 245)')
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(246, 246, 248)')
 
   await page.getByLabel('Dark').check()
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(27, 32, 40)')
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(18, 19, 22)')
 
   await page.getByLabel('System').check()
   await expect(html).not.toHaveAttribute('data-theme', /.*/)
@@ -212,14 +250,12 @@ test('appearance: a Light or Dark choice overrides the device and survives a rel
 
 test('wide screens use columns instead of one narrow column', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
-  await page.goto('/add')
-  // The latest expenses sit beside the form.
-  const form = page.locator('.split-main')
-  const latest = page.getByRole('complementary', { name: 'Latest expenses' })
-  await expect(latest).toBeVisible()
-  const formBox = (await form.boundingBox())!
-  const latestBox = (await latest.boundingBox())!
-  expect(latestBox.x).toBeGreaterThan(formBox.x + formBox.width)
+  await page.goto('/')
+  // Needs, wants and savings side by side.
+  const needs = (await page.getByRole('article', { name: 'Needs' }).boundingBox())!
+  const savings = (await page.getByRole('article', { name: 'Savings' }).boundingBox())!
+  expect(savings.y).toBeCloseTo(needs.y, 0)
+  expect(savings.x).toBeGreaterThan(needs.x + needs.width)
 
   await page.goto('/categories')
   const groups = page.locator('.category-grid > .card')
@@ -231,8 +267,8 @@ test('wide screens use columns instead of one narrow column', async ({ page }) =
   // The form is open in its own column without tapping anything.
   await expect(page.getByRole('heading', { name: 'New recurring expense' })).toBeVisible()
 
-  // A 1000px laptop window already gets two columns: form left, "How it works" beside it, top-aligned.
-  await page.setViewportSize({ width: 1000, height: 800 })
+  // A 1024px laptop window already gets two columns: form left, "How it works" beside it, top-aligned.
+  await page.setViewportSize({ width: 1024, height: 800 })
   const formCard = (await page.locator('.area-form').boundingBox())!
   const help = (await page.getByRole('heading', { name: 'How it works' }).locator('..').boundingBox())!
   expect(help.x).toBeGreaterThan(formCard.x + formCard.width)
@@ -241,12 +277,12 @@ test('wide screens use columns instead of one narrow column', async ({ page }) =
 
 test('expenses: download the filtered list as CSV', async ({ page }) => {
   await page.goto('/expenses')
-  await page.getByText('Filters').click()
+  await page.locator('.range-picker summary').click()
   await page.getByLabel('Category').selectOption({ label: 'Other' })
-  await expect(page.getByText('1 expense', { exact: true })).toBeVisible()
+  await expect(page.getByText(/across 1 expense$/)).toBeVisible()
 
   const downloadPromise = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Download CSV' }).click()
+  await page.getByRole('button', { name: 'Export CSV' }).click()
   const download = await downloadPromise
 
   const from = await page.getByLabel('From', { exact: true }).inputValue()
@@ -259,4 +295,41 @@ test('expenses: download the filtered list as CSV', async ({ page }) => {
   expect(lines[0]).toBe('Date,Description,Category,Type,Amount (INR)')
   expect(lines).toHaveLength(2)
   expect(lines[1]).toMatch(/^\d{4}-\d{2}-\d{2},Gift for Asha,Other,Want,555\.00$/)
+})
+
+test('budgets: each bucket with its categories, and the cycle can be changed', async ({ page }) => {
+  await page.goto('/more')
+  await page.getByRole('link', { name: 'Budgets' }).click()
+  await expect(page.getByRole('heading', { name: 'Budget Details' })).toBeVisible()
+
+  const needs = page.getByRole('article', { name: 'Needs • 50%' })
+  await expect(needs).toContainText('₹25,000')
+  await expect(needs).toContainText('₹1,332')
+  const needsBreakdown = page.getByRole('article', { name: 'Needs breakdown' })
+  await expect(needsBreakdown).toContainText('Groceries')
+  await expect(needsBreakdown).toContainText('12 expenses')
+  const wantsBreakdown = page.getByRole('article', { name: 'Wants breakdown' })
+  await expect(wantsBreakdown).toContainText('Dining')
+  await expect(wantsBreakdown).toContainText('Other')
+
+  await page.getByRole('button', { name: 'Previous cycle' }).click()
+  await expect(page.locator('.cycle-switch')).toContainText('Past cycle')
+  await expect(needsBreakdown).toContainText('Nothing spent here in this cycle.')
+})
+
+test('settings: the name sets the greeting and can be removed', async ({ page }) => {
+  await page.goto('/settings')
+  await page.getByLabel('Your name').fill('Arjun Mehta')
+  await page.getByRole('button', { name: 'Save name' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible()
+
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Home' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/, Arjun$/)
+
+  await page.goto('/settings')
+  await page.getByLabel('Your name').fill('')
+  await page.getByRole('button', { name: 'Save name' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible()
+  await page.goto('/')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Good (morning|afternoon|evening)$/)
 })
