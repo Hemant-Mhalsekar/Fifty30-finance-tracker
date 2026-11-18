@@ -157,10 +157,11 @@ export default function Dashboard({ me }: { me: Me }) {
               <ChevronRightIcon />
             </button>
           </div>
-          <Link to="/settings" className="avatar wide-only" aria-label="Settings" title={me.email}>
-            {initial(me.name, me.email)}
-          </Link>
         </div>
+        {/* Phones: top right, next to the greeting. Wide screens: after the cycle switch. */}
+        <Link to="/settings" className="avatar" aria-label="Settings" title={me.email}>
+          {initial(me.name, me.email)}
+        </Link>
       </header>
 
       {notice && (

@@ -1643,11 +1643,43 @@ fieldset.field > legend {
 }
 
 .dash-head {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'titles avatar'
+    'tools tools';
+  align-items: start;
+  gap: 0.75rem 1rem;
+}
+
+.dash-head .titles {
+  grid-area: titles;
+}
+
+.dash-head .tools {
+  grid-area: tools;
+}
+
+.dash-head > .avatar {
+  grid-area: avatar;
+}
+
+/* Phones: the cycle switch takes the whole row, arrows at the ends. */
+.dash-head .cycle-switch {
+  flex: 1;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .dash-head {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: 'titles tools avatar';
+    align-items: center;
+  }
+
+  .dash-head .cycle-switch {
+    flex: none;
+  }
 }
 
 .dash-head .hello {
@@ -1681,8 +1713,7 @@ fieldset.field > legend {
   gap: 0.5rem;
 }
 
-.avatar,
-.avatar.wide-only {
+.avatar {
   display: grid;
   place-items: center;
   width: 44px;
