@@ -2957,11 +2957,18 @@ details.range-picker[open] > summary {
   margin-bottom: 0;
 }
 
+/* Two balanced columns, not grid rows: cards differ a lot in height, and rows left gaps beside short ones. */
 @media (min-width: 1024px) {
   .settings-grid {
+    display: block;
     max-width: none;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.5rem;
+    columns: 2;
+    column-gap: 1.5rem;
+  }
+
+  .settings-grid > * {
+    break-inside: avoid;
+    margin: 0 0 1.5rem;
   }
 }
 
