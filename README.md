@@ -3,6 +3,7 @@
 [![CI](https://github.com/Hemant-Mhalsekar/Fifty30-finance-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/Hemant-Mhalsekar/Fifty30-finance-tracker/actions/workflows/ci.yml)
 
 **Live:** https://fifty30-finance-tracker.vercel.app
+**API docs:** https://fifty30-finance-tracker.vercel.app/api/docs (Swagger UI; log in through the page to try the endpoints)
 
 A personal finance tracker for salaried people in India, named after the 50/30/20 budgeting rule. You enter your take-home salary and pay day; every pay cycle is split into **needs (50%)**, **wants (30%)** and **savings (20%)**, and each expense you log is measured against that plan. It runs in any browser and installs on a phone as an app.
 
@@ -45,7 +46,7 @@ _Screenshots use sample data._
 
 | Part | Choices |
 | --- | --- |
-| Backend | Java 25, Spring Boot 4.1 (Web MVC, Data JPA, Security, OAuth2 resource server for JWT), Hibernate 7, Flyway, Bucket4j, Sentry |
+| Backend | Java 25, Spring Boot 4.1 (Web MVC, Data JPA, Security, OAuth2 resource server for JWT), Hibernate 7, Flyway, Bucket4j, Sentry, springdoc-openapi |
 | Database | PostgreSQL 17 on Supabase (row-level security on, accessed only through the API) |
 | Frontend | React 19, TypeScript, Vite, React Router, plain CSS (no UI library), hand-drawn SVG charts |
 | Tests | JUnit 5, Mockito, Testcontainers (real PostgreSQL), Vitest, Playwright |

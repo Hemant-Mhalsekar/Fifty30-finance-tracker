@@ -22,6 +22,10 @@ import com.financetracker.common.BudgetType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Recurring expenses")
 @RestController
 @RequestMapping("/api/recurring-expenses")
 public class RecurringExpenseController {
@@ -64,11 +68,15 @@ public class RecurringExpenseController {
         this.service = service;
     }
 
+    @Operation(summary = "List recurring expenses", description = "Due ones first.")
     @GetMapping
     public List<RecurringExpenseView> list(@AuthenticationPrincipal Jwt jwt) {
         return service.list(userId(jwt));
     }
 
+    @Operation(summary = "Create a recurring expense",
+            description = "Monthly on a day of the month;"
+                    + " days 29 to 31 fall on the last day of shorter months.")
     @PostMapping
     public ResponseEntity<RecurringExpenseView> create(
             @AuthenticationPrincipal Jwt jwt,
@@ -83,6 +91,7 @@ public class RecurringExpenseController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @Operation(summary = "Update, pause or resume a recurring expense")
     @PutMapping("/{id}")
     public RecurringExpenseView update(
             @AuthenticationPrincipal Jwt jwt,
@@ -99,12 +108,15 @@ public class RecurringExpenseController {
                 request.paused());
     }
 
+    @Operation(summary = "Delete a recurring expense", description = "Expenses already logged from it stay.")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
         service.delete(userId(jwt), id);
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Log the due month as an expense",
+            description = "dueDate must be the month waiting for an answer, otherwise 409.")
     @PostMapping("/{id}/confirm")
     public ResponseEntity<RecurringExpenseService.ConfirmResult> confirm(
             @AuthenticationPrincipal Jwt jwt,
@@ -115,6 +127,7 @@ public class RecurringExpenseController {
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
+    @Operation(summary = "Skip the due month")
     @PostMapping("/{id}/skip")
     public RecurringExpenseView skip(
             @AuthenticationPrincipal Jwt jwt,

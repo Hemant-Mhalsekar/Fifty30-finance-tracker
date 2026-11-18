@@ -29,6 +29,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Expenses")
 @RestController
 @RequestMapping("/api/expenses")
 public class ExpenseController {
@@ -66,6 +70,9 @@ public class ExpenseController {
         this.exportService = exportService;
     }
 
+    @Operation(summary = "Log an expense",
+            description = "type is required for the Other category and refused for the rest."
+                    + " An optional clientId makes retries safe.")
     @PostMapping
     public ResponseEntity<ExpenseView> create(
             @AuthenticationPrincipal Jwt jwt,
@@ -82,6 +89,7 @@ public class ExpenseController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @Operation(summary = "Edit an expense")
     @PutMapping("/{id}")
     public ExpenseView update(
             @AuthenticationPrincipal Jwt jwt,
@@ -98,6 +106,7 @@ public class ExpenseController {
                 request.type());
     }
 
+    @Operation(summary = "Delete an expense")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
             @AuthenticationPrincipal Jwt jwt,
@@ -108,6 +117,9 @@ public class ExpenseController {
     }
 
     // CSV of the expenses matching the same filters as the list (all of them when none are given).
+    @Operation(summary = "Download expenses as CSV",
+            description = "Same filters as the list, oldest first."
+                    + " Cells that a spreadsheet would run as a formula start with an apostrophe.")
     @GetMapping("/export")
     public ResponseEntity<byte[]> export(
             @AuthenticationPrincipal Jwt jwt,
@@ -125,6 +137,7 @@ public class ExpenseController {
                 .body(export.body());
     }
 
+    @Operation(summary = "List expenses", description = "Newest first. Pages start at 0; size is at most 100.")
     @GetMapping
     public ExpensePage list(
             @AuthenticationPrincipal Jwt jwt,

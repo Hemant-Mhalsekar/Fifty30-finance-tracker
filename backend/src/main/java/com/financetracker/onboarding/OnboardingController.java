@@ -16,6 +16,10 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Onboarding")
 @RestController
 public class OnboardingController {
 
@@ -38,6 +42,8 @@ public class OnboardingController {
         this.onboardingService = onboardingService;
     }
 
+    @Operation(summary = "Set salary and pay day",
+            description = "Once per account. Creates the first cycle and the default categories.")
     @PostMapping("/api/onboarding")
     public ResponseEntity<OnboardingResponse> onboard(
             @AuthenticationPrincipal Jwt jwt,

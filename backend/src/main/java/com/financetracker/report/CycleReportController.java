@@ -12,6 +12,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Cycles")
 @RestController
 @RequestMapping("/api/cycles")
 public class CycleReportController {
@@ -22,6 +26,7 @@ public class CycleReportController {
         this.reportService = reportService;
     }
 
+    @Operation(summary = "Spending against the plan, current cycle")
     @GetMapping("/current/report")
     public CycleReport current(@AuthenticationPrincipal Jwt jwt) {
         return reportService.currentReport(UUID.fromString(jwt.getSubject()));
@@ -29,6 +34,7 @@ public class CycleReportController {
 
     // Report for the stored cycle containing the given date, e.g. the day before the current
     // cycle's start for the previous cycle.
+    @Operation(summary = "Spending against the plan for the cycle containing a date")
     @GetMapping("/report")
     public CycleReport forDate(
             @AuthenticationPrincipal Jwt jwt,
@@ -38,6 +44,8 @@ public class CycleReportController {
 
     // The cycle containing the date (default today) and the cycles before it, oldest first.
     // count is checked in the service (1 to 12) so a bad value is a 400, not a 500.
+    @Operation(summary = "Recent cycles with their totals",
+            description = "Oldest first, ending with the cycle containing the date (default today). count is 1 to 12.")
     @GetMapping("/history")
     public List<CycleHistoryItem> history(
             @AuthenticationPrincipal Jwt jwt,

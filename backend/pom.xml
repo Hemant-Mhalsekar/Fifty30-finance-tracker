@@ -66,6 +66,12 @@
 			<version>8.64.0</version>
 		</dependency>
 		<!-- In-memory rate limiting for login and register (single instance, so no shared store). -->
+		<!-- API docs page at /api/docs (OpenAPI + Swagger UI). 3.2.x is built on Spring Boot 4.1.2. -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.2.0</version>
+		</dependency>
 		<dependency>
 			<groupId>com.bucket4j</groupId>
 			<artifactId>bucket4j_jdk17-core</artifactId>

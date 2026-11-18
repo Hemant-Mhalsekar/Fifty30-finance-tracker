@@ -55,6 +55,8 @@ cd backend
 
 ## Endpoints
 
+The full list, with request and response shapes, is on the API docs page (springdoc-openapi): `/api/docs` (locally http://localhost:8080/api/docs, live https://fifty30-finance-tracker.vercel.app/api/docs). The page is public; to try a protected endpoint, call `POST /api/auth/login` on the page, copy `accessToken`, click **Authorize** and paste it. The raw OpenAPI JSON is at `/api/docs/openapi`.
+
 - `GET /api/ping` returns `ok` (no database access).
 - `GET /api/health` returns JSON with `status`, `db` and `time`. Returns HTTP 503 with `"db": "down"` if the database check fails.
 - `GET /api/cycles/current` returns the pay cycle containing today, creating any missing cycles first.
