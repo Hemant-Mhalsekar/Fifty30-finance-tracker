@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.financetracker.ratelimit.AuthRateLimits;
+import com.financetracker.user.DisplayNames;
 import com.financetracker.user.User;
 import com.financetracker.user.UserRepository;
 import com.financetracker.web.ApiExceptionHandler.ApiError;
@@ -64,19 +65,22 @@ public class AuthController {
     }
 
     @Operation(summary = "Create an account",
-            description = "Returns an access token and sets the refresh cookie."
-                    + " 409 if the email is already registered.")
+            description = "Name is required (up to 50 characters, for the greeting). Returns an access token and"
+                    + " sets the refresh cookie. 409 if the email is already registered.")
     @PostMapping("/register")
     public ResponseEntity<TokenResponse> register(
             @Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
         rateLimits.checkRegister(httpRequest);
+        String name = DisplayNames.normalize(request.name());
         if (users.existsByEmail(request.email())) {
             throw emailTaken();
         }
         User user;
         try {
             // Flush now so a simultaneous duplicate registration fails here, not after the response.
-            user = users.saveAndFlush(new User(request.email(), passwordEncoder.encode(request.password())));
+            User created = new User(request.email(), passwordEncoder.encode(request.password()));
+            created.setDisplayName(name);
+            user = users.saveAndFlush(created);
         } catch (DataIntegrityViolationException e) {
             throw emailTaken();
         }

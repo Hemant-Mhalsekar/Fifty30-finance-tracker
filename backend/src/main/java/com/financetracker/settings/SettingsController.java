@@ -2,14 +2,17 @@ package com.financetracker.settings;
 
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.financetracker.user.DisplayNames;
+import com.financetracker.user.User;
 import com.financetracker.user.UserRepository;
 
 import jakarta.validation.Valid;
@@ -32,11 +35,11 @@ public class SettingsController {
             Integer payDay) {
     }
 
-    // Blank or missing clears the name.
-    public record NameRequest(String name) {
+    // Blank or missing name clears it. showName is optional: left out, the setting stays as it is.
+    public record NameRequest(String name, Boolean showName) {
     }
 
-    public record NameView(String name) {
+    public record NameView(String name, boolean showName) {
     }
 
     private final SettingsService settingsService;
@@ -47,13 +50,20 @@ public class SettingsController {
         this.users = users;
     }
 
-    @Operation(summary = "Set or clear your name",
-            description = "Shown in the greeting. Up to 50 characters; blank clears it.")
+    @Operation(summary = "Set your name and whether the greeting shows it",
+            description = "Up to 50 characters; blank clears it. showName false greets without the name"
+                    + " but keeps it saved.")
     @PutMapping("/name")
     public NameView changeName(@AuthenticationPrincipal Jwt jwt, @RequestBody NameRequest request) {
+        UUID userId = UUID.fromString(jwt.getSubject());
         String name = DisplayNames.normalize(request.name());
-        users.updateDisplayName(UUID.fromString(jwt.getSubject()), name);
-        return new NameView(name);
+        users.updateDisplayName(userId, name);
+        if (request.showName() != null) {
+            users.updateShowName(userId, request.showName());
+        }
+        User user = users.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized"));
+        return new NameView(user.getDisplayName(), user.isShowName());
     }
 
     @Operation(summary = "Schedule a pay day change",

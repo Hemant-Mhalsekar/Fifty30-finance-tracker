@@ -63,7 +63,7 @@ class PasswordResetIntegrationTest extends AbstractIntegrationTest {
         String email = nextUniqueEmail();
         MvcResult registration = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\",\"password\":\"old-password-1\"}"))
+                        .content("{\"email\":\"" + email + "\",\"password\":\"old-password-1\",\"name\":\"Test\"}"))
                 .andExpect(status().isCreated())
                 .andReturn();
         Cookie oldSession = registration.getResponse().getCookie("refresh_token");

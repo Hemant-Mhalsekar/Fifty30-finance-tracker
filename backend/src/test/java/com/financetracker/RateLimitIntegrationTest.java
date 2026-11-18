@@ -93,7 +93,7 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
         return mockMvc.perform(post("/api/auth/register")
                 .header("X-Forwarded-For", ip)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"" + email + "\",\"password\":\"password123\"}"));
+                .content("{\"email\":\"" + email + "\",\"password\":\"password123\",\"name\":\"Test\"}"));
     }
 
     private void registerFrom(String ip, String email) throws Exception {

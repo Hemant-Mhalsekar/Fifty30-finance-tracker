@@ -166,13 +166,13 @@ async function readAccessToken(response: Response): Promise<string | null> {
 }
 
 // Resolves to true when this login cancelled a scheduled account deletion.
-async function authenticate(path: string, email: string, password: string): Promise<boolean> {
+async function authenticate(path: string, payload: Record<string, string>): Promise<boolean> {
   let response: Response
   try {
     response = await apiFetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(payload),
     })
   } catch {
     throw new Error('Something went wrong')
@@ -191,12 +191,13 @@ async function authenticate(path: string, email: string, password: string): Prom
   return body?.accountRestored === true
 }
 
-export function register(email: string, password: string): Promise<boolean> {
-  return authenticate('/api/auth/register', email, password)
+/** The name is required (up to 50 characters) and used in the greeting. */
+export function register(email: string, password: string, name: string): Promise<boolean> {
+  return authenticate('/api/auth/register', { email, password, name })
 }
 
 export function login(email: string, password: string): Promise<boolean> {
-  return authenticate('/api/auth/login', email, password)
+  return authenticate('/api/auth/login', { email, password })
 }
 
 /** Ends the session on the server, then forgets the token whatever the response was. */
@@ -251,6 +252,8 @@ export type Me = {
   email: string
   // For the greeting; null until the user gives one.
   name: string | null
+  // Settings switch: false greets without the name (it stays saved).
+  showName: boolean
   payDay: number | null
   pendingPayDay: number | null
   pendingPayDayFrom: string | null
@@ -271,13 +274,13 @@ export type Cycle = {
   salaryConfirmed: boolean
 }
 
-export function onboard(salaryPaise: number, payDay: number, name?: string): Promise<{ payDay: number; cycle: Cycle }> {
-  return sendJson('/api/onboarding', 'POST', { salaryPaise, payDay, name: name || undefined })
+export function onboard(salaryPaise: number, payDay: number): Promise<{ payDay: number; cycle: Cycle }> {
+  return sendJson('/api/onboarding', 'POST', { salaryPaise, payDay })
 }
 
-/** Blank clears the name. */
-export function changeName(name: string): Promise<{ name: string | null }> {
-  return sendJson('/api/settings/name', 'PUT', { name })
+/** Blank clears the name. showName false greets without it but keeps it saved. */
+export function changeName(name: string, showName: boolean): Promise<{ name: string | null; showName: boolean }> {
+  return sendJson('/api/settings/name', 'PUT', { name, showName })
 }
 
 export type BudgetLine = {

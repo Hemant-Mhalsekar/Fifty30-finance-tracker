@@ -14,6 +14,7 @@ type Props = {
 
 export default function AuthForm({ onAuthenticated, notice }: Props) {
   const [mode, setMode] = useState<Mode>('login')
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -43,7 +44,12 @@ export default function AuthForm({ onAuthenticated, notice }: Props) {
         setSubmitting(false)
         return
       }
-      const restored = await (isRegister ? register : login)(email, password)
+      if (isRegister && name.trim() === '') {
+        setError('Enter your name')
+        setSubmitting(false)
+        return
+      }
+      const restored = await (isRegister ? register(email, password, name.trim()) : login(email, password))
       // On success the parent switches views and this form unmounts.
       await onAuthenticated(restored)
     } catch (e) {
@@ -101,6 +107,25 @@ export default function AuthForm({ onAuthenticated, notice }: Props) {
         </p>
       )}
       <h1>{isRegister ? 'Create your account' : 'Log in'}</h1>
+
+      {isRegister && (
+        <>
+          <label htmlFor="auth-name">Your name</label>
+          <input
+            id="auth-name"
+            type="text"
+            autoComplete="given-name"
+            maxLength={50}
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-describedby="auth-name-hint"
+          />
+          <p id="auth-name-hint" className="hint">
+            Used to greet you. You can hide it later in Settings.
+          </p>
+        </>
+      )}
 
       <label htmlFor="auth-email">Email</label>
       <input

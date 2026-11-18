@@ -67,7 +67,7 @@ public abstract class AbstractIntegrationTest {
     protected String registerUserAndGetToken(String email, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonMapper.writeValueAsString(new AuthPayload(email, password))))
+                        .content(jsonMapper.writeValueAsString(new RegisterPayload(email, password, "Test User"))))
                 .andExpect(status().isCreated())
                 .andReturn();
         JsonNode root = jsonMapper.readTree(result.getResponse().getContentAsString());
@@ -105,7 +105,7 @@ public abstract class AbstractIntegrationTest {
         return "Bearer " + accessToken;
     }
 
-    private record AuthPayload(String email, String password) {
+    private record RegisterPayload(String email, String password, String name) {
     }
 }
 

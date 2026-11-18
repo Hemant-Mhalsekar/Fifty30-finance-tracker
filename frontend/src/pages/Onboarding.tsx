@@ -14,7 +14,6 @@ type Props = {
 export default function Onboarding({ onDone }: Props) {
   const [salaryText, setSalaryText] = useState('')
   const [payDay, setPayDay] = useState('1')
-  const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -33,7 +32,7 @@ export default function Onboarding({ onDone }: Props) {
     setSubmitting(true)
     setError(null)
     try {
-      await onboard(salaryPaise, Number(payDay), name.trim() || undefined)
+      await onboard(salaryPaise, Number(payDay))
       await onDone()
     } catch (e) {
       // 409 means setup was already completed (for example in another tab): just move on.
@@ -57,20 +56,6 @@ export default function Onboarding({ onDone }: Props) {
             investments.
           </p>
 
-          <div className="field">
-            <label htmlFor="name">
-              Your name <span className="muted">(optional)</span>
-            </label>
-            <input
-              id="name"
-              type="text"
-              maxLength={50}
-              autoComplete="given-name"
-              placeholder="For the greeting"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
 
           <div className="field">
             <label htmlFor="salary">Monthly take-home salary</label>

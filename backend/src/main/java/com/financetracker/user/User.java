@@ -45,6 +45,10 @@ public class User {
     @Column(name = "display_name")
     private String displayName;
 
+    // Whether the greeting uses the name (V11). Off keeps the name saved.
+    @Column(name = "show_name", nullable = false)
+    private boolean showName = true;
+
     // When the account will be deleted (V9); null unless the user asked for deletion.
     @Column(name = "deletion_scheduled_at")
     private OffsetDateTime deletionScheduledAt;
@@ -122,5 +126,9 @@ public class User {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public boolean isShowName() {
+        return showName;
     }
 }

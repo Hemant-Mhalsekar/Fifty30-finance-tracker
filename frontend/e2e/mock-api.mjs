@@ -93,6 +93,7 @@ function reset({ onboarded = true, salaryConfirmed = true } = {}) {
       id: 'u1',
       email: 'test@example.com',
       name: null,
+      showName: true,
       payDay: onboarded ? 25 : null,
       pendingPayDay: null,
       pendingPayDayFrom: null,
@@ -269,7 +270,14 @@ function handle(req, res, body) {
     Object.assign(state, { deletionScheduled: false, signedOut: false })
     return send(res, 200, { accessToken: 'test-token', accountRestored })
   }
-  if (['/api/auth/refresh', '/api/auth/register'].includes(path)) {
+  if (path === '/api/auth/register') {
+    if (!body.name?.trim()) return fail(res, 400, 'Name is required')
+    // Registering signs in as the test user, who starts over without setup.
+    reset({ onboarded: false })
+    state.me.name = body.name.trim().replace(/\s+/g, ' ')
+    return send(res, 201, { accessToken: 'test-token', accountRestored: false })
+  }
+  if (path === '/api/auth/refresh') {
     return send(res, 200, { accessToken: 'test-token', accountRestored: false })
   }
   if (path === '/api/auth/logout') return send(res, 204)
@@ -295,7 +303,6 @@ function handle(req, res, body) {
   if (path === '/api/onboarding') {
     if (state.me.payDay !== null) return fail(res, 409, 'Setup already completed')
     state.me.payDay = body.payDay
-    state.me.name = body.name?.trim() || null
     const start = addDays(today(), -10)
     state.cycles.push({
       periodStart: start,
@@ -350,7 +357,8 @@ function handle(req, res, body) {
     const name = body.name?.trim().replace(/\s+/g, ' ') || null
     if (name && name.length > 50) return fail(res, 400, 'Name must be at most 50 characters')
     state.me.name = name
-    return send(res, 200, { name })
+    if (typeof body.showName === 'boolean') state.me.showName = body.showName
+    return send(res, 200, { name, showName: state.me.showName })
   }
   if (path === '/api/settings/pay-day') {
     if (body.payDay === state.me.payDay) {
