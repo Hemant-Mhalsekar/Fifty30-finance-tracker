@@ -238,3 +238,25 @@ test('wide screens use columns instead of one narrow column', async ({ page }) =
   expect(help.x).toBeGreaterThan(formCard.x + formCard.width)
   expect(help.y).toBeCloseTo(formCard.y, 0)
 })
+
+test('expenses: download the filtered list as CSV', async ({ page }) => {
+  await page.goto('/expenses')
+  await page.getByText('Filters').click()
+  await page.getByLabel('Category').selectOption({ label: 'Other' })
+  await expect(page.getByText('1 expense', { exact: true })).toBeVisible()
+
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download CSV' }).click()
+  const download = await downloadPromise
+
+  const from = await page.getByLabel('From', { exact: true }).inputValue()
+  const to = await page.getByLabel('To', { exact: true }).inputValue()
+  expect(download.suggestedFilename()).toBe(`fifty30-expenses-${from}-to-${to}.csv`)
+  const stream = await download.createReadStream()
+  const chunks: Buffer[] = []
+  for await (const chunk of stream) chunks.push(chunk as Buffer)
+  const lines = Buffer.concat(chunks).toString('utf8').replace(/^﻿/, '').trimEnd().split('\r\n')
+  expect(lines[0]).toBe('Date,Description,Category,Type,Amount (INR)')
+  expect(lines).toHaveLength(2)
+  expect(lines[1]).toMatch(/^\d{4}-\d{2}-\d{2},Gift for Asha,Other,Want,555\.00$/)
+})

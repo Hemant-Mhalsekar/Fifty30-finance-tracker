@@ -30,6 +30,13 @@ public interface ExpenseRepository extends Repository<Expense, UUID> {
 
     long countByUserId(UUID userId);
 
+    // For the CSV export: every expense in the range, oldest first. Bounded by the 20,000-per-user limit.
+    List<Expense> findByUserIdAndExpenseDateBetweenOrderByExpenseDateAscCreatedAtAsc(
+            UUID userId, LocalDate from, LocalDate to);
+
+    List<Expense> findByUserIdAndCategoryIdAndExpenseDateBetweenOrderByExpenseDateAscCreatedAtAsc(
+            UUID userId, UUID categoryId, LocalDate from, LocalDate to);
+
     Page<Expense> findByUserIdAndExpenseDateBetween(
             UUID userId,
             LocalDate from,

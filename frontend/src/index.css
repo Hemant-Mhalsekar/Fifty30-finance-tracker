@@ -587,7 +587,6 @@ form,
 }
 
 @media (min-width: 768px) {
-
   h1 {
     font-size: 1.75rem;
   }
@@ -1266,8 +1265,17 @@ fieldset.field > legend {
   min-height: var(--tap);
 }
 
-.expenses-results > p.muted {
+.expenses-results .results-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
   margin-bottom: 0.75rem;
+}
+
+.expenses-results .results-bar p {
+  margin: 0;
 }
 
 @media (min-width: 768px) {
