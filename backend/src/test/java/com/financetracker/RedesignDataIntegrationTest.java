@@ -30,25 +30,44 @@ class RedesignDataIntegrationTest extends AbstractIntegrationTest {
     private Clock clock;
 
     @Test
-    void nameIsOptionalSetDuringOnboardingOrInSettings() throws Exception {
-        String token = registerUserAndGetToken();
-        assertTrue(me(token).path("name").isNull());
+    void nameIsRequiredAtSignUpAndCanBeHiddenWithoutLosingIt() throws Exception {
+        String email = nextUniqueEmail();
+        // No name, or only spaces: refused.
+        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\",\"name\":\"   \"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\",\"name\":\""
+                                + "a".repeat(51) + "\"}"))
+                .andExpect(status().isBadRequest());
 
-        mockMvc.perform(post("/api/onboarding")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(token))
+        String token = jsonMapper.readTree(mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"salaryPaise\":5000000,\"payDay\":25,\"name\":\"  Asha   Rao \"}"))
-                .andExpect(status().isCreated());
-        assertEquals("Asha Rao", me(token).path("name").asText());
+                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\","
+                                + "\"name\":\"  Asha   Rao \"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString()).get("accessToken").asText();
+        JsonNode me = me(token);
+        assertEquals("Asha Rao", me.path("name").asText());
+        assertTrue(me.path("showName").asBoolean());
+
+        // Turning it off keeps the name; leaving showName out keeps the setting.
+        mockMvc.perform(json(put("/api/settings/name"), token, "{\"name\":\"Asha Rao\",\"showName\":false}"))
+                .andExpect(status().isOk());
+        me = me(token);
+        assertEquals("Asha Rao", me.path("name").asText());
+        assertFalse(me.path("showName").asBoolean());
+        mockMvc.perform(json(put("/api/settings/name"), token, "{\"name\":\"Ash\"}")).andExpect(status().isOk());
+        me = me(token);
+        assertEquals("Ash", me.path("name").asText());
+        assertFalse(me.path("showName").asBoolean());
 
         mockMvc.perform(json(put("/api/settings/name"), token, "{\"name\":\"" + "a".repeat(51) + "\"}"))
                 .andExpect(status().isBadRequest());
-        assertEquals("Asha Rao", me(token).path("name").asText());
-
-        mockMvc.perform(json(put("/api/settings/name"), token, "{\"name\":\"Ash\"}")).andExpect(status().isOk());
         assertEquals("Ash", me(token).path("name").asText());
-        mockMvc.perform(json(put("/api/settings/name"), token, "{\"name\":\"  \"}")).andExpect(status().isOk());
-        assertTrue(me(token).path("name").isNull());
     }
 
     @Test

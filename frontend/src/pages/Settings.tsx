@@ -53,10 +53,11 @@ export default function Settings({
 // The name in the dashboard greeting, and the account's email. Blank removes the name.
 function NameSettings({ me, onUserChanged }: Props) {
   const [name, setName] = useState(me.name ?? '')
+  const [showName, setShowName] = useState(me.showName)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
-  const unchanged = name.trim() === (me.name ?? '')
+  const unchanged = name.trim() === (me.name ?? '') && showName === me.showName
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -65,7 +66,7 @@ function NameSettings({ me, onUserChanged }: Props) {
     setError(null)
     setSaved(false)
     try {
-      await changeName(name)
+      await changeName(name, showName)
       await onUserChanged()
       setSaved(true)
     } catch (e) {
@@ -93,7 +94,22 @@ function NameSettings({ me, onUserChanged }: Props) {
             setSaved(false)
           }}
         />
-        <p className="hint">Optional. Leave it empty to be greeted without a name.</p>
+        <label className="switch-row">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={showName}
+            onChange={(e) => {
+              setShowName(e.target.checked)
+              setSaved(false)
+            }}
+          />
+          <span className="track" aria-hidden="true" />
+          <span className="text">
+            Show my name in the greeting
+            <small className="hint">Off greets you with just “Good evening”. Your name stays saved.</small>
+          </span>
+        </label>
         {error && (
           <p className="error" role="alert">
             {error}
@@ -106,7 +122,7 @@ function NameSettings({ me, onUserChanged }: Props) {
         )}
         <div className="form-actions">
           <button type="submit" disabled={saving || unchanged}>
-            {saving ? 'Saving…' : 'Save name'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </form>

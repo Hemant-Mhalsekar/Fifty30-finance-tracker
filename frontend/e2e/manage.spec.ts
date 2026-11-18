@@ -317,19 +317,29 @@ test('budgets: each bucket with its categories, and the cycle can be changed', a
   await expect(needsBreakdown).toContainText('Nothing spent here in this cycle.')
 })
 
-test('settings: the name sets the greeting and can be removed', async ({ page }) => {
+test('settings: the name can be changed, and hidden from the greeting without losing it', async ({ page }) => {
   await page.goto('/settings')
-  await page.getByLabel('Your name').fill('Arjun Mehta')
-  await page.getByRole('button', { name: 'Save name' }).click()
+  await page.getByLabel('Your name', { exact: true }).fill('Arjun Mehta')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible()
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Home' }).click()
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/, Arjun$/)
 
   await page.goto('/settings')
-  await page.getByLabel('Your name').fill('')
-  await page.getByRole('button', { name: 'Save name' }).click()
+  const show = page.getByRole('switch', { name: /Show my name in the greeting/ })
+  await expect(show).toBeChecked()
+  await show.uncheck()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible()
+  await expect(page.getByLabel('Your name', { exact: true })).toHaveValue('Arjun Mehta')
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Good (morning|afternoon|evening)$/)
+
+  await page.goto('/settings')
+  await page.getByRole('switch', { name: /Show my name in the greeting/ }).check()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible()
+  await page.goto('/')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/, Arjun$/)
 })

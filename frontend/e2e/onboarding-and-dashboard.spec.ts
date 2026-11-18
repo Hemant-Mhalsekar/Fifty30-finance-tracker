@@ -6,7 +6,6 @@ test('a new user is sent to onboarding from any URL and sees the split before sa
   await page.goto('/expenses')
   await expect(page).toHaveURL(/\/onboarding$/)
 
-  await page.getByLabel('Your name').fill('Asha Rao')
   await page.getByLabel('Monthly take-home salary').fill('50,000')
   await expect(page.getByText('₹25,000.00')).toBeVisible() // needs, 50%
   await expect(page.getByText('₹15,000.00')).toBeVisible() // wants, 30%
@@ -15,8 +14,8 @@ test('a new user is sent to onboarding from any URL and sees the split before sa
 
   await expect(page.getByText('No expenses logged yet.')).toBeVisible()
   await expect(page).toHaveURL(/\/$/)
-  // The greeting uses the first name.
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Good (morning|afternoon|evening), Asha$/)
+  // The test user has no name yet, so the greeting has none.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Good (morning|afternoon|evening)$/)
 })
 
 test('onboarding rejects a salary with too many decimals', async ({ page, request }) => {
@@ -95,4 +94,25 @@ test('deep links survive a reload and unknown paths go home', async ({ page, req
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
   await page.goto('/no-such-page')
   await expect(page).toHaveURL(/\/$/)
+})
+
+test('signing up asks for a name, which the greeting then uses', async ({ page, request }) => {
+  await resetApi(request)
+  await page.goto('/more')
+  await page.getByRole('button', { name: 'Log out' }).click()
+  await page.getByRole('button', { name: 'Need an account? Create one' }).click()
+
+  await page.getByLabel('Email').fill('asha@example.com')
+  await page.getByLabel('Password', { exact: true }).fill('password123')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  // The browser stops the form: the name is required.
+  const name = page.getByLabel('Your name', { exact: true })
+  expect(await name.evaluate((input: HTMLInputElement) => input.validity.valueMissing)).toBe(true)
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible()
+
+  await name.fill('Asha Rao')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByLabel('Monthly take-home salary').fill('50,000')
+  await page.getByRole('button', { name: 'Start tracking' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Good (morning|afternoon|evening), Asha$/)
 })

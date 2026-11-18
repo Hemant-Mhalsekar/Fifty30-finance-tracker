@@ -44,7 +44,7 @@ class AccountDeletionIntegrationTest extends AbstractIntegrationTest {
         String email = nextUniqueEmail();
         MvcResult registered = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(credentials(email, PASSWORD)))
+                        .content("{\"email\":\"" + email + "\",\"password\":\"" + PASSWORD + "\",\"name\":\"Test\"}"))
                 .andExpect(status().isCreated())
                 .andReturn();
         String token = jsonMapper.readTree(registered.getResponse().getContentAsString()).get("accessToken").asText();

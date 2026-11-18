@@ -54,7 +54,7 @@ class IntegrationTest extends AbstractIntegrationTest {
         // Registering the same email in uppercase returns 409.
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email.toUpperCase() + "\",\"password\":\"password123\"}"))
+                        .content("{\"email\":\"" + email.toUpperCase() + "\",\"password\":\"password123\",\"name\":\"Test\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("Conflict"));
 
@@ -109,7 +109,7 @@ class IntegrationTest extends AbstractIntegrationTest {
         String email = nextUniqueEmail();
         MvcResult regResult = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\"}"))
+                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\",\"name\":\"Test\"}"))
                 .andExpect(status().isCreated())
                 .andReturn();
         Cookie firstCookie = extractRefreshCookie(regResult);
@@ -155,7 +155,7 @@ class IntegrationTest extends AbstractIntegrationTest {
         String email = nextUniqueEmail();
         MvcResult regResult = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\"}"))
+                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\",\"name\":\"Test\"}"))
                 .andExpect(status().isCreated())
                 .andReturn();
         Cookie cookie = extractRefreshCookie(regResult);

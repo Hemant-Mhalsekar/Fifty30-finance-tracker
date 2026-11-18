@@ -19,7 +19,11 @@ public record RegisterRequest(
 
         @NotNull(message = "Password is required")
         @Size(min = 8, message = "Password must be at least 8 characters")
-        String password) {
+        String password,
+
+        // For the greeting. Required; the length and character rules are in DisplayNames.
+        @NotBlank(message = "Name is required")
+        String name) {
 
     // Normalize first so validation and storage both see the trimmed, lowercase email.
     public RegisterRequest {

@@ -106,7 +106,7 @@ export default function Dashboard({ me }: { me: Me }) {
     setViewDate(date)
   }
 
-  const name = firstName(me.name)
+  const name = me.showName ? firstName(me.name) : null
   const title = `${greeting()}${name ? `, ${name}` : ''}`
 
   if (!report) {
