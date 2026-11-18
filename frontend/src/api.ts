@@ -165,7 +165,8 @@ async function readAccessToken(response: Response): Promise<string | null> {
   return typeof body?.accessToken === 'string' ? body.accessToken : null
 }
 
-async function authenticate(path: string, email: string, password: string): Promise<void> {
+// Resolves to true when this login cancelled a scheduled account deletion.
+async function authenticate(path: string, email: string, password: string): Promise<boolean> {
   let response: Response
   try {
     response = await apiFetch(path, {
@@ -181,18 +182,20 @@ async function authenticate(path: string, email: string, password: string): Prom
     throw new Error(errorMessage(response.status, await readJson(response)))
   }
 
-  const token = await readAccessToken(response)
+  const body = await readJson(response)
+  const token = typeof body?.accessToken === 'string' ? body.accessToken : null
   if (!token) {
     throw new Error('Something went wrong')
   }
   accessToken = token
+  return body?.accountRestored === true
 }
 
-export function register(email: string, password: string): Promise<void> {
+export function register(email: string, password: string): Promise<boolean> {
   return authenticate('/api/auth/register', email, password)
 }
 
-export function login(email: string, password: string): Promise<void> {
+export function login(email: string, password: string): Promise<boolean> {
   return authenticate('/api/auth/login', email, password)
 }
 
@@ -497,6 +500,14 @@ export function confirmRecurring(
 /** Moves on a month without logging anything. */
 export function skipRecurring(id: string, dueDate: string): Promise<RecurringExpense> {
   return sendJson<RecurringExpense>(`/api/recurring-expenses/${encodeURIComponent(id)}/skip`, 'POST', { dueDate })
+}
+
+/**
+ * Schedules the account for deletion in 7 days and ends every session. Logging in before then
+ * keeps the account. A wrong password is a 400 (so it does not look like a logged-out session).
+ */
+export function requestAccountDeletion(password: string): Promise<{ deleteAfter: string }> {
+  return sendJson<{ deleteAfter: string }>('/api/account/deletion', 'POST', { password })
 }
 
 /** Asks for a reset email. The server answers the same whether or not the account exists. */

@@ -1,5 +1,6 @@
 package com.financetracker.user;
 
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -8,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.LockModeType;
 
@@ -28,4 +30,16 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from User u where u.id = :id")
     Optional<User> findByIdForUpdate(@Param("id") UUID id);
+
+    // Logging in during the grace period keeps the account. Returns 1 if a deletion was cancelled.
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update User u set u.deletionScheduledAt = null where u.id = :id and u.deletionScheduledAt is not null")
+    int cancelDeletion(@Param("id") UUID id);
+
+    // One bulk DELETE; the database cascades to every table that belongs to the user.
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from User u where u.deletionScheduledAt <= :now")
+    int deleteScheduledUpTo(@Param("now") OffsetDateTime now);
 }

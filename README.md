@@ -38,7 +38,7 @@ _Screenshots use sample data._
 - **Charts.** Spent vs plan, spending by category, spending over the cycle against an even pace, and past cycles.
 - **Reports.** Weekly (against a plan prorated per day), yearly, and savings over time.
 - **Installable PWA** with an offline shell, light/dark/system theme, and keyboard and screen-reader support for every chart (each also has a table view).
-- **Accounts.** Email and password, password reset by email, short-lived access tokens with rotating refresh tokens.
+- **Accounts.** Email and password, password reset by email, short-lived access tokens with rotating refresh tokens, and account deletion (password required, data removed after a 7-day grace period that a login cancels).
 
 ## Tech stack
 

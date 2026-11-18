@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { changeCurrentSalary, changePayDay, getCurrentCycle, type Cycle, type Me } from '../api'
+import { changeCurrentSalary, changePayDay, getCurrentCycle, requestAccountDeletion, type Cycle, type Me } from '../api'
+import PasswordInput from '../components/PasswordInput'
 import { formatDate } from '../dates'
 import { formatPaise, paiseToInput, parseRupeesToPaise, splitBudget } from '../money'
 import { getThemePreference, setThemePreference, type ThemePreference } from '../theme'
@@ -14,7 +15,14 @@ type Props = {
   onUserChanged: () => Promise<void>
 }
 
-export default function Settings({ me, onUserChanged }: Props) {
+export default function Settings({
+  me,
+  onUserChanged,
+  onAccountDeleted,
+}: Props & {
+  // Called once the deletion is scheduled; the app then signs out on this device.
+  onAccountDeleted: (deleteAfter: string) => Promise<void>
+}) {
   return (
     <section className="settings">
       <h1>Settings</h1>
@@ -26,6 +34,7 @@ export default function Settings({ me, onUserChanged }: Props) {
           <h2>Account</h2>
           <p>{me.email}</p>
         </article>
+        <DeleteAccount onDeleted={onAccountDeleted} />
       </div>
     </section>
   )
@@ -106,8 +115,7 @@ function SalarySettings() {
           />
           {split && !unchanged && (
             <p className="hint">
-              Needs {formatPaise(split.needs)} · Wants {formatPaise(split.wants)} · Savings{' '}
-              {formatPaise(split.savings)}
+              Needs {formatPaise(split.needs)} · Wants {formatPaise(split.wants)} · Savings {formatPaise(split.savings)}
             </p>
           )}
           <div className="form-actions">
@@ -240,6 +248,77 @@ function AppearanceSettings() {
         </div>
         <p className="hint">System follows your device. Saved on this device only.</p>
       </fieldset>
+    </article>
+  )
+}
+
+// Two steps: a button that opens the form, then the password. The data stays for 7 days and
+// logging in again before then keeps the account.
+function DeleteAccount({ onDeleted }: { onDeleted: (deleteAfter: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (submitting) return
+    if (password === '') {
+      setError('Enter your password')
+      return
+    }
+    setSubmitting(true)
+    setError(null)
+    try {
+      const { deleteAfter } = await requestAccountDeletion(password)
+      await onDeleted(deleteAfter)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong')
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <article className="card danger-card">
+      <h2>Delete account</h2>
+      <p className="muted">
+        Deletes your account and everything in it: expenses, categories, cycles and recurring expenses. You are signed
+        out on every device at once, and the data is deleted after 7 days. Logging in before then cancels it.
+      </p>
+      {open ? (
+        <form onSubmit={handleSubmit} noValidate className="delete-account-form">
+          <label htmlFor="delete-password">Your password</label>
+          <PasswordInput id="delete-password" value={password} onChange={setPassword} autoComplete="current-password" />
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="form-actions">
+            <button type="submit" className="danger" disabled={submitting}>
+              {submitting ? 'Deleting…' : 'Delete my account'}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={submitting}
+              onClick={() => {
+                setOpen(false)
+                setPassword('')
+                setError(null)
+              }}
+            >
+              Keep my account
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="form-actions">
+          <button type="button" className="danger-outline" onClick={() => setOpen(true)}>
+            Delete account…
+          </button>
+        </div>
+      )}
     </article>
   )
 }
