@@ -58,6 +58,13 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
+		<!-- Error monitoring: the plain Java SDK, started by SentryConfig only when SENTRY_DSN is set
+		     (Render). The core SDK has no Spring coupling, so it cannot clash with Spring Boot 4. -->
+		<dependency>
+			<groupId>io.sentry</groupId>
+			<artifactId>sentry</artifactId>
+			<version>8.64.0</version>
+		</dependency>
 		<!-- In-memory rate limiting for login and register (single instance, so no shared store). -->
 		<dependency>
 			<groupId>com.bucket4j</groupId>

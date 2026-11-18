@@ -19,6 +19,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import com.financetracker.ratelimit.RateLimitExceededException;
 
+import io.sentry.Sentry;
+
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
@@ -75,6 +77,9 @@ public class ApiExceptionHandler {
             return build(errorResponse.getStatusCode(), errorResponse.getBody().getDetail());
         }
         log.error("Unexpected error", ex);
+        // This handler answers every error itself, so Sentry's own resolver never sees it.
+        // A no-op when Sentry is not configured (no SENTRY_DSN).
+        Sentry.captureException(ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong");
     }
 

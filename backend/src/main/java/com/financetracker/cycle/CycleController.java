@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -43,5 +44,11 @@ public class CycleController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody SalaryRequest request) {
         return cycleService.changeCurrentSalary(UUID.fromString(jwt.getSubject()), request.salaryPaise());
+    }
+
+    // Answers "Did your salary change?" with "No". Changing the salary answers it too.
+    @PostMapping("/current/salary/confirm")
+    public CycleView confirmSalary(@AuthenticationPrincipal Jwt jwt) {
+        return cycleService.confirmCurrentSalary(UUID.fromString(jwt.getSubject()));
     }
 }

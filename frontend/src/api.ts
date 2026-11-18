@@ -262,6 +262,8 @@ export type Cycle = {
   needsPaise: number
   wantsPaise: number
   savingsPaise: number
+  // False until "Did your salary change?" is answered for this cycle.
+  salaryConfirmed: boolean
 }
 
 export function onboard(salaryPaise: number, payDay: number): Promise<{ payDay: number; cycle: Cycle }> {
@@ -308,6 +310,11 @@ export function changeCurrentSalary(salaryPaise: number): Promise<Cycle> {
   return sendJson<Cycle>('/api/cycles/current/salary', 'PUT', { salaryPaise })
 }
 
+/** "Same as before": keeps the salary copied from the last cycle and stops asking for this cycle. */
+export function confirmCurrentSalary(): Promise<Cycle> {
+  return sendJson<Cycle>('/api/cycles/current/salary/confirm', 'POST', {})
+}
+
 export type PayDaySettings = { payDay: number; pendingPayDay: number | null; pendingPayDayFrom: string | null }
 
 /** Takes effect after one full cycle. Sending the current pay day cancels a pending change. */
@@ -331,6 +338,27 @@ export type CycleHistoryItem = {
   investedPaise: number
   // Salary - needs - wants; negative is a deficit.
   savedPaise: number
+  // A cycle with nothing logged "saves" its whole salary; the savings report leaves those out.
+  expenseCount: number
+}
+
+/** Every stored cycle with its totals, oldest first. */
+export function getAllCycles(): Promise<CycleHistoryItem[]> {
+  return requestJson<CycleHistoryItem[]>('/api/reports/cycles')
+}
+
+export type WeeklyData = {
+  // A Monday.
+  from: string
+  // Today.
+  to: string
+  cycles: Cycle[]
+  daily: { date: string; type: BudgetType; spentPaise: number }[]
+}
+
+/** The last `weeks` Monday-to-Sunday weeks up to today. */
+export function getWeekly(weeks = 8): Promise<WeeklyData> {
+  return requestJson<WeeklyData>(`/api/reports/weekly?weeks=${weeks}`)
 }
 
 /** The cycle containing the date (today if left out) and up to count - 1 before it, oldest first. */
@@ -379,6 +407,8 @@ export type NewExpense = {
   expenseDate: string
   // Only for categories without a type (Other); the API rejects it otherwise.
   type?: BudgetType
+  // Makes the request safe to repeat: the server stores one expense per id.
+  clientId?: string
 }
 
 export function createExpense(expense: NewExpense): Promise<Expense> {

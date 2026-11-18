@@ -26,6 +26,17 @@ public interface CycleRepository extends Repository<Cycle, UUID> {
 
     List<Cycle> findAllByUserIdOrderByPeriodStartDesc(UUID userId);
 
+    // Cycles that share at least one day with from..to, oldest first.
+    @Query("""
+            select c from Cycle c
+            where c.userId = :userId and c.periodEnd >= :from and c.periodStart <= :to
+            order by c.periodStart asc
+            """)
+    List<Cycle> findOverlapping(
+            @Param("userId") UUID userId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
     // The given cycle and the ones before it, newest first.
     List<Cycle> findByUserIdAndPeriodStartLessThanEqualOrderByPeriodStartDesc(
             UUID userId, LocalDate periodStart, Limit limit);

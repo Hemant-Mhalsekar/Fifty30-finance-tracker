@@ -31,6 +31,10 @@ app:
     brevo-api-key: ${BREVO_API_KEY:}
     from-address: ${MAIL_FROM_ADDRESS:}
     from-name: Fifty30
+  # Error monitoring (SentryConfig). Without a DSN nothing is sent.
+  sentry:
+    dsn: ${SENTRY_DSN:}
+    environment: ${SENTRY_ENVIRONMENT:production}
   # Attempts allowed per window: login per 15 minutes, register per hour. See AuthRateLimits.
   rate-limit:
     login-per-ip: 20

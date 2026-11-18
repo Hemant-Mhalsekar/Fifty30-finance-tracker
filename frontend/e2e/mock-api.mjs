@@ -40,7 +40,7 @@ function split(salaryPaise) {
 
 let state
 
-function reset({ onboarded = true } = {}) {
+function reset({ onboarded = true, salaryConfirmed = true } = {}) {
   let next = 0
   const id = (prefix) => `${prefix}${++next}`
   const start = addDays(today(), -10)
@@ -85,8 +85,8 @@ function reset({ onboarded = true } = {}) {
     me: { id: 'u1', email: 'test@example.com', payDay: onboarded ? 25 : null, pendingPayDay: null, pendingPayDayFrom: null },
     cycles: onboarded
       ? [
-          { periodStart: addDays(start, -31), periodEnd: addDays(start, -1), salaryPaise: 5_000_000, ...split(5_000_000) },
-          { periodStart: start, periodEnd: addDays(start, 30), salaryPaise: 5_000_000, ...split(5_000_000) },
+          { periodStart: addDays(start, -31), periodEnd: addDays(start, -1), salaryPaise: 5_000_000, ...split(5_000_000), salaryConfirmed: true },
+          { periodStart: start, periodEnd: addDays(start, 30), salaryPaise: 5_000_000, ...split(5_000_000), salaryConfirmed },
         ]
       : [],
     categories,
@@ -165,12 +165,16 @@ function historyItem(cycle) {
     wantsSpentPaise: r.wants.spentPaise,
     investedPaise: r.savings.investedPaise,
     savedPaise: r.savings.savedPaise,
+    expenseCount: r.expenseCount,
   }
 }
 
 const recurringView = (r) => ({ ...r, due: !r.paused && r.nextDueDate <= today() })
 
 function addExpense(res, body) {
+  // Like the API: the same clientId returns the expense already stored.
+  const existing = body.clientId && state.expenses.find((e) => e.clientId === body.clientId)
+  if (existing) return existing
   const category = state.categories.find((c) => c.id === body.categoryId)
   if (!category) return fail(res, 404, 'Category not found')
   if (category.archived) return fail(res, 409, 'This category is archived')
@@ -183,12 +187,13 @@ function addExpense(res, body) {
     expenseDate: body.expenseDate ?? today(),
     description: body.description,
     createdOrder: 1000 + state.expenses.length,
+    clientId: body.clientId,
   }
   state.expenses.push(expense)
   return expense
 }
 
-const publicExpense = ({ createdOrder: _ignored, ...expense }) => expense
+const publicExpense = ({ createdOrder: _order, clientId: _client, ...expense }) => expense
 
 function send(res, status, body) {
   res.writeHead(status, body === undefined ? {} : { 'content-type': 'application/json' })
@@ -233,7 +238,7 @@ function handle(req, res, body) {
     if (state.me.payDay !== null) return fail(res, 409, 'Setup already completed')
     state.me.payDay = body.payDay
     const start = addDays(today(), -10)
-    state.cycles.push({ periodStart: start, periodEnd: addDays(start, 30), salaryPaise: body.salaryPaise, ...split(body.salaryPaise) })
+    state.cycles.push({ periodStart: start, periodEnd: addDays(start, 30), salaryPaise: body.salaryPaise, ...split(body.salaryPaise), salaryConfirmed: true })
     return send(res, 201, { payDay: body.payDay, cycle: currentCycle() })
   }
   if (state.me.payDay === null && path.startsWith('/api/cycles')) return fail(res, 409, 'Complete setup first')
@@ -253,8 +258,27 @@ function handle(req, res, body) {
     if (index < 0) return fail(res, 404, 'No cycle contains that date')
     return send(res, 200, state.cycles.slice(Math.max(0, index - count + 1), index + 1).map(historyItem))
   }
+  if (path === '/api/reports/cycles') return send(res, 200, state.cycles.map(historyItem))
+  if (path === '/api/reports/weekly') {
+    const weeks = Number(url.searchParams.get('weeks') ?? 8)
+    if (!(weeks >= 1 && weeks <= 26)) return fail(res, 400, 'Weeks must be between 1 and 26')
+    const [y, m, d] = today().split('-').map(Number)
+    const weekday = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7
+    const from = addDays(today(), -weekday - 7 * (weeks - 1))
+    const inRange = state.expenses.filter((e) => e.expenseDate >= from && e.expenseDate <= today())
+    return send(res, 200, {
+      from,
+      to: today(),
+      cycles: state.cycles.filter((c) => c.periodEnd >= from && c.periodStart <= today()),
+      daily: dailyRows(inRange),
+    })
+  }
+  if (path === '/api/cycles/current/salary/confirm') {
+    currentCycle().salaryConfirmed = true
+    return send(res, 200, currentCycle())
+  }
   if (path === '/api/cycles/current/salary') {
-    Object.assign(currentCycle(), { salaryPaise: body.salaryPaise, ...split(body.salaryPaise) })
+    Object.assign(currentCycle(), { salaryPaise: body.salaryPaise, ...split(body.salaryPaise), salaryConfirmed: true })
     return send(res, 200, currentCycle())
   }
   if (path === '/api/settings/pay-day') {

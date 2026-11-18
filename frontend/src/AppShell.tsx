@@ -1,18 +1,25 @@
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { BrandMark, HomeIcon, ListIcon, MoreIcon, PlusIcon } from './components/icons'
+import type { PendingExpense } from './offline'
 
 type Props = {
   email: string
   onLogout: () => void
   loggingOut: boolean
+  // No connection (or opened offline and not yet confirmed with the server).
+  offline: boolean
+  // Expenses saved on this phone and not sent yet.
+  pending: PendingExpense[]
 }
 
 // Desktop: top bar with every page. Phone: a bottom tab bar in thumb reach, with Add in the
 // middle; Categories, Settings and Log out live under More.
-export default function AppShell({ email, onLogout, loggingOut }: Props) {
+export default function AppShell({ email, onLogout, loggingOut, offline, pending }: Props) {
   const { pathname } = useLocation()
-  // Recurring, Categories and Settings are reached through More on a phone, so More stays highlighted there.
-  const inMoreSection = ['/more', '/recurring', '/categories', '/settings'].some((path) => pathname.startsWith(path))
+  // Reports, Recurring, Categories and Settings are reached through More on a phone, so More stays highlighted there.
+  const inMoreSection = ['/more', '/reports', '/recurring', '/categories', '/settings'].some((path) =>
+    pathname.startsWith(path),
+  )
 
   return (
     <div className="shell">
@@ -27,6 +34,7 @@ export default function AppShell({ email, onLogout, loggingOut }: Props) {
           </NavLink>
           <NavLink to="/add">Add expense</NavLink>
           <NavLink to="/expenses">Expenses</NavLink>
+          <NavLink to="/reports">Reports</NavLink>
           <NavLink to="/recurring">Recurring</NavLink>
           <NavLink to="/categories">Categories</NavLink>
           <NavLink to="/settings">Settings</NavLink>
@@ -42,6 +50,7 @@ export default function AppShell({ email, onLogout, loggingOut }: Props) {
       </header>
 
       <main className="page">
+        <OfflineBanner offline={offline} pending={pending} />
         <Outlet />
       </main>
 
@@ -66,5 +75,35 @@ export default function AppShell({ email, onLogout, loggingOut }: Props) {
         </NavLink>
       </nav>
     </div>
+  )
+}
+
+// One line at the top of every page while offline or while expenses are waiting to be sent.
+function OfflineBanner({ offline, pending }: { offline: boolean; pending: PendingExpense[] }) {
+  const refused = pending.filter((p) => p.error).length
+  const waiting = pending.length - refused
+  if (!offline && pending.length === 0) return null
+
+  const parts: string[] = []
+  if (offline) parts.push("You're offline. You can still add expenses; they are saved on this phone.")
+  if (waiting > 0) {
+    parts.push(
+      offline
+        ? `${waiting} waiting to be sent.`
+        : `Sending ${waiting} ${waiting === 1 ? 'expense' : 'expenses'} saved offline…`,
+    )
+  }
+  if (refused > 0) parts.push(`${refused} could not be sent.`)
+
+  return (
+    <p className={offline ? 'offline-banner' : 'offline-banner sending'} role="status">
+      {parts.join(' ')}
+      {refused > 0 && (
+        <>
+          {' '}
+          <Link to="/add">Review</Link>
+        </>
+      )}
+    </p>
   )
 }

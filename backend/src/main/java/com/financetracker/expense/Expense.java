@@ -42,6 +42,10 @@ public class Expense {
     @Column(nullable = false)
     private String description;
 
+    // Set by the phone for expenses queued offline (V8); null otherwise. Never changes.
+    @Column(name = "client_id", updatable = false)
+    private UUID clientId;
+
     // Set by the database default (now()), so it is never written by the app.
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -95,6 +99,14 @@ public class Expense {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public UUID getClientId() {
+        return clientId;
+    }
+
+    public void setClientId(UUID clientId) {
+        this.clientId = clientId;
     }
 
     public void setCategoryId(UUID categoryId) {

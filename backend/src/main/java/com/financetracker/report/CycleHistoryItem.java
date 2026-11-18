@@ -9,5 +9,7 @@ public record CycleHistoryItem(
         long needsSpentPaise,
         long wantsSpentPaise,
         long investedPaise,
-        long savedPaise) {
+        long savedPaise,
+        // Cycles with nothing logged "save" their whole salary; the savings report leaves them out.
+        long expenseCount) {
 }

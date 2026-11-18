@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -266,6 +267,52 @@ class CycleIntegrationTest extends AbstractIntegrationTest {
             assertNull(jdbcTemplate.queryForObject(
                     "SELECT pending_pay_day_from FROM users WHERE id = ?", LocalDate.class, userId), label);
         }
+    }
+
+    @Test
+    void newCyclesAskWhetherTheSalaryChangedUntilConfirmedOrChanged() throws Exception {
+        mockMvc.perform(post("/api/cycles/current/salary/confirm")).andExpect(status().isUnauthorized());
+        String token = registerUserAndGetToken();
+        mockMvc.perform(post("/api/cycles/current/salary/confirm").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isConflict());
+
+        // The onboarding cycle has just been given its salary: nothing to ask.
+        onboardUser(token, 2_000_000L, 25);
+        mockMvc.perform(get("/api/cycles/current").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.salaryConfirmed").value(true));
+
+        // Last month's cycle was answered; the roll-forward creates this one unanswered.
+        UUID userId = userId(token);
+        replaceCyclesWith(userId, CycleCalculator.containing(today().minusMonths(1), 25), 2_000_000L);
+        jdbcTemplate.update("UPDATE cycles SET salary_confirmed = true WHERE user_id = ?", userId);
+        mockMvc.perform(get("/api/cycles/current").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.salaryPaise").value(2_000_000L))
+                .andExpect(jsonPath("$.salaryConfirmed").value(false));
+        mockMvc.perform(get("/api/cycles/current/report").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(jsonPath("$.cycle.salaryConfirmed").value(false));
+
+        // "Same as before" keeps the salary and stops asking; answering twice is harmless.
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(post("/api/cycles/current/salary/confirm").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.salaryPaise").value(2_000_000L))
+                    .andExpect(jsonPath("$.salaryConfirmed").value(true));
+        }
+
+        // Changing the salary answers the question too.
+        String other = registerUserAndGetToken();
+        onboardUser(other, 1_000_000L, 25);
+        UUID otherId = userId(other);
+        replaceCyclesWith(otherId, CycleCalculator.containing(today().minusMonths(1), 25), 1_000_000L);
+        mockMvc.perform(put("/api/cycles/current/salary")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(other))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"salaryPaise\":1200000}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.salaryPaise").value(1_200_000L))
+                .andExpect(jsonPath("$.salaryConfirmed").value(true));
     }
 
     // ---- helpers ----

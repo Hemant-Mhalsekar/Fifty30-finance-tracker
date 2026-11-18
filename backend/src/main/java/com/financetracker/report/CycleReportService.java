@@ -1,9 +1,11 @@
 package com.financetracker.report;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,6 +34,8 @@ public class CycleReportService {
 
     // The history chart shows 6 cycles; 12 (a year) is the most one request may ask for.
     public static final int MAX_HISTORY = 12;
+    // About six months of weeks.
+    public static final int MAX_WEEKS = 26;
 
     private final CycleService cycleService;
     private final CycleRepository cycleRepository;
@@ -121,22 +125,53 @@ public class CycleReportService {
         List<Cycle> cycles = new ArrayList<>(cycleRepository.findByUserIdAndPeriodStartLessThanEqualOrderByPeriodStartDesc(
                 userId, anchor.getPeriodStart(), Limit.of(count)));
         Collections.reverse(cycles);
+        return summarize(userId, cycles);
+    }
 
+    // Every stored cycle, oldest first, with its totals: the yearly and savings reports.
+    @Transactional
+    public List<CycleHistoryItem> allCycles(UUID userId) {
+        cycleService.getCurrent(userId);
+        List<Cycle> cycles = new ArrayList<>(cycleRepository.findAllByUserIdOrderByPeriodStartDesc(userId));
+        Collections.reverse(cycles);
+        return summarize(userId, cycles);
+    }
+
+    // The last `weeks` Monday-to-Sunday weeks up to today (the current week is partial).
+    @Transactional
+    public WeeklyData weekly(UUID userId, int weeks) {
+        if (weeks < 1 || weeks > MAX_WEEKS) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Weeks must be between 1 and " + MAX_WEEKS);
+        }
+        cycleService.getCurrent(userId);
+        LocalDate today = LocalDate.now(clock);
+        LocalDate from = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(weeks - 1L);
+        List<CycleView> cycles = cycleRepository.findOverlapping(userId, from, today).stream()
+                .map(CycleView::from)
+                .toList();
+        return new WeeklyData(from, today, cycles, expenseRepository.sumByDay(userId, from, today));
+    }
+
+    // Totals per cycle from one GROUP BY query; cycles must be oldest first and not empty.
+    private List<CycleHistoryItem> summarize(UUID userId, List<Cycle> cycles) {
         Map<LocalDate, long[]> totals = new HashMap<>();
         for (CycleTypeSpend row : expenseRepository.sumByCycle(
-                userId, cycles.getFirst().getPeriodStart(), anchor.getPeriodStart())) {
-            long[] t = totals.computeIfAbsent(row.periodStart(), k -> new long[3]);
+                userId, cycles.getFirst().getPeriodStart(), cycles.getLast().getPeriodStart())) {
+            // Index 0-2: paise per type in BudgetType order; index 3: number of expenses.
+            long[] t = totals.computeIfAbsent(row.periodStart(), k -> new long[4]);
             t[row.type().ordinal()] += row.spentPaise();
+            t[3] += row.expenseCount();
         }
 
         List<CycleHistoryItem> items = new ArrayList<>(cycles.size());
         for (Cycle cycle : cycles) {
-            long[] t = totals.getOrDefault(cycle.getPeriodStart(), new long[3]);
+            long[] t = totals.getOrDefault(cycle.getPeriodStart(), new long[4]);
             long needs = t[BudgetType.NEED.ordinal()];
             long wants = t[BudgetType.WANT.ordinal()];
             long invested = t[BudgetType.INVESTMENT.ordinal()];
             items.add(new CycleHistoryItem(
-                    CycleView.from(cycle), needs, wants, invested, cycle.getSalaryPaise() - needs - wants));
+                    CycleView.from(cycle), needs, wants, invested, cycle.getSalaryPaise() - needs - wants, t[3]));
         }
         return items;
     }

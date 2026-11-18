@@ -49,6 +49,10 @@ public class Cycle {
     @Column(name = "savings_paise", nullable = false)
     private long savingsPaise;
 
+    // False until the user answers "Did your salary change?" for this cycle (V7).
+    @Column(name = "salary_confirmed", nullable = false)
+    private boolean salaryConfirmed;
+
     // Set by the database default (now()), so it is never written by the app.
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -72,6 +76,9 @@ public class Cycle {
         this.periodStart = periodStart;
         this.periodEnd = periodEnd;
         applyBudget(salaryPaise, needsPct, wantsPct, savingsPct, needsPaise, wantsPaise, savingsPaise);
+        // Only onboarding builds a Cycle in Java, with the salary just entered: nothing to ask.
+        // Roll-forward cycles are inserted in SQL and get the column default (false).
+        this.salaryConfirmed = true;
     }
 
     public UUID getId() {
@@ -120,6 +127,14 @@ public class Cycle {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public boolean isSalaryConfirmed() {
+        return salaryConfirmed;
+    }
+
+    public void confirmSalary() {
+        this.salaryConfirmed = true;
     }
 
     public void applyBudget(
