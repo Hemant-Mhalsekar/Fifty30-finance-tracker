@@ -1,7 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
+  changeBonus,
   changeCurrentSalary,
   changeName,
+  changeOpeningBalance,
+  changeSplit,
   changePayDay,
   getCurrentCycle,
   requestAccountDeletion,
@@ -10,11 +13,16 @@ import {
 } from '../api'
 import PasswordInput from '../components/PasswordInput'
 import { formatDate } from '../dates'
-import { formatPaise, paiseToInput, parseRupeesToPaise, splitBudget } from '../money'
+import SplitPicker from '../components/SplitPicker'
+import SplitPreview from '../components/SplitPreview'
+import { formatPaise, paiseToInput, parseRupeesToPaise } from '../money'
+import { incomeOf, presetOf, SPLITS, splitLabel, type SplitPreset } from '../splits'
 import { getThemePreference, setThemePreference, type ThemePreference } from '../theme'
 
 const MIN_SALARY_PAISE = 100
 const MAX_SALARY_PAISE = 1_000_000_000
+// ₹10,00,00,00,000 (100 crore), the server's limit.
+const MAX_OPENING_PAISE = 100_000_000_000
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1)
 
 type Props = {
@@ -31,17 +39,53 @@ export default function Settings({
   // Called once the deletion is scheduled; the app then signs out on this device.
   onAccountDeleted: (deleteAfter: string) => Promise<void>
 }) {
+  // The current cycle, shared by the salary, split and bonus cards so each sees the others' changes.
+  const [cycle, setCycle] = useState<Cycle | null>(null)
+  const [cycleError, setCycleError] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    getCurrentCycle()
+      .then((current) => {
+        if (!cancelled) setCycle(current)
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setCycleError(e instanceof Error ? e.message : 'Something went wrong')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // "Add a bonus" on the dashboard links to #bonus-title; the card only exists once the cycle loads.
+  useEffect(() => {
+    if (cycle && window.location.hash) {
+      document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: 'start' })
+    }
+  }, [cycle])
+
   return (
     <section className="settings">
       <div className="page-head">
         <div>
           <h1>Settings</h1>
-          <p className="sub">Your salary, pay day, name and how the app looks</p>
+          <p className="sub">Your salary, split, bonus, savings, pay day, name and how the app looks</p>
         </div>
       </div>
       <div className="settings-grid">
         <NameSettings me={me} onUserChanged={onUserChanged} />
-        <SalarySettings />
+        {cycleError && (
+          <p className="error" role="alert">
+            {cycleError}
+          </p>
+        )}
+        {cycle && (
+          <>
+            <SalarySettings cycle={cycle} onCycle={setCycle} />
+            <SplitSettings cycle={cycle} onCycle={setCycle} />
+            <BonusSettings cycle={cycle} onCycle={setCycle} />
+          </>
+        )}
+        <OpeningBalanceSettings me={me} onUserChanged={onUserChanged} />
         <PayDaySettings me={me} onUserChanged={onUserChanged} />
         <AppearanceSettings />
         <DeleteAccount onDeleted={onAccountDeleted} />
@@ -130,37 +174,21 @@ function NameSettings({ me, onUserChanged }: Props) {
   )
 }
 
-function SalarySettings() {
-  const [cycle, setCycle] = useState<Cycle | null>(null)
-  const [salaryText, setSalaryText] = useState('')
+type CycleProps = { cycle: Cycle; onCycle: (cycle: Cycle) => void }
+
+function SalarySettings({ cycle, onCycle }: CycleProps) {
+  const [salaryText, setSalaryText] = useState(paiseToInput(cycle.salaryPaise))
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    getCurrentCycle()
-      .then((current) => {
-        if (cancelled) return
-        setCycle(current)
-        setSalaryText(paiseToInput(current.salaryPaise))
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Something went wrong')
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   const salaryPaise = parseRupeesToPaise(salaryText)
   const valid = salaryPaise !== null && salaryPaise >= MIN_SALARY_PAISE && salaryPaise <= MAX_SALARY_PAISE
-  const unchanged = cycle !== null && salaryPaise === cycle.salaryPaise
-  const split = valid ? splitBudget(salaryPaise) : null
+  const unchanged = salaryPaise === cycle.salaryPaise
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (submitting || !cycle) return
+    if (submitting) return
     if (!valid) {
       setError('Enter a salary between ₹1 and ₹1,00,00,000, with at most 2 decimals')
       setSuccess(null)
@@ -170,7 +198,7 @@ function SalarySettings() {
     setError(null)
     try {
       const updated = await changeCurrentSalary(salaryPaise)
-      setCycle(updated)
+      onCycle(updated)
       setSalaryText(paiseToInput(updated.salaryPaise))
       setSuccess(`Salary is now ${formatPaise(updated.salaryPaise)} for this cycle and the ones after it.`)
     } catch (e) {
@@ -184,37 +212,274 @@ function SalarySettings() {
   return (
     <article className="card">
       <h2>Salary</h2>
-      {!cycle && !error && <p className="muted">Loading…</p>}
-      {cycle && (
-        <form onSubmit={handleSubmit} noValidate>
-          <p className="muted">
-            Applies to the current cycle ({formatDate(cycle.periodStart)} – {formatDate(cycle.periodEnd)}) and later
-            cycles. Past cycles keep their salary.
-          </p>
-          <label htmlFor="settings-salary">Monthly take-home salary (₹)</label>
-          <input
-            id="settings-salary"
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            value={salaryText}
-            onChange={(e) => {
-              setSalaryText(e.target.value)
-              setSuccess(null)
-            }}
+      <form onSubmit={handleSubmit} noValidate>
+        <p className="muted">
+          Applies to the current cycle ({formatDate(cycle.periodStart)} – {formatDate(cycle.periodEnd)}) and later
+          cycles. Past cycles keep their salary.
+        </p>
+        <label htmlFor="settings-salary">Monthly take-home salary (₹)</label>
+        <input
+          id="settings-salary"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          value={salaryText}
+          onChange={(e) => {
+            setSalaryText(e.target.value)
+            setSuccess(null)
+          }}
+        />
+        {valid && !unchanged && (
+          <SplitPreview
+            amountPaise={salaryPaise + cycle.bonusPaise}
+            pct={{ needs: cycle.needsPct, wants: cycle.wantsPct, savings: cycle.savingsPct }}
           />
-          {split && !unchanged && (
-            <p className="hint">
-              Needs {formatPaise(split.needs)} · Wants {formatPaise(split.wants)} · Savings {formatPaise(split.savings)}
-            </p>
-          )}
-          <div className="form-actions">
-            <button type="submit" disabled={submitting || unchanged}>
-              {submitting ? 'Saving…' : 'Update salary'}
-            </button>
-          </div>
-        </form>
+        )}
+        <div className="form-actions">
+          <button type="submit" disabled={submitting || unchanged}>
+            {submitting ? 'Saving…' : 'Update salary'}
+          </button>
+        </div>
+      </form>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
       )}
+      {success && (
+        <p className="success" role="status">
+          {success}
+        </p>
+      )}
+    </article>
+  )
+}
+
+// One of the four presets, from the current cycle onward (like a salary change).
+function SplitSettings({ cycle, onCycle }: CycleProps) {
+  const current = presetOf(cycle)
+  const [preset, setPreset] = useState<SplitPreset>(current?.id ?? 'BALANCED')
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const chosen = SPLITS.find((s) => s.id === preset)!
+  const unchanged = current?.id === preset
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (submitting || unchanged) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const updated = await changeSplit(preset)
+      onCycle(updated)
+      setSuccess(`${chosen.name} (${splitLabel(chosen)}) now applies to this cycle and the ones after it.`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong')
+      setSuccess(null)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <article className="card" aria-labelledby="split-title">
+      <h2 id="split-title">Budget split</h2>
+      <form onSubmit={handleSubmit} noValidate>
+        <p className="muted">Applies to the current cycle and later ones. Past cycles keep their split.</p>
+        <SplitPicker
+          value={preset}
+          legend="Split"
+          onChange={(next) => {
+            setPreset(next)
+            setSuccess(null)
+          }}
+        />
+        {!unchanged && <SplitPreview amountPaise={incomeOf(cycle)} pct={chosen} />}
+        <div className="form-actions">
+          <button type="submit" disabled={submitting || unchanged}>
+            {submitting ? 'Saving…' : 'Use this split'}
+          </button>
+        </div>
+      </form>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {success && (
+        <p className="success" role="status">
+          {success}
+        </p>
+      )}
+    </article>
+  )
+}
+
+// Extra money for the current cycle only, split like the salary.
+function BonusSettings({ cycle, onCycle }: CycleProps) {
+  const [bonusText, setBonusText] = useState(cycle.bonusPaise > 0 ? paiseToInput(cycle.bonusPaise) : '')
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const bonusPaise = bonusText.trim() === '' ? 0 : parseRupeesToPaise(bonusText)
+  const valid = bonusPaise !== null && bonusPaise >= 0 && bonusPaise <= MAX_SALARY_PAISE
+  const unchanged = bonusPaise === cycle.bonusPaise
+
+  async function save(amount: number) {
+    setSubmitting(true)
+    setError(null)
+    try {
+      const updated = await changeBonus(amount)
+      onCycle(updated)
+      setBonusText(updated.bonusPaise > 0 ? paiseToInput(updated.bonusPaise) : '')
+      setSuccess(
+        updated.bonusPaise > 0
+          ? `Bonus of ${formatPaise(updated.bonusPaise)} added to this cycle, split like your salary.`
+          : 'Bonus removed from this cycle.',
+      )
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong')
+      setSuccess(null)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <article className="card" aria-labelledby="bonus-title">
+      <h2 id="bonus-title">Bonus this cycle</h2>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (submitting || unchanged) return
+          if (!valid) {
+            setError('Enter a bonus between ₹0 and ₹1,00,00,000, with at most 2 decimals')
+            setSuccess(null)
+            return
+          }
+          void save(bonusPaise)
+        }}
+        noValidate
+      >
+        <p className="muted">
+          Extra money for {formatDate(cycle.periodStart)} – {formatDate(cycle.periodEnd)} only. It is split like your
+          salary and does not carry over to the next cycle.
+        </p>
+        <label htmlFor="settings-bonus">Bonus amount (₹)</label>
+        <input
+          id="settings-bonus"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          placeholder="0"
+          value={bonusText}
+          onChange={(e) => {
+            setBonusText(e.target.value)
+            setSuccess(null)
+          }}
+        />
+        {valid && !unchanged && bonusPaise > 0 && (
+          <SplitPreview
+            amountPaise={bonusPaise}
+            pct={{ needs: cycle.needsPct, wants: cycle.wantsPct, savings: cycle.savingsPct }}
+          />
+        )}
+        <div className="form-actions">
+          <button type="submit" disabled={submitting || unchanged}>
+            {submitting ? 'Saving…' : cycle.bonusPaise > 0 ? 'Update bonus' : 'Add bonus'}
+          </button>
+          {cycle.bonusPaise > 0 && (
+            <button type="button" className="secondary" disabled={submitting} onClick={() => void save(0)}>
+              Remove bonus
+            </button>
+          )}
+        </div>
+      </form>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {success && (
+        <p className="success" role="status">
+          {success}
+        </p>
+      )}
+    </article>
+  )
+}
+
+// Savings the user had before; only the starting point of total savings.
+function OpeningBalanceSettings({ me, onUserChanged }: Props) {
+  const [text, setText] = useState(me.openingBalancePaise !== null ? paiseToInput(me.openingBalancePaise) : '')
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const amount = parseRupeesToPaise(text)
+  const valid = amount !== null && amount >= 0 && amount <= MAX_OPENING_PAISE
+  const unchanged = amount === me.openingBalancePaise
+
+  async function save(value: number | null) {
+    setSubmitting(true)
+    setError(null)
+    try {
+      await changeOpeningBalance(value)
+      await onUserChanged()
+      if (value === null) setText('')
+      setSuccess(value === null ? 'Opening balance removed.' : 'Opening balance saved.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong')
+      setSuccess(null)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <article className="card" aria-labelledby="opening-title">
+      <h2 id="opening-title">Opening balance</h2>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (submitting || unchanged) return
+          if (!valid) {
+            setError('Enter your savings in rupees, with at most 2 decimals')
+            setSuccess(null)
+            return
+          }
+          void save(amount)
+        }}
+        noValidate
+      >
+        <p className="muted">
+          Savings you had before using Fifty30. Your total savings in Reports starts from it; it never changes your
+          monthly budget.
+        </p>
+        <label htmlFor="settings-opening">Savings you started with (₹)</label>
+        <input
+          id="settings-opening"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          placeholder="Not set"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value)
+            setSuccess(null)
+          }}
+        />
+        <div className="form-actions">
+          <button type="submit" disabled={submitting || unchanged || text.trim() === ''}>
+            {submitting ? 'Saving…' : 'Save'}
+          </button>
+          {me.openingBalancePaise !== null && (
+            <button type="button" className="secondary" disabled={submitting} onClick={() => void save(null)}>
+              Remove
+            </button>
+          )}
+        </div>
+      </form>
       {error && (
         <p className="error" role="alert">
           {error}

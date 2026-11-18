@@ -64,6 +64,9 @@ The full list, with request and response shapes, is on the API docs page (spring
 - `PUT /api/settings/pay-day` schedules a pay day change. It waits one full cycle: the current and next cycle keep the old pay day.
 - `GET /api/cycles/current/report` returns spending against the plan for the current cycle: needs, wants, savings, investments, a per-category breakdown and overspend flags.
 - `GET /api/cycles/report?date=YYYY-MM-DD` returns the same report for the cycle containing that date. Both include daily totals.
+- `PUT /api/cycles/current/split` with `{split}` (`BALANCED`, `HIGH_RENT`, `SAVER` or `LOW_COST`) re-splits the current cycle; later cycles copy it.
+- `PUT /api/cycles/current/bonus` with `{bonusPaise}` sets the bonus for the current cycle, split like salary (`0` removes it; it is not copied to later cycles).
+- `PUT /api/settings/opening-balance` with `{openingBalancePaise}` (or `null` to remove) sets savings held before using the app. `POST /api/onboarding` also accepts optional `split` and `openingBalancePaise`.
 - `POST /api/cycles/current/salary/confirm` answers "Did your salary change?" with "no" for the current cycle.
 - `GET /api/cycles/history?date=&count=` returns up to 12 cycles with their totals, oldest first.
 - `GET /api/reports/cycles` returns every cycle with its totals and expense count (yearly and savings reports).

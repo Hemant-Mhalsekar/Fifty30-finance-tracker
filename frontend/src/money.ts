@@ -32,13 +32,16 @@ export function formatPaise(paise: number): string {
 }
 
 /**
- * The 50/30/20 split exactly as the backend computes it: floor for needs and wants,
- * the remainder for savings, so the three always add up to the salary.
+ * A split exactly as the backend computes it (50/30/20 unless given): floor for needs and wants,
+ * the remainder for savings, so the three always add up to the amount.
  */
-export function splitBudget(salaryPaise: number): { needs: number; wants: number; savings: number } {
-  const needs = Math.floor((salaryPaise * 50) / 100)
-  const wants = Math.floor((salaryPaise * 30) / 100)
-  return { needs, wants, savings: salaryPaise - needs - wants }
+export function splitBudget(
+  amountPaise: number,
+  pct: { needs: number; wants: number } = { needs: 50, wants: 30 },
+): { needs: number; wants: number; savings: number } {
+  const needs = Math.floor((amountPaise * pct.needs) / 100)
+  const wants = Math.floor((amountPaise * pct.wants) / 100)
+  return { needs, wants, savings: amountPaise - needs - wants }
 }
 
 /** Paise as plain editable text without grouping: 120050 -> "1200.50", 50000 -> "500". */

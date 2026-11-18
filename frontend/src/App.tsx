@@ -282,7 +282,7 @@ export default function App() {
         <Route path="budgets" element={<Budgets />} />
         <Route path="more" element={<More me={me} onLogout={handleLogout} loggingOut={loggingOut} />} />
         <Route path="categories" element={<Categories />} />
-        <Route path="reports" element={<Reports />} />
+        <Route path="reports" element={<Reports openingBalancePaise={me.openingBalancePaise} />} />
         <Route path="recurring" element={<Recurring />} />
         <Route
           path="settings"

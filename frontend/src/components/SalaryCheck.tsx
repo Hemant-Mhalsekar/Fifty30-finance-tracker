@@ -22,7 +22,9 @@ export default function SalaryCheck({ cycle, onAnswered }: Props) {
 
   const salaryPaise = parseRupeesToPaise(salaryText)
   const valid = salaryPaise !== null && salaryPaise >= MIN_SALARY_PAISE && salaryPaise <= MAX_SALARY_PAISE
-  const split = valid ? splitBudget(salaryPaise) : null
+  const split = valid
+    ? splitBudget(salaryPaise + cycle.bonusPaise, { needs: cycle.needsPct, wants: cycle.wantsPct })
+    : null
 
   async function run(action: () => Promise<void>) {
     setBusy(true)

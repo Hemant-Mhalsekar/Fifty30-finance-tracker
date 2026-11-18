@@ -7,8 +7,8 @@ test('a new user is sent to onboarding from any URL and sees the split before sa
   await expect(page).toHaveURL(/\/onboarding$/)
 
   await page.getByLabel('Monthly take-home salary').fill('50,000')
-  await expect(page.getByText('₹25,000.00')).toBeVisible() // needs, 50%
-  await expect(page.getByText('₹15,000.00')).toBeVisible() // wants, 30%
+  await expect(page.getByText('₹25,000', { exact: true })).toBeVisible() // needs, 50%
+  await expect(page.getByText('₹15,000', { exact: true })).toBeVisible() // wants, 30%
   await page.getByLabel(/Pay day/).selectOption('25')
   await page.getByRole('button', { name: 'Start tracking' }).click()
 
@@ -115,4 +115,20 @@ test('signing up asks for a name, which the greeting then uses', async ({ page, 
   await page.getByLabel('Monthly take-home salary').fill('50,000')
   await page.getByRole('button', { name: 'Start tracking' }).click()
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Good (morning|afternoon|evening), Asha$/)
+})
+
+test('setup: a split and current savings can be chosen', async ({ page, request }) => {
+  await resetApi(request, { onboarded: false })
+  await page.goto('/')
+  await page.getByLabel('Monthly take-home salary').fill('50,000')
+  await page.getByLabel(/Saver/).check()
+  await expect(page.getByText('Savings 30%')).toBeVisible()
+  await expect(page.getByText('₹15,000', { exact: true })).toBeVisible() // savings, 30%
+  await page.getByLabel('Yes').check()
+  await page.getByLabel('Current savings').fill('2,50,000')
+  await page.getByRole('button', { name: 'Start tracking' }).click()
+
+  await expect(page.getByRole('article', { name: 'Savings' })).toContainText('30% • Goal')
+  const me = await (await request.get('http://localhost:8080/api/me')).json()
+  expect(me.openingBalancePaise).toBe(25_000_000)
 })

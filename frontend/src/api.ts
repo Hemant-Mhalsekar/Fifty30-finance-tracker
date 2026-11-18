@@ -1,4 +1,5 @@
 import { errorMessage } from './errors'
+import type { SplitPreset } from './splits'
 
 // The access token lives only in this module variable (never in any browser storage).
 // It is lost on page reload; the HttpOnly refresh cookie is used to get a new one.
@@ -254,6 +255,8 @@ export type Me = {
   name: string | null
   // Settings switch: false greets without the name (it stays saved).
   showName: boolean
+  // Savings the user had before using the app; null when none given.
+  openingBalancePaise: number | null
   payDay: number | null
   pendingPayDay: number | null
   pendingPayDayFrom: string | null
@@ -272,10 +275,37 @@ export type Cycle = {
   savingsPaise: number
   // False until "Did your salary change?" is answered for this cycle.
   salaryConfirmed: boolean
+  // Extra money for this cycle only; the three allocations are split from salary + bonus.
+  bonusPaise: number
+  needsPct: number
+  wantsPct: number
+  savingsPct: number
 }
 
-export function onboard(salaryPaise: number, payDay: number): Promise<{ payDay: number; cycle: Cycle }> {
-  return sendJson('/api/onboarding', 'POST', { salaryPaise, payDay })
+export function onboard(
+  salaryPaise: number,
+  payDay: number,
+  split: SplitPreset,
+  openingBalancePaise: number | null,
+): Promise<{ payDay: number; cycle: Cycle }> {
+  return sendJson('/api/onboarding', 'POST', { salaryPaise, payDay, split, openingBalancePaise })
+}
+
+/** From the current cycle onward; past cycles keep their split. */
+export function changeSplit(split: SplitPreset): Promise<Cycle> {
+  return sendJson<Cycle>('/api/cycles/current/split', 'PUT', { split })
+}
+
+/** The current cycle's bonus, split like the salary. 0 removes it. */
+export function changeBonus(bonusPaise: number): Promise<Cycle> {
+  return sendJson<Cycle>('/api/cycles/current/bonus', 'PUT', { bonusPaise })
+}
+
+/** null removes it. */
+export function changeOpeningBalance(
+  openingBalancePaise: number | null,
+): Promise<{ openingBalancePaise: number | null }> {
+  return sendJson('/api/settings/opening-balance', 'PUT', { openingBalancePaise })
 }
 
 /** Blank clears the name. showName false greets without it but keeps it saved. */

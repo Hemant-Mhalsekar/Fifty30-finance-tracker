@@ -1,3 +1,4 @@
+import { incomeOf } from './splits'
 import type { CycleHistoryItem, WeeklyData } from './api'
 import { addDays } from './dates'
 
@@ -48,7 +49,8 @@ export function weekRows(data: WeeklyData): WeekRow[] {
 export type YearRow = {
   year: number
   cycles: number
-  salaryPaise: number
+  // Salary + bonus.
+  incomePaise: number
   needsPaise: number
   wantsPaise: number
   investedPaise: number
@@ -63,14 +65,14 @@ export function yearRows(items: CycleHistoryItem[]): YearRow[] {
     const row = years.get(year) ?? {
       year,
       cycles: 0,
-      salaryPaise: 0,
+      incomePaise: 0,
       needsPaise: 0,
       wantsPaise: 0,
       investedPaise: 0,
       savedPaise: 0,
     }
     row.cycles += 1
-    row.salaryPaise += item.cycle.salaryPaise
+    row.incomePaise += incomeOf(item.cycle)
     row.needsPaise += item.needsSpentPaise
     row.wantsPaise += item.wantsSpentPaise
     row.investedPaise += item.investedPaise
@@ -85,7 +87,11 @@ export type SavingsRow = { item: CycleHistoryItem; runningPaise: number }
 export type SavingsSummary = {
   // Finished cycles with at least one expense, oldest first, with a running total of saved.
   rows: SavingsRow[]
+  // Saved in finished cycles, without the opening balance.
   totalSavedPaise: number
+  // What the user had before (0 if none given) and the running total including it.
+  openingPaise: number
+  totalWithOpeningPaise: number
   totalInvestedPaise: number
   // Finished cycles with nothing logged: they would count as saving the whole salary.
   skipped: number
@@ -97,9 +103,9 @@ export type SavingsSummary = {
  * Savings over time: the sum of what was left over in finished cycles that have at least one
  * expense. The current cycle is separate, since its "saved" shrinks as the cycle goes on.
  */
-export function savingsSummary(items: CycleHistoryItem[], today: string): SavingsSummary {
+export function savingsSummary(items: CycleHistoryItem[], today: string, openingPaise = 0): SavingsSummary {
   const rows: SavingsRow[] = []
-  let running = 0
+  let saved = 0
   let invested = 0
   let skipped = 0
   let current: CycleHistoryItem | null = null
@@ -113,9 +119,17 @@ export function savingsSummary(items: CycleHistoryItem[], today: string): Saving
       skipped++
       continue
     }
-    running += item.savedPaise
+    saved += item.savedPaise
     invested += item.investedPaise
-    rows.push({ item, runningPaise: running })
+    rows.push({ item, runningPaise: openingPaise + saved })
   }
-  return { rows, totalSavedPaise: running, totalInvestedPaise: invested, skipped, current }
+  return {
+    rows,
+    totalSavedPaise: saved,
+    openingPaise,
+    totalWithOpeningPaise: openingPaise + saved,
+    totalInvestedPaise: invested,
+    skipped,
+    current,
+  }
 }

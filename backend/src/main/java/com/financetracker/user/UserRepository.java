@@ -38,6 +38,11 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update User u set u.openingBalancePaise = :paise where u.id = :id")
+    int updateOpeningBalance(@Param("id") UUID id, @Param("paise") Long paise);
+
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update User u set u.showName = :show where u.id = :id")
     int updateShowName(@Param("id") UUID id, @Param("show") boolean show);
 

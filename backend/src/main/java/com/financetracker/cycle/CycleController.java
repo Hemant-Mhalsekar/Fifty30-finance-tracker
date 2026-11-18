@@ -31,6 +31,17 @@ public class CycleController {
             Long salaryPaise) {
     }
 
+    public record SplitRequest(@NotNull(message = "Split is required") SplitPreset split) {
+    }
+
+    // 0 removes the bonus.
+    public record BonusRequest(
+            @NotNull(message = "Bonus is required")
+            @Min(value = 0, message = "Bonus must be between ₹0 and ₹1,00,00,000")
+            @Max(value = 1_000_000_000L, message = "Bonus must be between ₹0 and ₹1,00,00,000")
+            Long bonusPaise) {
+    }
+
     private final CycleService cycleService;
 
     public CycleController(CycleService cycleService) {
@@ -50,6 +61,21 @@ public class CycleController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody SalaryRequest request) {
         return cycleService.changeCurrentSalary(UUID.fromString(jwt.getSubject()), request.salaryPaise());
+    }
+
+    @Operation(summary = "Change the current cycle's split",
+            description = "One of BALANCED (50/30/20), HIGH_RENT (60/20/20), SAVER (50/20/30), LOW_COST (40/30/30)."
+                    + " Later cycles copy it; past cycles keep theirs.")
+    @PutMapping("/current/split")
+    public CycleView changeSplit(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody SplitRequest request) {
+        return cycleService.changeCurrentSplit(UUID.fromString(jwt.getSubject()), request.split());
+    }
+
+    @Operation(summary = "Set the current cycle's bonus",
+            description = "Extra money for this cycle only, split like the salary. 0 removes it.")
+    @PutMapping("/current/bonus")
+    public CycleView changeBonus(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody BonusRequest request) {
+        return cycleService.changeCurrentBonus(UUID.fromString(jwt.getSubject()), request.bonusPaise());
     }
 
     // Answers "Did your salary change?" with "No". Changing the salary answers it too.

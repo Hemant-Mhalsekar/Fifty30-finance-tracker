@@ -42,12 +42,33 @@ public class SettingsController {
     public record NameView(String name, boolean showName) {
     }
 
+    // null removes it.
+    public record OpeningBalanceRequest(
+            @Min(value = 0, message = "Opening balance must be between ₹0 and ₹10,00,00,00,000")
+            @Max(value = 100_000_000_000L, message = "Opening balance must be between ₹0 and ₹10,00,00,00,000")
+            Long openingBalancePaise) {
+    }
+
+    public record OpeningBalanceView(Long openingBalancePaise) {
+    }
+
     private final SettingsService settingsService;
     private final UserRepository users;
 
     public SettingsController(SettingsService settingsService, UserRepository users) {
         this.settingsService = settingsService;
         this.users = users;
+    }
+
+    @Operation(summary = "Set or remove your opening balance",
+            description = "Savings you had before using the app; the starting point of total savings."
+                    + " null removes it. It never changes a cycle's budget.")
+    @PutMapping("/opening-balance")
+    public OpeningBalanceView changeOpeningBalance(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody OpeningBalanceRequest request) {
+        users.updateOpeningBalance(UUID.fromString(jwt.getSubject()), request.openingBalancePaise());
+        return new OpeningBalanceView(request.openingBalancePaise());
     }
 
     @Operation(summary = "Set your name and whether the greeting shows it",

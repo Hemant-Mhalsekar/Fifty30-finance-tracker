@@ -31,6 +31,10 @@ public class Cycle {
     @Column(name = "salary_paise", nullable = false)
     private long salaryPaise;
 
+    // A bonus for this cycle only (V12); the allocations below are split from salary + bonus.
+    @Column(name = "bonus_paise", nullable = false)
+    private long bonusPaise;
+
     @Column(name = "needs_pct", nullable = false)
     private short needsPct;
 
@@ -101,6 +105,15 @@ public class Cycle {
         return salaryPaise;
     }
 
+    public long getBonusPaise() {
+        return bonusPaise;
+    }
+
+    // What this cycle's budget is split from.
+    public long getIncomePaise() {
+        return salaryPaise + bonusPaise;
+    }
+
     public short getNeedsPct() {
         return needsPct;
     }
@@ -153,5 +166,14 @@ public class Cycle {
         this.wantsPaise = wantsPaise;
         this.savingsPaise = savingsPaise;
     }
-}
 
+    // Redoes the three allocations from salary + bonus with the given percentages.
+    public void rebudget(long newSalaryPaise, long newBonusPaise, short newNeedsPct, short newWantsPct,
+            short newSavingsPct) {
+        BudgetSplit split = BudgetSplit.of(
+                Math.addExact(newSalaryPaise, newBonusPaise), newNeedsPct, newWantsPct, newSavingsPct);
+        this.bonusPaise = newBonusPaise;
+        applyBudget(newSalaryPaise, newNeedsPct, newWantsPct, newSavingsPct,
+                split.needsPaise(), split.wantsPaise(), split.savingsPaise());
+    }
+}

@@ -37,11 +37,30 @@ function following(iso, day) {
   return m === 12 ? occurrenceIn(y + 1, 1, day) : occurrenceIn(y, m + 1, day)
 }
 
-function split(salaryPaise) {
-  const needsPaise = Math.floor((salaryPaise * 50) / 100)
-  const wantsPaise = Math.floor((salaryPaise * 30) / 100)
-  return { needsPaise, wantsPaise, savingsPaise: salaryPaise - needsPaise - wantsPaise }
+const PRESETS = {
+  BALANCED: [50, 30, 20],
+  HIGH_RENT: [60, 20, 20],
+  SAVER: [50, 20, 30],
+  LOW_COST: [40, 30, 30],
 }
+
+// Like the server: the allocations are split from salary + bonus; 50/30/20 by default.
+function split(salaryPaise, bonusPaise = 0, [needsPct, wantsPct, savingsPct] = PRESETS.BALANCED) {
+  const income = salaryPaise + bonusPaise
+  const needsPaise = Math.floor((income * needsPct) / 100)
+  const wantsPaise = Math.floor((income * wantsPct) / 100)
+  return {
+    bonusPaise,
+    needsPct,
+    wantsPct,
+    savingsPct,
+    needsPaise,
+    wantsPaise,
+    savingsPaise: income - needsPaise - wantsPaise,
+  }
+}
+
+const pctOf = (cycle) => [cycle.needsPct, cycle.wantsPct, cycle.savingsPct]
 
 let state
 
@@ -94,6 +113,7 @@ function reset({ onboarded = true, salaryConfirmed = true } = {}) {
       email: 'test@example.com',
       name: null,
       showName: true,
+      openingBalancePaise: null,
       payDay: onboarded ? 25 : null,
       pendingPayDay: null,
       pendingPayDayFrom: null,
@@ -147,7 +167,7 @@ function report(cycle) {
     row.expenseCount += 1
     byCategory.set(key, row)
   }
-  const saved = cycle.salaryPaise - needs - wants
+  const saved = cycle.salaryPaise + cycle.bonusPaise - needs - wants
   const total = Math.round((Date.parse(cycle.periodEnd) - Date.parse(cycle.periodStart)) / 86_400_000) + 1
   const elapsed = Math.min(total, Math.round((Date.parse(today()) - Date.parse(cycle.periodStart)) / 86_400_000) + 1)
   const line = (allocated, spent) => ({
@@ -163,7 +183,7 @@ function report(cycle) {
     wants: line(cycle.wantsPaise, wants),
     savings: { plannedPaise: cycle.savingsPaise, savedPaise: saved, investedPaise: invested, deficit: saved < 0 },
     totalLoggedPaise: needs + wants + invested,
-    spendingExceedsSalary: needs + wants + invested > cycle.salaryPaise,
+    spendingExceedsSalary: needs + wants + invested > cycle.salaryPaise + cycle.bonusPaise,
     expenseCount: inCycle.length,
     categories: [...byCategory.values()].sort((a, b) => b.spentPaise - a.spentPaise),
     lastExpenseLoggedOn: state.expenses.length ? today() : null,
@@ -303,12 +323,13 @@ function handle(req, res, body) {
   if (path === '/api/onboarding') {
     if (state.me.payDay !== null) return fail(res, 409, 'Setup already completed')
     state.me.payDay = body.payDay
+    state.me.openingBalancePaise = body.openingBalancePaise ?? null
     const start = addDays(today(), -10)
     state.cycles.push({
       periodStart: start,
       periodEnd: addDays(start, 30),
       salaryPaise: body.salaryPaise,
-      ...split(body.salaryPaise),
+      ...split(body.salaryPaise, 0, PRESETS[body.split ?? 'BALANCED']),
       salaryConfirmed: true,
     })
     return send(res, 201, { payDay: body.payDay, cycle: currentCycle() })
@@ -349,9 +370,26 @@ function handle(req, res, body) {
     currentCycle().salaryConfirmed = true
     return send(res, 200, currentCycle())
   }
+  if (path === '/api/cycles/current/split') {
+    if (!PRESETS[body.split]) return fail(res, 400, 'Malformed request body')
+    const c = currentCycle()
+    Object.assign(c, split(c.salaryPaise, c.bonusPaise, PRESETS[body.split]))
+    return send(res, 200, c)
+  }
+  if (path === '/api/cycles/current/bonus') {
+    if (!(body.bonusPaise >= 0)) return fail(res, 400, 'Bonus must be between ₹0 and ₹1,00,00,000')
+    const c = currentCycle()
+    Object.assign(c, split(c.salaryPaise, body.bonusPaise, pctOf(c)))
+    return send(res, 200, c)
+  }
   if (path === '/api/cycles/current/salary') {
-    Object.assign(currentCycle(), { salaryPaise: body.salaryPaise, ...split(body.salaryPaise), salaryConfirmed: true })
+    const c = currentCycle()
+    Object.assign(c, { salaryPaise: body.salaryPaise, ...split(body.salaryPaise, c.bonusPaise, pctOf(c)), salaryConfirmed: true })
     return send(res, 200, currentCycle())
+  }
+  if (path === '/api/settings/opening-balance') {
+    state.me.openingBalancePaise = body.openingBalancePaise ?? null
+    return send(res, 200, { openingBalancePaise: state.me.openingBalancePaise })
   }
   if (path === '/api/settings/name') {
     const name = body.name?.trim().replace(/\s+/g, ' ') || null

@@ -45,6 +45,10 @@ public class User {
     @Column(name = "display_name")
     private String displayName;
 
+    // Savings the user had before using the app (V12); null when none given.
+    @Column(name = "opening_balance_paise")
+    private Long openingBalancePaise;
+
     // Whether the greeting uses the name (V11). Off keeps the name saved.
     @Column(name = "show_name", nullable = false)
     private boolean showName = true;
@@ -130,5 +134,9 @@ public class User {
 
     public boolean isShowName() {
         return showName;
+    }
+
+    public Long getOpeningBalancePaise() {
+        return openingBalancePaise;
     }
 }

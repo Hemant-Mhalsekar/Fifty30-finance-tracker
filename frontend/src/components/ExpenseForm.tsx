@@ -147,11 +147,7 @@ export default function ExpenseForm({
           />
         </div>
         <p className="counts-toward" aria-live="polite">
-          {bucket && (
-            <span className={`pill ${bucket.toLowerCase()}`}>
-              Counts toward {TYPE_LABELS[bucket]}s ({BUCKET_SHARE[bucket]})
-            </span>
-          )}
+          {bucket && <span className={`pill ${bucket.toLowerCase()}`}>Counts toward {TYPE_LABELS[bucket]}s</span>}
         </p>
       </div>
 
@@ -227,7 +223,7 @@ export default function ExpenseForm({
               <label key={t} style={BUCKET_STYLE[t]}>
                 <input type="radio" name={`${id}-type`} value={t} checked={type === t} onChange={() => setType(t)} />
                 {TYPE_LABELS[t]}
-                <small>{BUCKET_SHARE[t]}</small>
+                <small>{BUCKET_HINT[t]}</small>
               </label>
             ))}
           </div>
@@ -256,7 +252,8 @@ export default function ExpenseForm({
   )
 }
 
-const BUCKET_SHARE: Record<BudgetType, string> = { NEED: '50%', WANT: '30%', INVESTMENT: '20%' }
+// The split is per user, so the cards describe each bucket instead of showing a percentage.
+const BUCKET_HINT: Record<BudgetType, string> = { NEED: 'Essentials', WANT: 'Lifestyle', INVESTMENT: 'Savings' }
 
 // Colours for the selected bucket card (strong border, soft fill, readable text).
 const BUCKET_STYLE: Record<BudgetType, CSSProperties> = {
