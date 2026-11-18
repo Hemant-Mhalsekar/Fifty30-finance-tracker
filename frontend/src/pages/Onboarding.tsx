@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type FormEvent } from 'react'
 import { ApiError, onboard } from '../api'
-import { BrandMark } from '../components/icons'
+import { BrandLockup } from '../components/icons'
 import { formatPaise, parseRupeesToPaise, splitBudget } from '../money'
 
 const MIN_SALARY_PAISE = 100
@@ -14,6 +14,7 @@ type Props = {
 export default function Onboarding({ onDone }: Props) {
   const [salaryText, setSalaryText] = useState('')
   const [payDay, setPayDay] = useState('1')
+  const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -32,7 +33,7 @@ export default function Onboarding({ onDone }: Props) {
     setSubmitting(true)
     setError(null)
     try {
-      await onboard(salaryPaise, Number(payDay))
+      await onboard(salaryPaise, Number(payDay), name.trim() || undefined)
       await onDone()
     } catch (e) {
       // 409 means setup was already completed (for example in another tab): just move on.
@@ -47,10 +48,7 @@ export default function Onboarding({ onDone }: Props) {
 
   return (
     <main className="welcome">
-      <div className="brand">
-        <BrandMark />
-        Fifty30
-      </div>
+      <BrandLockup />
       <div className="card">
         <form onSubmit={handleSubmit} noValidate>
           <h1>Set up your budget</h1>
@@ -58,6 +56,21 @@ export default function Onboarding({ onDone }: Props) {
             Each pay cycle runs from one pay day to the next and is split 50/30/20: needs, wants, and savings including
             investments.
           </p>
+
+          <div className="field">
+            <label htmlFor="name">
+              Your name <span className="muted">(optional)</span>
+            </label>
+            <input
+              id="name"
+              type="text"
+              maxLength={50}
+              autoComplete="given-name"
+              placeholder="For the greeting"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
 
           <div className="field">
             <label htmlFor="salary">Monthly take-home salary</label>
@@ -78,15 +91,15 @@ export default function Onboarding({ onDone }: Props) {
 
           {split && (
             <dl className="split-preview" aria-live="polite">
-              <div style={{ '--c': 'var(--need)' } as CSSProperties}>
+              <div style={{ '--t': 'var(--need-soft)', '--tc': 'var(--need-text)' } as CSSProperties}>
                 <dt>Needs 50%</dt>
                 <dd>{formatPaise(split.needs)}</dd>
               </div>
-              <div style={{ '--c': 'var(--want)' } as CSSProperties}>
+              <div style={{ '--t': 'var(--want-soft)', '--tc': 'var(--want-text)' } as CSSProperties}>
                 <dt>Wants 30%</dt>
                 <dd>{formatPaise(split.wants)}</dd>
               </div>
-              <div style={{ '--c': 'var(--save)' } as CSSProperties}>
+              <div style={{ '--t': 'var(--save-soft)', '--tc': 'var(--save-text)' } as CSSProperties}>
                 <dt>Savings 20%</dt>
                 <dd>{formatPaise(split.savings)}</dd>
               </div>

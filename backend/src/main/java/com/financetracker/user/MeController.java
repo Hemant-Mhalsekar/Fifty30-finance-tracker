@@ -17,8 +17,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RestController
 public class MeController {
 
-    // pendingPayDay and pendingPayDayFrom are null unless a pay day change is scheduled.
-    public record MeResponse(UUID id, String email, Short payDay, Short pendingPayDay, LocalDate pendingPayDayFrom) {
+    // pendingPayDay and pendingPayDayFrom are null unless a pay day change is scheduled; name is null until given.
+    public record MeResponse(UUID id, String email, String name, Short payDay, Short pendingPayDay,
+            LocalDate pendingPayDayFrom) {
     }
 
     private final UserRepository users;
@@ -34,7 +35,7 @@ public class MeController {
         UUID id = UUID.fromString(jwt.getSubject());
         User user = users.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized"));
-        return new MeResponse(user.getId(), user.getEmail(), user.getPayDay(),
+        return new MeResponse(user.getId(), user.getEmail(), user.getDisplayName(), user.getPayDay(),
                 user.getPendingPayDay(), user.getPendingPayDayFrom());
     }
 }

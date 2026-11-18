@@ -35,7 +35,10 @@ export default function CycleSpendChart({ report, isCurrent }: { report: CycleRe
 
   const head = (
     <div className="chart-head">
-      <h2>Spending over the cycle</h2>
+      <div>
+        <h2>Spending trend</h2>
+        <p className="muted">Needs + wants so far vs an even pace</p>
+      </div>
       {last && <PaceStatus spent={last.runningPaise} pace={last.pacePaise} budget={budget} isCurrent={isCurrent} />}
     </div>
   )

@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.financetracker.cycle.CycleView;
+import com.financetracker.user.DisplayNames;
+import com.financetracker.user.UserRepository;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -30,26 +32,36 @@ public class OnboardingController {
 
             @Min(value = 1, message = "Pay day must be between 1 and 31")
             @Max(value = 31, message = "Pay day must be between 1 and 31")
-            int payDay) {
+            int payDay,
+
+            // Optional, for the greeting.
+            String name) {
     }
 
     public record OnboardingResponse(int payDay, CycleView cycle) {
     }
 
     private final OnboardingService onboardingService;
+    private final UserRepository users;
 
-    public OnboardingController(OnboardingService onboardingService) {
+    public OnboardingController(OnboardingService onboardingService, UserRepository users) {
         this.onboardingService = onboardingService;
+        this.users = users;
     }
 
     @Operation(summary = "Set salary and pay day",
-            description = "Once per account. Creates the first cycle and the default categories.")
+            description = "Once per account. Creates the first cycle and the default categories. name is optional.")
     @PostMapping("/api/onboarding")
     public ResponseEntity<OnboardingResponse> onboard(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody OnboardingRequest request) {
         UUID userId = UUID.fromString(jwt.getSubject());
+        // Checked before onboarding so a bad name cannot leave setup half done.
+        String name = DisplayNames.normalize(request.name());
         CycleView cycle = onboardingService.onboard(userId, request.salaryPaise(), request.payDay());
+        if (name != null) {
+            users.updateDisplayName(userId, name);
+        }
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new OnboardingResponse(request.payDay(), cycle));
     }

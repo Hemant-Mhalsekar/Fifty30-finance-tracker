@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.financetracker.user.DisplayNames;
+import com.financetracker.user.UserRepository;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -29,10 +32,28 @@ public class SettingsController {
             Integer payDay) {
     }
 
-    private final SettingsService settingsService;
+    // Blank or missing clears the name.
+    public record NameRequest(String name) {
+    }
 
-    public SettingsController(SettingsService settingsService) {
+    public record NameView(String name) {
+    }
+
+    private final SettingsService settingsService;
+    private final UserRepository users;
+
+    public SettingsController(SettingsService settingsService, UserRepository users) {
         this.settingsService = settingsService;
+        this.users = users;
+    }
+
+    @Operation(summary = "Set or clear your name",
+            description = "Shown in the greeting. Up to 50 characters; blank clears it.")
+    @PutMapping("/name")
+    public NameView changeName(@AuthenticationPrincipal Jwt jwt, @RequestBody NameRequest request) {
+        String name = DisplayNames.normalize(request.name());
+        users.updateDisplayName(UUID.fromString(jwt.getSubject()), name);
+        return new NameView(name);
     }
 
     @Operation(summary = "Schedule a pay day change",

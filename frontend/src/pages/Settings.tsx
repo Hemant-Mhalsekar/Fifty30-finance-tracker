@@ -1,5 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { changeCurrentSalary, changePayDay, getCurrentCycle, requestAccountDeletion, type Cycle, type Me } from '../api'
+import {
+  changeCurrentSalary,
+  changeName,
+  changePayDay,
+  getCurrentCycle,
+  requestAccountDeletion,
+  type Cycle,
+  type Me,
+} from '../api'
 import PasswordInput from '../components/PasswordInput'
 import { formatDate } from '../dates'
 import { formatPaise, paiseToInput, parseRupeesToPaise, splitBudget } from '../money'
@@ -25,18 +33,84 @@ export default function Settings({
 }) {
   return (
     <section className="settings">
-      <h1>Settings</h1>
+      <div className="page-head">
+        <div>
+          <h1>Settings</h1>
+          <p className="sub">Your salary, pay day, name and how the app looks</p>
+        </div>
+      </div>
       <div className="settings-grid">
+        <NameSettings me={me} onUserChanged={onUserChanged} />
         <SalarySettings />
         <PayDaySettings me={me} onUserChanged={onUserChanged} />
         <AppearanceSettings />
-        <article className="card">
-          <h2>Account</h2>
-          <p>{me.email}</p>
-        </article>
         <DeleteAccount onDeleted={onAccountDeleted} />
       </div>
     </section>
+  )
+}
+
+// The name in the dashboard greeting, and the account's email. Blank removes the name.
+function NameSettings({ me, onUserChanged }: Props) {
+  const [name, setName] = useState(me.name ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const unchanged = name.trim() === (me.name ?? '')
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (saving || unchanged) return
+    setSaving(true)
+    setError(null)
+    setSaved(false)
+    try {
+      await changeName(name)
+      await onUserChanged()
+      setSaved(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <article className="card" aria-labelledby="profile-title">
+      <h2 id="profile-title">Profile</h2>
+      <p className="muted">Signed in as {me.email}</p>
+      <form onSubmit={save} noValidate>
+        <label htmlFor="profile-name">Your name</label>
+        <input
+          id="profile-name"
+          type="text"
+          maxLength={50}
+          autoComplete="given-name"
+          placeholder="Shown in the greeting"
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value)
+            setSaved(false)
+          }}
+        />
+        <p className="hint">Optional. Leave it empty to be greeted without a name.</p>
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        {saved && (
+          <p className="success" role="status">
+            Saved.
+          </p>
+        )}
+        <div className="form-actions">
+          <button type="submit" disabled={saving || unchanged}>
+            {saving ? 'Saving…' : 'Save name'}
+          </button>
+        </div>
+      </form>
+    </article>
   )
 }
 

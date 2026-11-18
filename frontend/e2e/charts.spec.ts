@@ -7,9 +7,7 @@ test.beforeEach(async ({ request }) => {
 
 test('spending over the cycle: pace status, keyboard reading and table', async ({ page }) => {
   await page.goto('/')
-  const chart = page
-    .getByRole('article')
-    .filter({ has: page.getByRole('heading', { name: 'Spending over the cycle' }) })
+  const chart = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Spending trend' }) })
   await expect(chart).toBeVisible()
   // The seeded data spends far less than an even pace.
   await expect(chart.locator('.pace-status')).toContainText('under pace')
@@ -30,7 +28,8 @@ test('spending over the cycle: pace status, keyboard reading and table', async (
 })
 
 test('past cycles: one column per cycle with totals, newest marked', async ({ page }) => {
-  await page.goto('/')
+  // The past cycles chart lives on the Budgets page.
+  await page.goto('/budgets')
   const chart = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Past cycles' }) })
   await expect(chart).toContainText('Last 2 cycles')
 
@@ -47,15 +46,16 @@ test('past cycles: one column per cycle with totals, newest marked', async ({ pa
   await expect(chart.locator('tbody tr')).toHaveCount(2)
 })
 
-test('going back a cycle redraws both charts for that cycle', async ({ page }) => {
-  await page.goto('/')
+test('going back a cycle redraws the charts for that cycle', async ({ page }) => {
+  await page.goto('/budgets')
   await page.getByRole('button', { name: 'Previous cycle' }).click()
   const history = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Past cycles' }) })
   await expect(history).toContainText('This cycle')
   await expect(history.getByRole('button')).toHaveCount(1)
-  const spending = page
-    .getByRole('article')
-    .filter({ has: page.getByRole('heading', { name: 'Spending over the cycle' }) })
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Previous cycle' }).click()
+  const spending = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Spending trend' }) })
   // A finished cycle shows spent of budget instead of a pace status.
   await expect(spending.locator('.chart-head')).toContainText('₹0 of ₹40,000')
 })

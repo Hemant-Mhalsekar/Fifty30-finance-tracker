@@ -3,10 +3,11 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { ApiError, getMe, logout, onLoggedOut, refreshSession, waitForServer, type Me } from './api'
 import { formatDate } from './dates'
 import AppShell from './AppShell'
-import { BrandMark } from './components/icons'
+import { BrandLockup } from './components/icons'
 import AuthForm from './AuthForm'
 import AddExpense from './pages/AddExpense'
 import Categories from './pages/Categories'
+import Budgets from './pages/Budgets'
 import Dashboard from './pages/Dashboard'
 import Expenses from './pages/Expenses'
 import More from './pages/More'
@@ -186,10 +187,7 @@ export default function App() {
   if (pathname === '/reset-password' && (phase === 'form' || phase === 'ready')) {
     return (
       <main className="welcome">
-        <div className="brand">
-          <BrandMark />
-          Fifty30
-        </div>
+        <BrandLockup />
         <div className="card">
           <ResetPassword onDone={finishReset} />
         </div>
@@ -200,10 +198,7 @@ export default function App() {
   if (phase !== 'ready' || !me) {
     return (
       <main className="welcome">
-        <div className="brand">
-          <BrandMark />
-          Fifty30
-        </div>
+        <BrandLockup />
         <p className="tagline">
           Split every pay cycle 50/30/20 into needs, wants and savings, and see where your salary goes.
         </p>
@@ -281,10 +276,11 @@ export default function App() {
           />
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<Dashboard me={me} />} />
         <Route path="add" element={<AddExpense userId={me.id} />} />
         <Route path="expenses" element={<Expenses />} />
-        <Route path="more" element={<More email={me.email} onLogout={handleLogout} loggingOut={loggingOut} />} />
+        <Route path="budgets" element={<Budgets />} />
+        <Route path="more" element={<More me={me} onLogout={handleLogout} loggingOut={loggingOut} />} />
         <Route path="categories" element={<Categories />} />
         <Route path="reports" element={<Reports />} />
         <Route path="recurring" element={<Recurring />} />

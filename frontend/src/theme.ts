@@ -2,7 +2,7 @@ export type ThemePreference = 'system' | 'light' | 'dark'
 
 const STORAGE_KEY = 'fifty30-theme'
 // The page background in each mode, used for the browser and installed-app title bar.
-const BACKGROUND = { light: '#f6f7f5', dark: '#1b2028' } as const
+const BACKGROUND = { light: '#f6f6f8', dark: '#121316' } as const
 
 /** The saved choice for this device. Storage can be blocked (private mode): then it is System. */
 export function getThemePreference(): ThemePreference {

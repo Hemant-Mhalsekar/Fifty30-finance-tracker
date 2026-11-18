@@ -2,8 +2,11 @@ package com.financetracker.expense;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -26,8 +29,6 @@ public class ExpenseService {
     private static final long MIN_AMOUNT_PAISE = 1;
     private static final long MAX_AMOUNT_PAISE = 10_000_000_000L;
     private static final LocalDate MIN_EXPENSE_DATE = LocalDate.of(2000, 1, 1);
-    private static final LocalDate DEFAULT_FROM_DATE = LocalDate.of(1900, 1, 1);
-    private static final LocalDate DEFAULT_TO_DATE = LocalDate.of(9999, 12, 31);
     private static final Sort EXPENSE_SORT = Sort.by(
             Sort.Order.desc("expenseDate"),
             Sort.Order.desc("createdAt"),
@@ -151,19 +152,18 @@ public class ExpenseService {
         }
     }
 
+    // query searches descriptions (contains, ignoring case); type filters by the stored type.
+    @Transactional(readOnly = true)
     public ExpensePage list(
             UUID userId,
             LocalDate from,
             LocalDate to,
             UUID categoryId,
+            BudgetType type,
+            String query,
             int page,
             int size) {
-        LocalDate effectiveFrom = from != null ? from : DEFAULT_FROM_DATE;
-        LocalDate effectiveTo = to != null ? to : DEFAULT_TO_DATE;
-
-        if (effectiveFrom.isAfter(effectiveTo)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "From date must not be after to date");
-        }
+        ExpenseFilter filter = ExpenseFilter.of(userId, from, to, categoryId, type, query);
         if (page < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Page must be at least 0");
         }
@@ -172,21 +172,32 @@ public class ExpenseService {
         }
 
         Pageable pageable = PageRequest.of(page, size, EXPENSE_SORT);
-        Page<Expense> result = categoryId != null
-                ? expenseRepository.findByUserIdAndCategoryIdAndExpenseDateBetween(
-                        userId, categoryId, effectiveFrom, effectiveTo, pageable)
-                : expenseRepository.findByUserIdAndExpenseDateBetween(
-                        userId, effectiveFrom, effectiveTo, pageable);
+        Page<Expense> result = expenseRepository.search(filter.userId(), filter.from(), filter.to(),
+                filter.categoryId(), filter.type(), filter.descriptionPattern(), pageable);
 
         List<ExpenseView> items = result.getContent().stream()
                 .map(ExpenseView::from)
                 .toList();
+        long totalPaise = 0;
+        List<DayTotal> dayTotals = List.of();
+        if (!items.isEmpty()) {
+            totalPaise = expenseRepository.sumFiltered(filter.userId(), filter.from(), filter.to(),
+                    filter.categoryId(), filter.type(), filter.descriptionPattern());
+            Set<LocalDate> dates = new TreeSet<>();
+            items.forEach(item -> dates.add(item.expenseDate()));
+            dayTotals = expenseRepository.sumByDayIn(filter.userId(), filter.from(), filter.to(),
+                    filter.categoryId(), filter.type(), filter.descriptionPattern(), dates).stream()
+                    .sorted(Comparator.comparing(DayTotal::date).reversed())
+                    .toList();
+        }
         return new ExpensePage(
                 items,
                 result.getNumber(),
                 result.getSize(),
                 result.getTotalElements(),
-                result.getTotalPages());
+                result.getTotalPages(),
+                totalPaise,
+                dayTotals);
     }
 
     private record ValidatedFields(long amountPaise, LocalDate expenseDate, String description) {

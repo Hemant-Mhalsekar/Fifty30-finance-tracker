@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import org.hibernate.annotations.Generated;
+
 import com.financetracker.common.BudgetType;
 
 import jakarta.persistence.Column;
@@ -46,7 +48,9 @@ public class Expense {
     @Column(name = "client_id", updatable = false)
     private UUID clientId;
 
-    // Set by the database default (now()), so it is never written by the app.
+    // Set by the database default (now()), never written by the app; @Generated reads it back
+    // after the insert, so a newly created expense already has it.
+    @Generated
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private OffsetDateTime createdAt;
 

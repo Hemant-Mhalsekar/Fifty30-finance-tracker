@@ -249,6 +249,8 @@ export type BudgetType = 'NEED' | 'WANT' | 'INVESTMENT'
 export type Me = {
   id: string
   email: string
+  // For the greeting; null until the user gives one.
+  name: string | null
   payDay: number | null
   pendingPayDay: number | null
   pendingPayDayFrom: string | null
@@ -269,8 +271,13 @@ export type Cycle = {
   salaryConfirmed: boolean
 }
 
-export function onboard(salaryPaise: number, payDay: number): Promise<{ payDay: number; cycle: Cycle }> {
-  return sendJson('/api/onboarding', 'POST', { salaryPaise, payDay })
+export function onboard(salaryPaise: number, payDay: number, name?: string): Promise<{ payDay: number; cycle: Cycle }> {
+  return sendJson('/api/onboarding', 'POST', { salaryPaise, payDay, name: name || undefined })
+}
+
+/** Blank clears the name. */
+export function changeName(name: string): Promise<{ name: string | null }> {
+  return sendJson('/api/settings/name', 'PUT', { name })
 }
 
 export type BudgetLine = {
@@ -401,6 +408,8 @@ export type Expense = {
   amountPaise: number
   expenseDate: string
   description: string
+  // When it was logged (ISO with offset), not when the money was spent.
+  createdAt: string | null
 }
 
 export type NewExpense = {
@@ -432,9 +441,22 @@ export type ExpensePage = {
   size: number
   totalItems: number
   totalPages: number
+  // Every match, not only this page.
+  totalPaise: number
+  // One per date on this page, counting matches on other pages too. Newest first.
+  dayTotals: { date: string; totalPaise: number }[]
 }
 
-export type ExpenseQuery = { from?: string; to?: string; categoryId?: string; page?: number; size?: number }
+export type ExpenseQuery = {
+  from?: string
+  to?: string
+  categoryId?: string
+  type?: BudgetType | ''
+  // Searches descriptions (contains, any case).
+  q?: string
+  page?: number
+  size?: number
+}
 
 /** Newest first. Pages start at 0; size is at most 100. */
 export function listExpenses(query: ExpenseQuery): Promise<ExpensePage> {
@@ -448,7 +470,7 @@ export function listExpenses(query: ExpenseQuery): Promise<ExpensePage> {
 
 /** The matching expenses as a CSV file (oldest first), with the file name the server chose. */
 export async function exportExpensesCsv(
-  query: Pick<ExpenseQuery, 'from' | 'to' | 'categoryId'>,
+  query: Pick<ExpenseQuery, 'from' | 'to' | 'categoryId' | 'type' | 'q'>,
 ): Promise<{ filename: string; blob: Blob }> {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(query)) {

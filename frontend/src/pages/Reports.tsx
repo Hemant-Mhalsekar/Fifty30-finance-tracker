@@ -28,7 +28,12 @@ export default function Reports() {
 
   return (
     <section className="reports">
-      <h1>Reports</h1>
+      <div className="page-head">
+        <div>
+          <h1>Reports</h1>
+          <p className="sub">Weekly and yearly spending, and what you have saved over time</p>
+        </div>
+      </div>
       <fieldset className="field report-switch">
         <legend className="visually-hidden">Report</legend>
         <div className="segmented">

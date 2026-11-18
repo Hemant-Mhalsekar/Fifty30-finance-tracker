@@ -214,24 +214,29 @@ class ExpenseServiceTest {
         ResponseStatusException rangeEx = assertThrows(
                 ResponseStatusException.class,
                 () -> expenseService.list(
-                        USER_ID, LocalDate.of(2026, 10, 10), LocalDate.of(2026, 10, 9), null, 0, 20));
+                        USER_ID, LocalDate.of(2026, 10, 10), LocalDate.of(2026, 10, 9), null, null, null, 0, 20));
         assertEquals(HttpStatus.BAD_REQUEST, rangeEx.getStatusCode());
         assertEquals("From date must not be after to date", rangeEx.getReason());
 
         ResponseStatusException pageEx = assertThrows(
                 ResponseStatusException.class,
-                () -> expenseService.list(USER_ID, null, null, null, -1, 20));
+                () -> expenseService.list(USER_ID, null, null, null, null, null, -1, 20));
         assertEquals(HttpStatus.BAD_REQUEST, pageEx.getStatusCode());
 
         ResponseStatusException sizeZeroEx = assertThrows(
                 ResponseStatusException.class,
-                () -> expenseService.list(USER_ID, null, null, null, 0, 0));
+                () -> expenseService.list(USER_ID, null, null, null, null, null, 0, 0));
         assertEquals(HttpStatus.BAD_REQUEST, sizeZeroEx.getStatusCode());
 
         ResponseStatusException sizeOverEx = assertThrows(
                 ResponseStatusException.class,
-                () -> expenseService.list(USER_ID, null, null, null, 0, 101));
+                () -> expenseService.list(USER_ID, null, null, null, null, null, 0, 101));
         assertEquals(HttpStatus.BAD_REQUEST, sizeOverEx.getStatusCode());
+
+        ResponseStatusException searchEx = assertThrows(
+                ResponseStatusException.class,
+                () -> expenseService.list(USER_ID, null, null, null, null, "x".repeat(101), 0, 20));
+        assertEquals("Search must be at most 100 characters", searchEx.getReason());
     }
 }
 

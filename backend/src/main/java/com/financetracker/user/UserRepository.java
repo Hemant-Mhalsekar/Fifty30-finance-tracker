@@ -31,6 +31,11 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("select u from User u where u.id = :id")
     Optional<User> findByIdForUpdate(@Param("id") UUID id);
 
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update User u set u.displayName = :name where u.id = :id")
+    int updateDisplayName(@Param("id") UUID id, @Param("name") String name);
+
     // Logging in during the grace period keeps the account. Returns 1 if a deletion was cancelled.
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)

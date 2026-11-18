@@ -6,6 +6,7 @@ test('a new user is sent to onboarding from any URL and sees the split before sa
   await page.goto('/expenses')
   await expect(page).toHaveURL(/\/onboarding$/)
 
+  await page.getByLabel('Your name').fill('Asha Rao')
   await page.getByLabel('Monthly take-home salary').fill('50,000')
   await expect(page.getByText('₹25,000.00')).toBeVisible() // needs, 50%
   await expect(page.getByText('₹15,000.00')).toBeVisible() // wants, 30%
@@ -14,6 +15,8 @@ test('a new user is sent to onboarding from any URL and sees the split before sa
 
   await expect(page.getByText('No expenses logged yet.')).toBeVisible()
   await expect(page).toHaveURL(/\/$/)
+  // The greeting uses the first name.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Good (morning|afternoon|evening), Asha$/)
 })
 
 test('onboarding rejects a salary with too many decimals', async ({ page, request }) => {
@@ -41,10 +44,11 @@ test('adding expenses updates the dashboard and flags overspending', async ({ pa
   await expect(amount).toHaveValue('')
   await expect(rent).toHaveAttribute('aria-pressed', 'true')
 
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboard' }).click()
-  const needs = page.locator('.budget-row', { hasText: 'Needs' })
-  await expect(needs).toHaveClass(/over/)
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Home' }).click()
+  const needs = page.getByRole('article', { name: 'Needs' })
   await expect(needs).toContainText('Over by')
+  await expect(needs.locator('.pill')).toHaveClass(/bad/)
+  await expect(page.getByRole('article', { name: 'Left to spend' }).locator('.pill')).toHaveText('Over plan')
 })
 
 test('Other needs a type, and bad amounts are rejected', async ({ page, request }) => {
@@ -69,17 +73,18 @@ test('Other needs a type, and bad amounts are rejected', async ({ page, request 
 test('the dashboard moves between cycles and stops at the first one', async ({ page, request }) => {
   await resetApi(request)
   await page.goto('/')
-  await expect(page.getByText('Left to spend on needs and wants')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Left to spend' })).toBeVisible()
   const next = page.getByRole('button', { name: 'Next cycle' })
   await expect(next).toBeDisabled()
 
   await page.getByRole('button', { name: 'Previous cycle' }).click()
-  await expect(page.locator('.cycle-header').getByText('Past cycle')).toBeVisible()
+  await expect(page.locator('.cycle-switch').getByText('Past cycle')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Left unspent' })).toBeVisible()
   await page.getByRole('button', { name: 'Previous cycle' }).click()
   await expect(page.getByText('There is no earlier cycle.')).toBeVisible()
 
   await next.click()
-  await expect(page.getByText('Left to spend on needs and wants')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Left to spend' })).toBeVisible()
 })
 
 test('deep links survive a reload and unknown paths go home', async ({ page, request }) => {
