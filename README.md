@@ -66,7 +66,7 @@ _Screenshots use sample data._
 | Database | PostgreSQL 17 on Supabase (row-level security on, accessed only through the API) |
 | Frontend | React 19, TypeScript, Vite, React Router, plain CSS (no UI library), hand-drawn SVG charts and icons, Inter (self-hosted) |
 | Tests | JUnit 5, Mockito, Testcontainers (real PostgreSQL), Vitest, Playwright |
-| Hosting | Render (API, Docker), Vercel (frontend, also proxies `/api` so the browser sees one origin), GitHub Actions CI |
+| Hosting | Render (API, Docker, Singapore, next to the Mumbai database), Vercel (frontend, also proxies `/api` so the browser sees one origin), GitHub Actions CI |
 
 ## Architecture
 
