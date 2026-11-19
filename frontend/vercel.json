@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://finance-tracker-h0zi.onrender.com/api/$1"
+      "destination": "https://fifty30-finance-tracker.onrender.com/api/$1"
     },
     {
       "source": "/((?!api/).*)",
