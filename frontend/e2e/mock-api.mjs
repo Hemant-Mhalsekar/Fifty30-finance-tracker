@@ -352,6 +352,13 @@ function handle(req, res, body) {
     return send(res, 200, state.cycles.slice(Math.max(0, index - count + 1), index + 1).map(historyItem))
   }
   if (path === '/api/reports/cycles') return send(res, 200, state.cycles.map(historyItem))
+  if (path === '/api/reports/categories') {
+    const count = Number(url.searchParams.get('count') ?? 6)
+    if (!(count >= 1 && count <= 12)) return fail(res, 400, 'Count must be between 1 and 12')
+    const cycles = state.cycles.slice(-count)
+    const rows = cycles.flatMap((c) => report(c).categories.map((row) => ({ periodStart: c.periodStart, ...row })))
+    return send(res, 200, { cycles, rows })
+  }
   if (path === '/api/reports/weekly') {
     const weeks = Number(url.searchParams.get('weeks') ?? 8)
     if (!(weeks >= 1 && weeks <= 26)) return fail(res, 400, 'Weeks must be between 1 and 26')

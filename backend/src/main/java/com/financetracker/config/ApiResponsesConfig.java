@@ -180,6 +180,9 @@ public class ApiResponsesConfig {
 
             // Reports
             doc("GET /api/reports/cycles", 200, "Every cycle with its totals, oldest first.", err(409, SETUP_FIRST)),
+            doc("GET /api/reports/categories", 200, "Recent cycles and the spending per category in each.",
+                    err(400, "Count must be between 1 and 12"),
+                    err(409, SETUP_FIRST)),
             doc("GET /api/reports/weekly", 200, "Daily totals and the cycles they fall in.",
                     err(400, "Weeks must be between 1 and 26"),
                     err(409, SETUP_FIRST)),

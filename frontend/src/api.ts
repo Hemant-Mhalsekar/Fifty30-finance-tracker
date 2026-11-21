@@ -404,6 +404,29 @@ export function getWeekly(weeks = 8): Promise<WeeklyData> {
   return requestJson<WeeklyData>(`/api/reports/weekly?weeks=${weeks}`)
 }
 
+export type CycleCategorySpend = {
+  // The cycle's start.
+  periodStart: string
+  categoryId: string
+  name: string
+  archived: boolean
+  // The type the expenses were logged with; Other can appear once per type.
+  type: BudgetType
+  spentPaise: number
+  expenseCount: number
+}
+
+export type CategoryTrends = {
+  // The last cycles up to the current one, oldest first.
+  cycles: Cycle[]
+  // Oldest cycle first, biggest category first.
+  rows: CycleCategorySpend[]
+}
+
+export function getCategoryTrends(count = 6): Promise<CategoryTrends> {
+  return requestJson<CategoryTrends>(`/api/reports/categories?count=${count}`)
+}
+
 /** The cycle containing the date (today if left out) and up to count - 1 before it, oldest first. */
 export function getHistory(date?: string, count = 6): Promise<CycleHistoryItem[]> {
   const params = new URLSearchParams({ count: String(count) })

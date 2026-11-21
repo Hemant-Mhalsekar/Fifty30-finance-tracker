@@ -72,6 +72,27 @@ test('monthly: one column per pay cycle; saved shows once a cycle with expenses 
   await expect(rows.last().locator('td').nth(4)).toHaveText('–')
 })
 
+test('categories: spending per category per cycle, with highlights', async ({ page, request }) => {
+  // Previous cycle: ₹12,000 rent and ₹2,000 dining out of a ₹50,000 salary.
+  await logExpense(request, 'Rent', 1_200_000, daysAgo(20))
+  await logExpense(request, 'Dining', 200_000, daysAgo(25))
+
+  await page.goto('/reports?view=categories')
+  await expect(page.getByLabel('Categories')).toBeChecked()
+  const highlights = page.getByRole('region', { name: 'Highlights' })
+  await expect(highlights).toContainText(/Rent was your biggest spend in .*: ₹12,000, 86% of needs and wants\./)
+
+  const chart = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Where the money goes' }) })
+  await expect(chart.getByRole('button')).toHaveCount(2)
+  await expect(chart.getByRole('button').first()).toHaveAccessibleName(/Rent ₹12,000/)
+  await chart.getByText('Show as table').click()
+  await expect(chart.locator('tbody tr').first()).toContainText('Rent')
+
+  // The monthly report states the savings rate of that cycle: ₹36,000 of ₹50,000.
+  await page.getByLabel('Monthly').check()
+  await expect(page.getByRole('region', { name: 'Highlights' })).toContainText(/You saved 72% of your income in/)
+})
+
 test('yearly: one column per year with this year in bold', async ({ page }) => {
   await page.goto('/reports?view=yearly')
   const chart = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'By year' }) })

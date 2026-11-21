@@ -402,6 +402,72 @@ class CycleReportIntegrationTest extends AbstractIntegrationTest {
         }
     }
 
+    @Test
+    void categoryTrendsGroupSpendingByCycleAndCategory() throws Exception {
+        mockMvc.perform(get("/api/reports/categories")).andExpect(status().isUnauthorized());
+        String token = registerUserAndGetToken();
+        mockMvc.perform(get("/api/reports/categories").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isConflict());
+
+        onboardUser(token, 1_000_000L, 25);
+        UUID userId = userId(token);
+        CyclePeriod current = CycleCalculator.containing(today(), 25);
+        CyclePeriod previous = CycleCalculator.containing(current.start().minusDays(1), 25);
+        BudgetSplit split = BudgetSplit.of(1_000_000L);
+        jdbcTemplate.update("""
+                INSERT INTO cycles (user_id, period_start, period_end, salary_paise,
+                                    needs_paise, wants_paise, savings_paise)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                userId, previous.start(), previous.end(), 1_000_000L,
+                split.needsPaise(), split.wantsPaise(), split.savingsPaise());
+        logExpense(token, "Dining", 20_000L, null, previous.start());
+        logExpense(token, "Dining", 5_000L, null, previous.end());
+        logExpense(token, "Rent", 300_000L, null, previous.end());
+        logExpense(token, "Dining", 40_000L, null, today());
+        logExpense(token, "Other", 7_000L, "WANT", today());
+        logExpense(token, "Other", 3_000L, "NEED", today());
+        // Before the first stored cycle: belongs to no cycle, so it is not listed.
+        logExpense(token, "Dining", 99_000L, null, previous.start().minusDays(1));
+
+        mockMvc.perform(get("/api/reports/categories").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cycles.length()").value(2))
+                .andExpect(jsonPath("$.cycles[0].periodStart").value(previous.start().toString()))
+                .andExpect(jsonPath("$.cycles[1].periodStart").value(current.start().toString()))
+                // Oldest cycle first, then biggest category first.
+                .andExpect(jsonPath("$.rows.length()").value(5))
+                .andExpect(jsonPath("$.rows[0].periodStart").value(previous.start().toString()))
+                .andExpect(jsonPath("$.rows[0].name").value("Rent"))
+                .andExpect(jsonPath("$.rows[1].name").value("Dining"))
+                .andExpect(jsonPath("$.rows[1].spentPaise").value(25_000L))
+                .andExpect(jsonPath("$.rows[1].expenseCount").value(2))
+                .andExpect(jsonPath("$.rows[2].periodStart").value(current.start().toString()))
+                .andExpect(jsonPath("$.rows[2].spentPaise").value(40_000L))
+                // Other appears once per type it was logged with.
+                .andExpect(jsonPath("$.rows[3].name").value("Other"))
+                .andExpect(jsonPath("$.rows[3].type").value("WANT"))
+                .andExpect(jsonPath("$.rows[4].type").value("NEED"));
+
+        // count limits the cycles, newest kept.
+        mockMvc.perform(get("/api/reports/categories").param("count", "1")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(jsonPath("$.cycles.length()").value(1))
+                .andExpect(jsonPath("$.rows.length()").value(3));
+        for (String count : new String[] {"0", "13"}) {
+            mockMvc.perform(get("/api/reports/categories").param("count", count)
+                            .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Count must be between 1 and 12"));
+        }
+
+        // Another user's spending never appears.
+        String other = registerUserAndGetToken();
+        onboardUser(other, 1_000_000L, 25);
+        mockMvc.perform(get("/api/reports/categories").header(HttpHeaders.AUTHORIZATION, bearer(other)))
+                .andExpect(jsonPath("$.rows.length()").value(0));
+    }
+
     // ---- helpers ----
 
     private LocalDate today() {

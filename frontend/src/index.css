@@ -3129,7 +3129,41 @@ details.range-picker[open] > summary {
 }
 
 .report-switch {
-  max-width: 30rem;
+  max-width: 40rem;
+}
+
+/* Five reports do not fit side by side on a phone: the row scrolls sideways instead of squeezing,
+   and the right edge fades so it is clear there is more (the end padding lets the last one clear the fade). */
+.report-switch .segmented {
+  grid-auto-columns: max-content;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-right: 2rem;
+  scroll-padding-inline: 2.5rem;
+  mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+}
+
+.report-switch .segmented::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .report-switch .segmented {
+    grid-auto-columns: 1fr;
+    padding-right: 4px;
+    mask-image: none;
+  }
+}
+
+.insights ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.insights li {
+  line-height: 1.5;
 }
 
 .stat-tiles {
