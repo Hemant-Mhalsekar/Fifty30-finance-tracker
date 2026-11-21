@@ -1,5 +1,6 @@
 import { incomeOf } from './splits'
-import type { CycleHistoryItem, WeeklyData } from './api'
+import type { BudgetType, CategoryTrends, Cycle, CycleHistoryItem, WeeklyData } from './api'
+import { formatPaiseShort } from './money'
 import { addDays } from './dates'
 
 export type WeekRow = {
@@ -181,4 +182,151 @@ export function monthRows(items: CycleHistoryItem[], today: string, limit = 12):
       planPaise: item.cycle.needsPaise + item.cycle.wantsPaise,
       spentPaise: item.needsSpentPaise + item.wantsSpentPaise,
     }))
+}
+
+/** Saved as a whole percentage of income; null without income. */
+export function savingsRate(savedPaise: number, incomePaise: number): number | null {
+  return incomePaise > 0 ? Math.round((savedPaise * 100) / incomePaise) : null
+}
+
+/** Change from `before` to `after` as a whole percentage; null when there is nothing to compare with. */
+export function changePct(after: number, before: number): number | null {
+  return before > 0 ? Math.round(((after - before) * 100) / before) : null
+}
+
+/**
+ * Up to three plain sentences about recent pay cycles: the savings rate of the last finished
+ * cycle against the ones before it, and how often needs or wants went over plan.
+ * Only finished cycles with expenses count, as everywhere else.
+ */
+export function cycleInsights(items: CycleHistoryItem[], today: string): string[] {
+  const counted = items.filter((item) => countsAsSaved(item, today))
+  const out: string[] = []
+  const last = counted.at(-1)
+  if (last) {
+    const month = cycleMonth(last.cycle.periodStart, last.cycle.periodEnd)
+    const rate = savingsRate(last.savedPaise, incomeOf(last.cycle))
+    const recent = counted.slice(-6)
+    const rates = recent.map((i) => savingsRate(i.savedPaise, incomeOf(i.cycle)) ?? 0)
+    if (rate !== null && rate < 0) {
+      out.push(`${month} ended with a deficit of ${-rate}% of your income.`)
+    } else if (rate !== null && recent.length >= 3) {
+      const best = Math.max(...rates.slice(0, -1))
+      const average = Math.round(rates.reduce((t, r) => t + r, 0) / rates.length)
+      out.push(
+        rate > best
+          ? `You saved ${rate}% of your income in ${month}, your best in the last ${recent.length} cycles.`
+          : `You saved ${rate}% of your income in ${month}; your average over the last ${recent.length} cycles is ${average}%.`,
+      )
+    } else if (rate !== null) {
+      out.push(`You saved ${rate}% of your income in ${month}.`)
+    }
+  }
+
+  const lastFew = counted.slice(-4)
+  if (lastFew.length >= 2) {
+    const wantsOver = lastFew.filter((i) => i.wantsSpentPaise > i.cycle.wantsPaise).length
+    const needsOver = lastFew.filter((i) => i.needsSpentPaise > i.cycle.needsPaise).length
+    if (wantsOver >= 2) out.push(`Wants went over plan in ${wantsOver} of the last ${lastFew.length} cycles.`)
+    if (needsOver >= 2) out.push(`Needs went over plan in ${needsOver} of the last ${lastFew.length} cycles.`)
+    if (wantsOver === 0 && needsOver === 0) {
+      out.push(`Needs and wants stayed within plan in each of the last ${lastFew.length} cycles.`)
+    }
+  }
+  return out.slice(0, 3)
+}
+
+export type CategoryTrend = {
+  key: string
+  name: string
+  type: BudgetType
+  archived: boolean
+  // Spent in each cycle, in the order of the summary's cycles.
+  perCycle: number[]
+  totalPaise: number
+}
+
+export type CategoryTrendSummary = {
+  cycles: Cycle[]
+  // Positions in `cycles`; -1 when there is no such cycle.
+  currentIndex: number
+  // The last finished cycle and the one before it.
+  lastIndex: number
+  beforeIndex: number
+  // Needs and wants categories, biggest total first. Investments are savings, so they are left out.
+  categories: CategoryTrend[]
+}
+
+/** Spending per category across recent cycles, ready for the chart and the table. */
+export function categoryTrends(data: CategoryTrends, today: string): CategoryTrendSummary {
+  const position = new Map(data.cycles.map((c, i) => [c.periodStart, i]))
+  const spending = data.rows.filter((r) => r.type !== 'INVESTMENT' && position.has(r.periodStart))
+  // "Other" is logged as a need or a want; when both show up they become two lines.
+  const types = new Map<string, Set<BudgetType>>()
+  for (const r of spending) types.set(r.categoryId, (types.get(r.categoryId) ?? new Set()).add(r.type))
+
+  const byKey = new Map<string, CategoryTrend>()
+  for (const r of spending) {
+    const key = `${r.categoryId}:${r.type}`
+    const trend = byKey.get(key) ?? {
+      key,
+      name: types.get(r.categoryId)!.size > 1 ? `${r.name} (${r.type === 'NEED' ? 'needs' : 'wants'})` : r.name,
+      type: r.type,
+      archived: r.archived,
+      perCycle: data.cycles.map(() => 0),
+      totalPaise: 0,
+    }
+    trend.perCycle[position.get(r.periodStart)!] += r.spentPaise
+    trend.totalPaise += r.spentPaise
+    byKey.set(key, trend)
+  }
+
+  const finished = data.cycles.flatMap((c, i) => (c.periodEnd < today ? [i] : []))
+  return {
+    cycles: data.cycles,
+    currentIndex: data.cycles.findIndex((c) => c.periodStart <= today && today <= c.periodEnd),
+    lastIndex: finished.at(-1) ?? -1,
+    beforeIndex: finished.at(-2) ?? -1,
+    categories: [...byKey.values()].sort((a, b) => b.totalPaise - a.totalPaise || a.name.localeCompare(b.name)),
+  }
+}
+
+// Changes smaller than this, or from a base smaller than ₹500, are noise rather than news.
+const MIN_CHANGE_PCT = 20
+const MIN_BASE_PAISE = 50_000
+
+/** Up to three sentences: the biggest category last cycle, and what grew or shrank the most. */
+export function categoryInsights(summary: CategoryTrendSummary): string[] {
+  const { cycles, lastIndex, beforeIndex, categories } = summary
+  if (lastIndex < 0) return []
+  const out: string[] = []
+  const monthOf = (i: number) => cycleMonth(cycles[i].periodStart, cycles[i].periodEnd)
+  const lastTotal = categories.reduce((t, c) => t + c.perCycle[lastIndex], 0)
+  const top = [...categories].sort((a, b) => b.perCycle[lastIndex] - a.perCycle[lastIndex])[0]
+  if (top && lastTotal > 0 && top.perCycle[lastIndex] > 0) {
+    const share = Math.round((top.perCycle[lastIndex] * 100) / lastTotal)
+    out.push(
+      `${top.name} was your biggest spend in ${monthOf(lastIndex)}: ${formatPaiseShort(top.perCycle[lastIndex])}, ${share}% of needs and wants.`,
+    )
+  }
+  if (beforeIndex >= 0) {
+    const changes = categories
+      .filter((c) => c.perCycle[beforeIndex] >= MIN_BASE_PAISE)
+      .map((c) => ({ c, pct: changePct(c.perCycle[lastIndex], c.perCycle[beforeIndex])! }))
+    const up = changes.filter((x) => x.pct >= MIN_CHANGE_PCT).sort((a, b) => b.pct - a.pct)[0]
+    const down = changes.filter((x) => x.pct <= -MIN_CHANGE_PCT).sort((a, b) => a.pct - b.pct)[0]
+    const diff = (x: { c: CategoryTrend }) =>
+      formatPaiseShort(Math.abs(x.c.perCycle[lastIndex] - x.c.perCycle[beforeIndex]))
+    if (up) {
+      out.push(
+        `${up.c.name} went up ${up.pct}% in ${monthOf(lastIndex)} (${diff(up)} more than ${monthOf(beforeIndex)}).`,
+      )
+    }
+    if (down) {
+      out.push(
+        `${down.c.name} went down ${-down.pct}% in ${monthOf(lastIndex)} (${diff(down)} less than ${monthOf(beforeIndex)}).`,
+      )
+    }
+  }
+  return out.slice(0, 3)
 }

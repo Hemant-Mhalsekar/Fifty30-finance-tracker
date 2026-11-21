@@ -51,7 +51,7 @@ _Screenshots use sample data._
 - **Recurring expenses.** Rent, SIPs, EMIs and subscriptions come due on their day; one tap adds them (with the amount actually paid) or skips the month.
 - **"Did your salary change?"** asked once at the start of each new cycle.
 - **Charts.** Spent vs plan, spending by category, spending over the cycle against an even pace, and past cycles (on the Budgets page).
-- **Reports.** Weekly (against a plan prorated per day), monthly (one column per pay cycle: needs and wants against the plan, and what was saved), yearly, and savings over time, each with a table view.
+- **Reports.** Weekly (against a plan prorated per day), monthly (one column per pay cycle: needs and wants against the plan, and what was saved), spending by category across cycles with the change from one cycle to the next, yearly, and savings over time, each with a table view. Short highlights sum it up in plain sentences ("You saved 24% of your income in Oct 2026, your best in the last 4 cycles"), and the savings rate is shown next to every saved amount.
 - **Documented API.** Swagger UI lists every endpoint with its real status codes and the exact error messages it can return; a test fails if an endpoint is added without them.
 - **CSV export.** Download the filtered expense list for a spreadsheet; cells that would run as formulas are neutralised.
 - **Installable PWA** with an offline shell, light/dark/system theme, and keyboard and screen-reader support for every chart (each also has a table view or a text legend).

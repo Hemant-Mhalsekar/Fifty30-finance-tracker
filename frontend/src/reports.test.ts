@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import type { CycleHistoryItem } from './api'
-import { cycleMonth, monthRows, savingsSummary, weekRows, yearRows } from './reports'
+import type { BudgetType, CycleHistoryItem } from './api'
+import {
+  categoryInsights,
+  categoryTrends,
+  changePct,
+  cycleInsights,
+  cycleMonth,
+  monthRows,
+  savingsRate,
+  savingsSummary,
+  weekRows,
+  yearRows,
+} from './reports'
 
 const cycle = (periodStart: string, periodEnd: string, salaryPaise = 1_000_000, bonusPaise = 0) => ({
   periodStart,
@@ -169,5 +180,103 @@ describe('monthRows', () => {
       [true, false],
     ])
     expect(rows[1]).toMatchObject({ incomePaise: 1_000_000, planPaise: 800_000, spentPaise: 250 })
+  })
+})
+
+describe('savingsRate and changePct', () => {
+  it('rounds to whole percentages and refuses to divide by zero', () => {
+    expect(savingsRate(245_000, 1_000_000)).toBe(25)
+    expect(savingsRate(-100_000, 1_000_000)).toBe(-10)
+    expect(savingsRate(100, 0)).toBeNull()
+    expect(changePct(135, 100)).toBe(35)
+    expect(changePct(50, 0)).toBeNull()
+  })
+})
+
+describe('cycleInsights', () => {
+  const finished = (start: string, end: string, needs: number, wants: number) =>
+    item(start, end, { needs, wants, count: 1 })
+
+  it('compares the last savings rate with the cycles before it and counts cycles over plan', () => {
+    const items = [
+      finished('2026-01-25', '2026-02-24', 400_000, 400_000), // saved 20%, wants over (plan 300,000)
+      finished('2026-02-25', '2026-03-24', 400_000, 350_000), // 25%, wants over
+      finished('2026-03-25', '2026-04-24', 300_000, 200_000), // 50%
+      item('2026-04-25', '2026-05-24', { wants: 999_999, count: 1 }), // current: never counted
+    ]
+    expect(cycleInsights(items, '2026-05-01')).toEqual([
+      expect.stringMatching(/^You saved 50% of your income in Apr.*2026, your best in the last 3 cycles\.$/),
+      'Wants went over plan in 2 of the last 3 cycles.',
+    ])
+  })
+
+  it('reports an average when the last cycle was not the best, and a deficit plainly', () => {
+    const items = [
+      finished('2026-01-25', '2026-02-24', 100_000, 100_000), // 80%
+      finished('2026-02-25', '2026-03-24', 400_000, 200_000), // 40%
+      finished('2026-03-25', '2026-04-24', 400_000, 200_000), // 40%
+    ]
+    expect(cycleInsights(items, '2026-05-01')[0]).toMatch(/40% .* average over the last 3 cycles is 53%\.$/)
+    expect(cycleInsights(items, '2026-05-01')[1]).toBe(
+      'Needs and wants stayed within plan in each of the last 3 cycles.',
+    )
+    expect(cycleInsights([finished('2026-03-25', '2026-04-24', 900_000, 200_000)], '2026-05-01')[0]).toMatch(
+      /ended with a deficit of 10% of your income\.$/,
+    )
+  })
+
+  it('says nothing without a finished cycle that has expenses', () => {
+    expect(cycleInsights([item('2026-04-25', '2026-05-24', { needs: 5, count: 1 })], '2026-05-01')).toEqual([])
+  })
+})
+
+describe('categoryTrends and categoryInsights', () => {
+  const cycles = [
+    cycle('2026-02-25', '2026-03-24'),
+    cycle('2026-03-25', '2026-04-24'),
+    cycle('2026-04-25', '2026-05-24'),
+  ]
+  const row = (periodStart: string, categoryId: string, name: string, type: BudgetType, spentPaise: number) => ({
+    periodStart,
+    categoryId,
+    name,
+    archived: false,
+    type,
+    spentPaise,
+    expenseCount: 1,
+  })
+  const data = {
+    cycles,
+    rows: [
+      row('2026-02-25', 'rent', 'Rent', 'NEED', 1_500_000),
+      row('2026-02-25', 'dining', 'Dining', 'WANT', 200_000),
+      row('2026-02-25', 'shop', 'Shopping', 'WANT', 300_000),
+      row('2026-03-25', 'rent', 'Rent', 'NEED', 1_500_000),
+      row('2026-03-25', 'dining', 'Dining', 'WANT', 300_000),
+      row('2026-03-25', 'shop', 'Shopping', 'WANT', 100_000),
+      row('2026-03-25', 'other', 'Other', 'WANT', 20_000),
+      row('2026-03-25', 'other', 'Other', 'NEED', 10_000),
+      row('2026-03-25', 'inv', 'Investments', 'INVESTMENT', 500_000),
+      row('2026-04-25', 'dining', 'Dining', 'WANT', 40_000),
+    ],
+  }
+
+  it('lines up each category per cycle, splits Other by type and leaves investments out', () => {
+    const s = categoryTrends(data, '2026-05-01')
+    expect([s.beforeIndex, s.lastIndex, s.currentIndex]).toEqual([0, 1, 2])
+    expect(s.categories.map((c) => c.name)).toEqual(['Rent', 'Dining', 'Shopping', 'Other (wants)', 'Other (needs)'])
+    expect(s.categories[1].perCycle).toEqual([200_000, 300_000, 40_000])
+  })
+
+  it('names the biggest spend and the biggest rise and fall between the last two finished cycles', () => {
+    const lines = categoryInsights(categoryTrends(data, '2026-05-01'))
+    expect(lines).toHaveLength(3)
+    expect(lines[0]).toMatch(/^Rent was your biggest spend in Apr.*2026: ₹15,000, 78% of needs and wants\.$/)
+    expect(lines[1]).toMatch(/^Dining went up 50% in Apr.*\(₹1,000 more than Mar.*\)\.$/)
+    expect(lines[2]).toMatch(/^Shopping went down 67% in Apr.*\(₹2,000 less than Mar.*\)\.$/)
+  })
+
+  it('has nothing to say before a cycle has finished', () => {
+    expect(categoryInsights(categoryTrends({ cycles: [cycles[2]], rows: [] }, '2026-05-01'))).toEqual([])
   })
 })

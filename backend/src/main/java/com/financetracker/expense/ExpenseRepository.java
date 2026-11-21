@@ -127,6 +127,23 @@ public interface ExpenseRepository extends Repository<Expense, UUID> {
             @Param("firstStart") LocalDate firstStart,
             @Param("lastStart") LocalDate lastStart);
 
+    // Spending per cycle and category in one query, for the category trends report. Matched to
+    // cycles by date range like sumByCycle; the category join checks the user like sumByCategory.
+    @Query("""
+            select new com.financetracker.expense.CycleCategorySpend(
+                cy.periodStart, e.categoryId, c.name, c.archived, e.categoryType, sum(e.amountPaise), count(e))
+            from Expense e
+            join Category c on c.id = e.categoryId and c.userId = e.userId
+            join Cycle cy on cy.userId = e.userId and e.expenseDate between cy.periodStart and cy.periodEnd
+            where e.userId = :userId and cy.periodStart between :firstStart and :lastStart
+            group by cy.periodStart, e.categoryId, c.name, c.archived, e.categoryType
+            order by cy.periodStart asc, sum(e.amountPaise) desc, c.name asc
+            """)
+    List<CycleCategorySpend> sumByCycleAndCategory(
+            @Param("userId") UUID userId,
+            @Param("firstStart") LocalDate firstStart,
+            @Param("lastStart") LocalDate lastStart);
+
     @Query("select max(e.createdAt) from Expense e where e.userId = :userId")
     Optional<OffsetDateTime> findLastCreatedAt(@Param("userId") UUID userId);
 }

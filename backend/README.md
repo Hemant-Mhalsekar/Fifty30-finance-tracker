@@ -70,6 +70,7 @@ The full list, with request and response shapes, is on the API docs page (spring
 - `POST /api/cycles/current/salary/confirm` answers "Did your salary change?" with "no" for the current cycle.
 - `GET /api/cycles/history?date=&count=` returns up to 12 cycles with their totals, oldest first.
 - `GET /api/reports/cycles` returns every cycle with its totals and expense count (yearly and savings reports).
+- `GET /api/reports/categories?count=` returns the last 1 to 12 cycles (default 6) and the spending per category in each (category trends report).
 - `GET /api/reports/weekly?weeks=` returns daily totals and the overlapping cycles for the last 1 to 26 Monday-to-Sunday weeks.
 - `POST /api/expenses` accepts an optional `clientId` (UUID). Sending the same `clientId` again returns the expense already stored, so offline retries never add it twice.
 - `GET /api/expenses?from=&to=&categoryId=&type=&q=&page=&size=` lists expenses newest first. `type` is `NEED`, `WANT` or `INVESTMENT`; `q` searches descriptions (contains, any case). Besides the page it returns `totalPaise` for every match and `dayTotals` for the dates on the page, counted over every match so a day split across pages still adds up. Each expense has `createdAt` (when it was logged).

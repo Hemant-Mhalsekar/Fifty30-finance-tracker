@@ -58,7 +58,7 @@ public class OpenApiConfig {
                         tag("Expenses", "Logged expenses, the filtered list and CSV export."),
                         tag("Categories", "Needs, wants and investment categories."),
                         tag("Recurring expenses", "Monthly payments that are asked about when due."),
-                        tag("Reports", "Raw totals for the weekly, yearly and savings reports."),
+                        tag("Reports", "Raw totals for the weekly, monthly, yearly, savings and category reports."),
                         tag("Settings", "Name, opening balance and pay day changes."),
                         tag("Account", "Account deletion."),
                         tag("Health", "Liveness and database checks. No token needed.")));

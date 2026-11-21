@@ -138,6 +138,23 @@ public class CycleReportService {
         return summarize(userId, cycles);
     }
 
+    // Spending per category in the last `count` cycles up to the current one, oldest first.
+    @Transactional
+    public CategoryTrends categoryTrends(UUID userId, int count) {
+        if (count < 1 || count > MAX_HISTORY) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Count must be between 1 and " + MAX_HISTORY);
+        }
+        CycleView current = cycleService.getCurrent(userId);
+        List<Cycle> cycles = new ArrayList<>(cycleRepository.findByUserIdAndPeriodStartLessThanEqualOrderByPeriodStartDesc(
+                userId, current.periodStart(), Limit.of(count)));
+        Collections.reverse(cycles);
+        return new CategoryTrends(
+                cycles.stream().map(CycleView::from).toList(),
+                expenseRepository.sumByCycleAndCategory(
+                        userId, cycles.getFirst().getPeriodStart(), cycles.getLast().getPeriodStart()));
+    }
+
     // The last `weeks` Monday-to-Sunday weeks up to today (the current week is partial).
     @Transactional
     public WeeklyData weekly(UUID userId, int weeks) {

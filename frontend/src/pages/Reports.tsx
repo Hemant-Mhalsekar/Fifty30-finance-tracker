@@ -1,22 +1,51 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { getAllCycles, getWeekly, type CycleHistoryItem, type WeeklyData } from '../api'
+import {
+  getAllCycles,
+  getCategoryTrends,
+  getWeekly,
+  type CategoryTrends,
+  type CycleHistoryItem,
+  type WeeklyData,
+} from '../api'
 import ColumnChart from '../components/ColumnChart'
 import { formatDate, formatRange, todayIst } from '../dates'
 import { formatPaiseCompact, formatPaiseShort } from '../money'
-import { monthRows, savingsSummary, weekRows, yearRows, type MonthRow } from '../reports'
+import {
+  categoryInsights,
+  categoryTrends,
+  changePct,
+  cycleInsights,
+  cycleMonth,
+  monthRows,
+  savingsRate,
+  savingsSummary,
+  weekRows,
+  yearRows,
+  type MonthRow,
+} from '../reports'
 import { incomeOf } from '../splits'
 
-type View = 'weekly' | 'monthly' | 'yearly' | 'savings'
+type View = 'weekly' | 'monthly' | 'categories' | 'yearly' | 'savings'
 const VIEWS: { value: View; label: string }[] = [
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' },
+  { value: 'categories', label: 'Categories' },
   { value: 'yearly', label: 'Yearly' },
   { value: 'savings', label: 'Savings' },
 ]
 const WEEKS = 8
 // Module-level so the loader passed to useLoad never changes between renders.
 const loadWeekly = () => getWeekly(WEEKS)
+const TREND_CYCLES = 6
+const loadTrends = () => getCategoryTrends(TREND_CYCLES)
+// The categories drawn one by one, like the dashboard donut; the rest share one grey segment.
+// No green: it means "saved" everywhere else in the app.
+const TOP_CATEGORIES = 4
+const CATEGORY_COLORS = ['var(--need)', 'var(--want)', 'var(--purple)', 'var(--amber)']
+
+const percent = (value: number | null) => (value === null ? '–' : `${value}%`)
+const signedPercent = (value: number | null) => (value === null ? '–' : `${value > 0 ? '+' : ''}${value}%`)
 
 const DAY_MONTH = new Intl.DateTimeFormat('en-IN', { timeZone: 'UTC', day: 'numeric', month: 'short' })
 const shortDate = (iso: string) => DAY_MONTH.format(new Date(`${iso}T00:00:00Z`))
@@ -27,18 +56,25 @@ export default function Reports({ openingBalancePaise }: { openingBalancePaise: 
   const fromAddress = params.get('view')
   // Local state answers the tap at once; the address update can land a moment later.
   const [view, setView] = useState<View>(VIEWS.some((v) => v.value === fromAddress) ? (fromAddress as View) : 'weekly')
+  const switchRef = useRef<HTMLDivElement>(null)
+  // On a phone the row scrolls sideways: keep the chosen report in sight (a shared link may open on the last one).
+  useEffect(() => {
+    switchRef.current
+      ?.querySelector('label:has(input:checked)')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [view])
 
   return (
     <section className="reports">
       <div className="page-head">
         <div>
           <h1>Reports</h1>
-          <p className="sub">Weekly, monthly and yearly spending, and what you have saved over time</p>
+          <p className="sub">Weekly, monthly and yearly spending, where it goes, and what you have saved over time</p>
         </div>
       </div>
       <fieldset className="field report-switch">
         <legend className="visually-hidden">Report</legend>
-        <div className="segmented">
+        <div className="segmented" ref={switchRef}>
           {VIEWS.map((v) => (
             <label key={v.value}>
               <input
@@ -56,7 +92,13 @@ export default function Reports({ openingBalancePaise }: { openingBalancePaise: 
           ))}
         </div>
       </fieldset>
-      {view === 'weekly' ? <WeeklyReport /> : <CycleReports view={view} openingPaise={openingBalancePaise ?? 0} />}
+      {view === 'weekly' ? (
+        <WeeklyReport />
+      ) : view === 'categories' ? (
+        <CategoryReport />
+      ) : (
+        <CycleReports view={view} openingPaise={openingBalancePaise ?? 0} />
+      )}
     </section>
   )
 }
@@ -87,6 +129,20 @@ function Status({ error }: { error: string | null }) {
     </p>
   ) : (
     <p className="muted">Loading…</p>
+  )
+}
+
+// A few plain sentences above a report; nothing when there is not enough data yet.
+function Insights({ lines }: { lines: string[] }) {
+  if (lines.length === 0) return null
+  return (
+    <section className="card insights" aria-label="Highlights">
+      <ul>
+        {lines.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -180,7 +236,7 @@ function WeeklyReport() {
   )
 }
 
-function CycleReports({ view, openingPaise }: { view: Exclude<View, 'weekly'>; openingPaise: number }) {
+function CycleReports({ view, openingPaise }: { view: 'monthly' | 'yearly' | 'savings'; openingPaise: number }) {
   const { data, error } = useLoad<CycleHistoryItem[]>(getAllCycles)
   if (!data) return <Status error={error} />
   if (view === 'monthly') return <MonthlyReport items={data} />
@@ -197,9 +253,11 @@ function MonthlyReport({ items }: { items: CycleHistoryItem[] }) {
   const counted = rows.filter((r) => r.counted)
   const averageSaved = counted.length > 1 ? counted.reduce((t, r) => t + r.item.savedPaise, 0) / counted.length : null
   const saved = (r: MonthRow) => (r.counted ? r.item.savedPaise : null)
+  const rate = (r: MonthRow) => (r.counted ? savingsRate(r.item.savedPaise, r.incomePaise) : null)
 
   return (
     <>
+      <Insights lines={cycleInsights(items, todayIst())} />
       <div className="stat-tiles">
         {current && (
           <Tile
@@ -213,7 +271,7 @@ function MonthlyReport({ items }: { items: CycleHistoryItem[] }) {
           <Tile
             label={`Saved in ${last.month}`}
             value={formatPaiseShort(last.item.savedPaise)}
-            note={`Target ${formatPaiseShort(last.item.cycle.savingsPaise)}`}
+            note={`${percent(rate(last))} of income · target ${formatPaiseShort(last.item.cycle.savingsPaise)}`}
             negative={last.item.savedPaise < 0}
           />
         )}
@@ -256,7 +314,7 @@ function MonthlyReport({ items }: { items: CycleHistoryItem[] }) {
                 `Needs ${formatPaiseShort(r.item.needsSpentPaise)} of ${formatPaiseShort(r.item.cycle.needsPaise)}`,
                 `Wants ${formatPaiseShort(r.item.wantsSpentPaise)} of ${formatPaiseShort(r.item.cycle.wantsPaise)}`,
                 s !== null
-                  ? `Saved ${formatPaiseShort(s)}`
+                  ? `Saved ${formatPaiseShort(s)} (${percent(rate(r))} of income)`
                   : r.current
                     ? 'Saved: when the cycle ends'
                     : 'Nothing logged',
@@ -266,7 +324,7 @@ function MonthlyReport({ items }: { items: CycleHistoryItem[] }) {
           }
         })}
         table={{
-          columns: ['Cycle', 'Income', 'Needs', 'Wants', 'Saved', 'Invested'],
+          columns: ['Cycle', 'Income', 'Needs', 'Wants', 'Saved', 'Saved %', 'Invested'],
           rows: rows.map((r) => {
             const s = saved(r)
             return [
@@ -275,6 +333,7 @@ function MonthlyReport({ items }: { items: CycleHistoryItem[] }) {
               `${formatPaiseShort(r.item.needsSpentPaise)} of ${formatPaiseShort(r.item.cycle.needsPaise)}`,
               `${formatPaiseShort(r.item.wantsSpentPaise)} of ${formatPaiseShort(r.item.cycle.wantsPaise)}`,
               s !== null ? formatPaiseShort(s) : '–',
+              percent(rate(r)),
               formatPaiseShort(r.item.investedPaise),
             ]
           }),
@@ -363,9 +422,11 @@ function SavingsReport({ items, openingPaise }: { items: CycleHistoryItem[]; ope
   const summary = savingsSummary(items, todayIst(), openingPaise)
   const { rows, current } = summary
   const average = rows.length > 0 ? summary.totalSavedPaise / rows.length : null
+  const totalIncome = rows.reduce((t, { item }) => t + incomeOf(item.cycle), 0)
 
   return (
     <>
+      <Insights lines={cycleInsights(items, todayIst())} />
       <div className="stat-tiles">
         {openingPaise > 0 && (
           <Tile
@@ -381,7 +442,7 @@ function SavingsReport({ items, openingPaise }: { items: CycleHistoryItem[]; ope
           note={
             rows.length === 0
               ? 'Shows up once a cycle with expenses has ended'
-              : `Over ${rows.length} ${rows.length === 1 ? 'cycle' : 'cycles'}`
+              : `${percent(savingsRate(summary.totalSavedPaise, totalIncome))} of income over ${rows.length} ${rows.length === 1 ? 'cycle' : 'cycles'}`
           }
           negative={summary.totalSavedPaise < 0}
         />
@@ -430,18 +491,19 @@ function SavingsReport({ items, openingPaise }: { items: CycleHistoryItem[]; ope
           tooltip: {
             title: formatRange(item.cycle.periodStart, item.cycle.periodEnd),
             lines: [
-              `${item.savedPaise < 0 ? 'Deficit' : 'Saved'} ${formatPaiseShort(Math.abs(item.savedPaise))}`,
+              `${item.savedPaise < 0 ? 'Deficit' : 'Saved'} ${formatPaiseShort(Math.abs(item.savedPaise))} (${percent(savingsRate(item.savedPaise, incomeOf(item.cycle)))} of income)`,
               `Running total ${formatPaiseShort(runningPaise)}`,
               ...(item.investedPaise > 0 ? [`Invested ${formatPaiseShort(item.investedPaise)}`] : []),
             ],
           },
         }))}
         table={{
-          columns: ['Cycle', 'Income', 'Saved', 'Invested', 'Running total'],
+          columns: ['Cycle', 'Income', 'Saved', 'Saved %', 'Invested', 'Running total'],
           rows: rows.map(({ item, runningPaise }) => [
             formatRange(item.cycle.periodStart, item.cycle.periodEnd),
             formatPaiseShort(incomeOf(item.cycle)),
             formatPaiseShort(item.savedPaise),
+            percent(savingsRate(item.savedPaise, incomeOf(item.cycle))),
             formatPaiseShort(item.investedPaise),
             formatPaiseShort(runningPaise),
           ]),
@@ -453,6 +515,94 @@ function SavingsReport({ items, openingPaise }: { items: CycleHistoryItem[]; ope
             {summary.skipped === 1 ? 'it is' : 'they are'} left out instead of counting the whole salary as saved.
           </p>
         )}
+      </ColumnChart>
+    </>
+  )
+}
+
+function CategoryReport() {
+  const { data, error } = useLoad<CategoryTrends>(loadTrends)
+  if (!data) return <Status error={error} />
+
+  const summary = categoryTrends(data, todayIst())
+  const { cycles, categories, currentIndex, lastIndex, beforeIndex } = summary
+  const top = categories.slice(0, TOP_CATEGORIES)
+  const rest = categories.slice(TOP_CATEGORIES)
+  const restPer = cycles.map((_, i) => rest.reduce((t, c) => t + c.perCycle[i], 0))
+  const month = (i: number) => cycleMonth(cycles[i].periodStart, cycles[i].periodEnd)
+  const finished = cycles.flatMap((_, i) => (i !== currentIndex ? [i] : []))
+  const average = (perCycle: number[]) =>
+    finished.length > 0 ? finished.reduce((t, i) => t + perCycle[i], 0) / finished.length : null
+
+  const columns = ['Category']
+  if (currentIndex >= 0) columns.push(`${month(currentIndex)} so far`)
+  if (lastIndex >= 0) columns.push(month(lastIndex))
+  if (beforeIndex >= 0) columns.push(month(beforeIndex), 'Change')
+  if (finished.length > 1) columns.push(`Average of ${finished.length}`)
+
+  return (
+    <>
+      <Insights lines={categoryInsights(summary)} />
+      <ColumnChart
+        title="Where the money goes"
+        subtitle={`Needs and wants by category, last ${cycles.length} ${cycles.length === 1 ? 'cycle' : 'cycles'}`}
+        emptyText="No spending logged in these cycles yet."
+        legend={[
+          ...top.map((c, i) => ({ name: c.name, color: CATEGORY_COLORS[i] })),
+          ...(rest.length > 0 ? [{ name: `${rest.length} more`, color: 'var(--slate)' }] : []),
+        ]}
+        columns={
+          categories.length === 0
+            ? []
+            : cycles.map((c, i) => {
+                const total = categories.reduce((t, cat) => t + cat.perCycle[i], 0)
+                return {
+                  key: c.periodStart,
+                  label: month(i).split(' ')[0],
+                  strong: i === currentIndex,
+                  segments: [
+                    ...top.map((cat, k) => ({ key: cat.key, value: cat.perCycle[i], color: CATEGORY_COLORS[k] })),
+                    { key: 'rest', value: restPer[i], color: 'var(--slate)' },
+                  ],
+                  topLabel: formatPaiseCompact(total),
+                  ariaLabel: `${month(i)}${i === currentIndex ? ' (so far)' : ''}: ${top
+                    .map((cat) => `${cat.name} ${formatPaiseShort(cat.perCycle[i])}`)
+                    .join(', ')}${rest.length > 0 ? `, other categories ${formatPaiseShort(restPer[i])}` : ''}`,
+                  tooltip: {
+                    title: `${month(i)} · ${formatRange(c.periodStart, c.periodEnd)}${i === currentIndex ? ' (so far)' : ''}`,
+                    lines: [
+                      ...top
+                        .filter((cat) => cat.perCycle[i] > 0)
+                        .map((cat) => `${cat.name} ${formatPaiseShort(cat.perCycle[i])}`),
+                      ...(restPer[i] > 0 ? [`Other categories ${formatPaiseShort(restPer[i])}`] : []),
+                      `Total ${formatPaiseShort(total)}`,
+                    ],
+                  },
+                }
+              })
+        }
+        table={{
+          columns,
+          rows: categories.map((c) => {
+            const cells = [c.archived ? `${c.name} (archived)` : c.name]
+            if (currentIndex >= 0) cells.push(formatPaiseShort(c.perCycle[currentIndex]))
+            if (lastIndex >= 0) cells.push(formatPaiseShort(c.perCycle[lastIndex]))
+            if (beforeIndex >= 0) {
+              cells.push(
+                formatPaiseShort(c.perCycle[beforeIndex]),
+                signedPercent(changePct(c.perCycle[lastIndex], c.perCycle[beforeIndex])),
+              )
+            }
+            const avg = average(c.perCycle)
+            if (finished.length > 1 && avg !== null) cells.push(formatPaiseShort(Math.round(avg / 100) * 100))
+            return cells
+          }),
+        }}
+      >
+        <p className="hint chart-note">
+          Each cycle is named after the month most of it falls in. Change compares the last two finished cycles.
+          Investments are savings, so they are left out.
+        </p>
       </ColumnChart>
     </>
   )

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-// The Reports page. Both endpoints return raw totals; grouping into years, running savings and
+// The Reports page. Each endpoint returns raw totals; grouping into years, running savings and
 // prorating weekly plans happen in the client, where they are unit-tested.
 @Tag(name = "Reports")
 @RestController
@@ -27,10 +27,19 @@ public class ReportsController {
     }
 
     @Operation(summary = "Every cycle with its totals",
-            description = "Oldest first. Used for the yearly and savings reports.")
+            description = "Oldest first. Used for the monthly, yearly and savings reports.")
     @GetMapping("/cycles")
     public List<CycleHistoryItem> cycles(@AuthenticationPrincipal Jwt jwt) {
         return reportService.allCycles(UUID.fromString(jwt.getSubject()));
+    }
+
+    // count is checked in the service (1 to 12) so a bad value is a 400, not a 500.
+    @Operation(summary = "Spending per category in recent cycles",
+            description = "The last count cycles up to the current one (1 to 12, default 6), oldest first,"
+                    + " with spending per category in each.")
+    @GetMapping("/categories")
+    public CategoryTrends categories(@AuthenticationPrincipal Jwt jwt, @RequestParam(defaultValue = "6") int count) {
+        return reportService.categoryTrends(UUID.fromString(jwt.getSubject()), count);
     }
 
     // weeks is checked in the service (1 to 26) so a bad value is a 400, not a 500.
