@@ -1,5 +1,5 @@
 import { incomeOf } from './splits'
-import type { BudgetType, CategoryTrends, Cycle, CycleHistoryItem, WeeklyData } from './api'
+import type { BudgetType, CategoryTrends, Cycle, CycleHistoryItem, CycleReport, WeeklyData } from './api'
 import { formatPaiseShort } from './money'
 import { addDays } from './dates'
 
@@ -238,6 +238,9 @@ export function cycleInsights(items: CycleHistoryItem[], today: string): string[
 
 export type CategoryTrend = {
   key: string
+  categoryId: string
+  // Shown as two lines (needs and wants); a link to its expenses must name the type.
+  splitByType: boolean
   name: string
   type: BudgetType
   archived: boolean
@@ -268,9 +271,12 @@ export function categoryTrends(data: CategoryTrends, today: string): CategoryTre
   const byKey = new Map<string, CategoryTrend>()
   for (const r of spending) {
     const key = `${r.categoryId}:${r.type}`
+    const split = types.get(r.categoryId)!.size > 1
     const trend = byKey.get(key) ?? {
       key,
-      name: types.get(r.categoryId)!.size > 1 ? `${r.name} (${r.type === 'NEED' ? 'needs' : 'wants'})` : r.name,
+      categoryId: r.categoryId,
+      splitByType: split,
+      name: split ? `${r.name} (${r.type === 'NEED' ? 'needs' : 'wants'})` : r.name,
       type: r.type,
       archived: r.archived,
       perCycle: data.cycles.map(() => 0),
@@ -329,4 +335,90 @@ export function categoryInsights(summary: CategoryTrendSummary): string[] {
     }
   }
   return out.slice(0, 3)
+}
+
+export type PaceComparison = {
+  // Day of the cycle (1 = the pay day) both cycles are measured at.
+  day: number
+  nowPaise: number
+  thenPaise: number
+  // null when the previous cycle had spent nothing by then.
+  pct: number | null
+}
+
+type Spending = 'NEED' | 'WANT' | 'BOTH'
+
+function spentThrough(daily: CycleReport['daily'], through: string, which: Spending): number {
+  return daily
+    .filter((r) => r.date <= through && (which === 'BOTH' ? r.type !== 'INVESTMENT' : r.type === which))
+    .reduce((t, r) => t + r.spentPaise, 0)
+}
+
+/**
+ * This cycle's spending so far against the previous cycle's by the same day of the cycle, which
+ * is fair early in a cycle (comparing with the whole previous cycle would always look cheap).
+ * Day 31 of a 30-day previous cycle compares with all of it.
+ */
+export function samePointLastCycle(
+  current: CycleReport,
+  previous: CycleReport | null,
+  which: Spending,
+): PaceComparison | null {
+  if (!previous) return null
+  const day = current.days.elapsed
+  const sameDay = addDays(previous.cycle.periodStart, day - 1)
+  const through = sameDay < previous.cycle.periodEnd ? sameDay : previous.cycle.periodEnd
+  const nowPaise = spentThrough(current.daily, current.cycle.periodEnd, which)
+  const thenPaise = spentThrough(previous.daily, through, which)
+  return { day, nowPaise, thenPaise, pct: changePct(nowPaise, thenPaise) }
+}
+
+export type CategoryShare = {
+  key: string
+  categoryId: string
+  name: string
+  type: BudgetType
+  // True when the category shows up as both a need and a want (only "Other" can), so a link
+  // to its expenses must name the type too.
+  splitByType: boolean
+  spentPaise: number
+  // Of this cycle's needs + wants, whole percent.
+  sharePct: number
+  // The whole previous cycle; null when there is none.
+  lastCyclePaise: number | null
+}
+
+/** Needs and wants categories of a cycle, biggest first, with their share and last cycle's amount. */
+export function categoryShares(current: CycleReport, previous: CycleReport | null): CategoryShare[] {
+  const rows = current.categories.filter((c) => c.type !== 'INVESTMENT' && c.spentPaise > 0)
+  const total = rows.reduce((t, c) => t + c.spentPaise, 0)
+  const types = new Map<string, Set<BudgetType>>()
+  for (const c of rows) types.set(c.categoryId, (types.get(c.categoryId) ?? new Set()).add(c.type))
+  return rows
+    .map((c) => {
+      const split = types.get(c.categoryId)!.size > 1
+      const before = previous?.categories.find((p) => p.categoryId === c.categoryId && p.type === c.type)
+      return {
+        key: `${c.categoryId}:${c.type}`,
+        categoryId: c.categoryId,
+        name: split ? `${c.name} (${c.type === 'NEED' ? 'needs' : 'wants'})` : c.name,
+        type: c.type,
+        splitByType: split,
+        spentPaise: c.spentPaise,
+        sharePct: total > 0 ? Math.round((c.spentPaise * 100) / total) : 0,
+        lastCyclePaise: previous ? (before?.spentPaise ?? 0) : null,
+      }
+    })
+    .sort((a, b) => b.spentPaise - a.spentPaise || a.name.localeCompare(b.name))
+}
+
+/** The Expenses page filtered to one category within a date range. */
+export function categoryExpensesLink(
+  share: Pick<CategoryShare, 'categoryId' | 'type' | 'splitByType'>,
+  from: string,
+  to: string,
+): string {
+  const params = new URLSearchParams({ categoryId: share.categoryId, from, to })
+  if (share.splitByType) params.set('type', share.type)
+  return `/expenses?${params}`
 }

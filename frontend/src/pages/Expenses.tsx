@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import {
   deleteExpense,
   exportExpensesCsv,
@@ -33,7 +33,25 @@ const TYPE_FILTERS: { value: BudgetType | ''; label: string; className: string }
   { value: 'INVESTMENT', label: 'Investments', className: 'investment' },
 ]
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+// Filters handed over in the address (a category tapped in Reports). Anything malformed is ignored.
+function filtersFromAddress(params: URLSearchParams): Partial<Query> {
+  const out: Partial<Query> = {}
+  const from = params.get('from')
+  const to = params.get('to')
+  if (from && to && ISO_DATE.test(from) && ISO_DATE.test(to) && from <= to) Object.assign(out, { from, to })
+  const categoryId = params.get('categoryId')
+  if (categoryId) out.categoryId = categoryId
+  const type = params.get('type')
+  if (type === 'NEED' || type === 'WANT' || type === 'INVESTMENT') out.type = type
+  return out
+}
+
 export default function Expenses() {
+  const [params] = useSearchParams()
+  // Read once: after that the page's own filters take over.
+  const [fromAddress] = useState(() => filtersFromAddress(params))
   const [categories, setCategories] = useState<Category[] | null>(null)
   const [cycleRange, setCycleRange] = useState<{ from: string; to: string } | null>(null)
   const [cycleEnd, setCycleEnd] = useState<string | null>(null)
@@ -61,7 +79,7 @@ export default function Expenses() {
         const range = { from: cycle.periodStart, to: todayIst() }
         setCycleRange(range)
         setCycleEnd(cycle.periodEnd)
-        setQuery({ ...range, categoryId: '', type: '', q: '', page: 0 })
+        setQuery({ ...range, categoryId: '', type: '', q: '', page: 0, ...fromAddress })
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Something went wrong')
@@ -69,7 +87,7 @@ export default function Expenses() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [fromAddress])
 
   useEffect(() => {
     const timer = setTimeout(() => {

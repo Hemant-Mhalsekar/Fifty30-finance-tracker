@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { BudgetType, CycleHistoryItem } from './api'
+import type { BudgetType, CycleHistoryItem, CycleReport } from './api'
 import {
+  categoryExpensesLink,
   categoryInsights,
+  categoryShares,
+  samePointLastCycle,
   categoryTrends,
   changePct,
   cycleInsights,
@@ -278,5 +281,86 @@ describe('categoryTrends and categoryInsights', () => {
 
   it('has nothing to say before a cycle has finished', () => {
     expect(categoryInsights(categoryTrends({ cycles: [cycles[2]], rows: [] }, '2026-05-01'))).toEqual([])
+  })
+})
+
+describe('this cycle against the last one', () => {
+  const report = (
+    periodStart: string,
+    periodEnd: string,
+    elapsed: number,
+    daily: CycleReport['daily'],
+    categories: CycleReport['categories'] = [],
+  ): CycleReport =>
+    ({
+      cycle: cycle(periodStart, periodEnd),
+      days: { total: 31, elapsed, remaining: 31 - elapsed },
+      daily,
+      categories,
+    }) as unknown as CycleReport
+  const day = (date: string, type: BudgetType, spentPaise: number) => ({ date, type, spentPaise })
+
+  it('compares spending so far with the previous cycle by the same day', () => {
+    const previous = report('2026-10-25', '2026-11-24', 31, [
+      day('2026-10-25', 'NEED', 1_500_000),
+      day('2026-10-28', 'WANT', 100_000),
+      day('2026-10-29', 'WANT', 900_000), // day 5: after the same point, left out
+      day('2026-10-26', 'INVESTMENT', 500_000), // savings, never spending
+    ])
+    const current = report('2026-11-25', '2026-12-24', 4, [
+      day('2026-11-25', 'NEED', 1_500_000),
+      day('2026-11-27', 'WANT', 300_000),
+    ])
+    expect(samePointLastCycle(current, previous, 'BOTH')).toEqual({
+      day: 4,
+      nowPaise: 1_800_000,
+      thenPaise: 1_600_000,
+      pct: 13,
+    })
+    expect(samePointLastCycle(current, previous, 'WANT')!.pct).toBe(200)
+    expect(samePointLastCycle(current, null, 'BOTH')).toBeNull()
+  })
+
+  it('compares a long cycle with all of a shorter previous one', () => {
+    const previous = report('2026-02-01', '2026-02-28', 28, [day('2026-02-28', 'WANT', 100)])
+    const current = report('2026-03-01', '2026-03-31', 31, [day('2026-03-31', 'WANT', 150)])
+    expect(samePointLastCycle(current, previous, 'BOTH')).toMatchObject({ thenPaise: 100, pct: 50 })
+  })
+
+  it('lists needs and wants categories with their share and last cycle, and links to their expenses', () => {
+    const spend = (categoryId: string, name: string, type: BudgetType, spentPaise: number) => ({
+      categoryId,
+      name,
+      archived: false,
+      type,
+      spentPaise,
+      expenseCount: 1,
+    })
+    const previous = report('2026-10-25', '2026-11-24', 31, [], [spend('rent', 'Rent', 'NEED', 1_500_000)])
+    const current = report(
+      '2026-11-25',
+      '2026-12-24',
+      4,
+      [],
+      [
+        spend('rent', 'Rent', 'NEED', 1_500_000),
+        spend('other', 'Other', 'WANT', 300_000),
+        spend('inv', 'Investments', 'INVESTMENT', 900_000),
+        spend('other', 'Other', 'NEED', 200_000),
+      ],
+    )
+    const shares = categoryShares(current, previous)
+    expect(shares.map((s) => [s.name, s.sharePct, s.lastCyclePaise])).toEqual([
+      ['Rent', 75, 1_500_000],
+      ['Other (wants)', 15, 0],
+      ['Other (needs)', 10, 0],
+    ])
+    expect(categoryShares(current, null)[0].lastCyclePaise).toBeNull()
+    expect(categoryExpensesLink(shares[0], '2026-11-25', '2026-11-28')).toBe(
+      '/expenses?categoryId=rent&from=2026-11-25&to=2026-11-28',
+    )
+    expect(categoryExpensesLink(shares[1], '2026-11-25', '2026-11-28')).toBe(
+      '/expenses?categoryId=other&from=2026-11-25&to=2026-11-28&type=WANT',
+    )
   })
 })

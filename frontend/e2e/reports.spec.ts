@@ -26,16 +26,47 @@ test('reports are reached from More and remember the chosen view in the address'
   await page.goto('/more')
   await page.getByRole('link', { name: 'Reports' }).click()
   await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible()
-  await expect(page.getByLabel('Weekly')).toBeChecked()
+  await expect(page.getByLabel('This cycle')).toBeChecked()
 
-  await page.getByLabel('Yearly').check()
-  await expect(page).toHaveURL(/view=yearly/)
+  await page.getByLabel('Trends').check()
+  await page.getByLabel('Years').check()
+  await expect(page).toHaveURL(/view=trends&by=years/)
   await page.reload()
-  await expect(page.getByLabel('Yearly')).toBeChecked()
+  await expect(page.getByLabel('Years')).toBeChecked()
+
+  // Links from before the three tabs still open the same report.
+  await page.goto('/reports?view=weekly')
+  await expect(page.getByLabel('Trends')).toBeChecked()
+  await expect(page.getByLabel('Weeks')).toBeChecked()
+})
+
+test('this cycle: one statement against the same day last cycle, and categories that open their expenses', async ({
+  page,
+  request,
+}) => {
+  // ₹1,500 of groceries today, on top of what the mock already holds for this cycle. The mock's
+  // cycle started 10 days ago (day 11 today); ₹1,000 of dining on day 2 of the previous cycle.
+  await logExpense(request, 'Groceries', 150_000, daysAgo(0))
+  await logExpense(request, 'Dining', 100_000, daysAgo(40))
+  await page.goto('/reports')
+  const statement = page.getByRole('article', { name: /so far/ })
+  await expect(statement.getByText('Income', { exact: true })).toBeVisible()
+  await expect(statement.getByText('Daily limit')).toBeVisible()
+  await expect(statement).toContainText(/of ₹25,000 planned/)
+  await expect(statement).toContainText(/than by day 11 last cycle \(₹1,000\)/)
+
+  const where = page.getByRole('list', { name: /Spending by category/ })
+  const groceries = where.getByRole('link', { name: /Groceries/ })
+  await expect(groceries).toContainText('% of the total')
+  await groceries.click()
+  await expect(page).toHaveURL(/\/expenses\?categoryId=/)
+  // The list opens filtered to groceries over this cycle.
+  await expect(page.locator('details.range-picker summary')).toContainText('Groceries')
+  await expect(page.getByText('₹1,500').first()).toBeVisible()
 })
 
 test('weekly: eight Monday-to-Sunday weeks with this week marked', async ({ page }) => {
-  await page.goto('/reports')
+  await page.goto('/reports?view=trends&by=weeks')
   const chart = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Spending by week' }) })
   await expect(chart.getByRole('button')).toHaveCount(8)
   await expect(chart.locator('text.strong')).toHaveCount(1)
@@ -53,7 +84,7 @@ test('monthly: one column per pay cycle; saved shows once a cycle with expenses 
   // ₹12,000 of needs in the previous cycle (salary ₹50,000) leaves ₹38,000 saved.
   await logExpense(request, 'Rent', 1_200_000, daysAgo(20))
   await page.goto('/reports?view=monthly')
-  await expect(page.getByLabel('Monthly')).toBeChecked()
+  await expect(page.getByLabel('Cycles')).toBeChecked()
 
   const chart = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'By pay cycle' }) })
   await expect(chart.getByRole('button')).toHaveCount(2)
@@ -82,14 +113,17 @@ test('categories: spending per category per cycle, with highlights', async ({ pa
   const highlights = page.getByRole('region', { name: 'Highlights' })
   await expect(highlights).toContainText(/Rent was your biggest spend in .*: ₹12,000, 86% of needs and wants\./)
 
-  const chart = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Where the money goes' }) })
-  await expect(chart.getByRole('button')).toHaveCount(2)
-  await expect(chart.getByRole('button').first()).toHaveAccessibleName(/Rent ₹12,000/)
-  await chart.getByText('Show as table').click()
-  await expect(chart.locator('tbody tr').first()).toContainText('Rent')
+  // A phone gets the finished cycle as bars, biggest first, each opening its expenses.
+  const bars = page.getByRole('list', { name: /Spending by category/ })
+  await expect(bars.getByRole('link').first()).toContainText('Rent')
+  await expect(bars.getByRole('link').first()).toContainText('₹12,000')
+  await expect(bars.getByRole('link').first()).toContainText('86% of the total')
+  const card = page.getByRole('article').filter({ has: bars })
+  await card.getByText('Show as table').click()
+  await expect(card.locator('tbody tr').first()).toContainText('Rent')
 
-  // The monthly report states the savings rate of that cycle: ₹36,000 of ₹50,000.
-  await page.getByLabel('Monthly').check()
+  // The cycles report states the savings rate of that cycle: ₹36,000 of ₹50,000.
+  await page.getByLabel('Cycles').check()
   await expect(page.getByRole('region', { name: 'Highlights' })).toContainText(/You saved 72% of your income in/)
 })
 
