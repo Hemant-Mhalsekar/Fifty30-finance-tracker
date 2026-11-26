@@ -99,3 +99,17 @@ test('log again: an expense logged twice becomes a one-tap chip, and Undo takes 
   await expect(status).toContainText('Removed.')
   expect(await count()).toBe(before)
 })
+
+test('phone dashboard: today first, the three buckets as rows, the charts behind More details', async ({ page }) => {
+  await page.goto('/')
+  const today = page.getByRole('article', { name: 'You can spend today' })
+  await expect(today).toContainText(/₹[\d,]+/)
+  await expect(today).toContainText('left for needs and wants')
+  for (const name of ['Needs', 'Wants', 'Savings']) await expect(page.getByRole('listitem', { name })).toBeVisible()
+
+  const trend = page.getByRole('heading', { name: 'Spending trend' })
+  await expect(trend).toBeHidden()
+  await page.locator('details.more-details > summary').click()
+  await expect(trend).toBeVisible()
+  await expect(page.getByRole('article', { name: 'Pay cycle budget' })).toBeVisible()
+})

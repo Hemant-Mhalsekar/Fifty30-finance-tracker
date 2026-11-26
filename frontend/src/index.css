@@ -3841,3 +3841,114 @@ dialog.sheet[open] {
   border: none;
   box-shadow: none;
 }
+
+/* ---- dashboard on phones ---- */
+.today-card .card-head {
+  margin-bottom: 0.25rem;
+}
+
+.today-card .big {
+  margin: 0.25rem 0;
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.today-card .meter {
+  margin-top: 0.75rem;
+}
+
+.bucket-rows ul {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bucket-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.bucket-row-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+}
+
+.dot.need {
+  --c: var(--need);
+}
+
+.dot.want {
+  --c: var(--want);
+}
+
+.dot.save {
+  --c: var(--save);
+}
+
+.bucket-rows .note {
+  margin: 0.3rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.bucket-rows .note.over {
+  color: var(--danger);
+}
+
+.more-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: var(--tap);
+  cursor: pointer;
+  list-style: none;
+}
+
+.more-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.more-text {
+  display: grid;
+  gap: 0.15rem;
+  font-weight: 600;
+}
+
+.more-text small {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* Empty alternative text: the summary already announces whether it is expanded. */
+.more-toggle::after {
+  content: 'Show' / '';
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--link);
+}
+
+.more-details[open] .more-toggle::after {
+  content: 'Hide' / '';
+}
+
+.more-details-body {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+/* The cards inside keep their own spacing; the page gap already separates them. */
+.more-details-body > .card,
+.more-details-body > article {
+  margin: 0;
+}
