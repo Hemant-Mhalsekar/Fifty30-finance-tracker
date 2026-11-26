@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { getCurrentCycle, type Cycle } from './api'
+import { clearApiCache } from './apiCache'
+import { usePullToRefresh } from './usePullToRefresh'
 import { daysLeftLabel } from './display'
 import { formatRange } from './dates'
 import {
@@ -50,6 +52,12 @@ export default function AppShell({ email, onLogout, loggingOut, offline, pending
   const inMoreSection = ['/more', '/budgets', '/recurring', '/categories', '/settings'].some((path) =>
     pathname.startsWith(path),
   )
+  // Pull to refresh: forget the cached answers and mount the page again, so it loads fresh.
+  const [refreshCount, setRefreshCount] = useState(0)
+  const pull = usePullToRefresh(() => {
+    clearApiCache()
+    setRefreshCount((n) => n + 1)
+  })
   // The sidebar's cycle card. Refreshed on each page change, so a new cycle shows up without a reload.
   const [cycle, setCycle] = useState<Cycle | null>(null)
   useEffect(() => {
@@ -62,10 +70,17 @@ export default function AppShell({ email, onLogout, loggingOut, offline, pending
     return () => {
       cancelled = true
     }
-  }, [pathname])
+  }, [pathname, refreshCount])
 
   return (
     <div className="shell">
+      <div
+        className={`pull-indicator${pull.ready ? ' ready' : ''}`}
+        style={{ transform: `translate(-50%, ${pull.distance - 48}px)`, opacity: pull.distance > 0 ? 1 : 0 }}
+        aria-hidden="true"
+      >
+        {pull.ready ? 'Release to refresh' : 'Pull to refresh'}
+      </div>
       <aside className="sidebar">
         <Link to="/" className="brand" aria-label="Fifty30 home">
           <BrandMark />
@@ -123,7 +138,8 @@ export default function AppShell({ email, onLogout, loggingOut, offline, pending
             </div>
           )}
           <OfflineBanner offline={offline} pending={pending} />
-          <Outlet />
+          {/* The key remounts the page after a pull, which loads it again from the server. */}
+          <Outlet key={refreshCount} />
         </main>
       </div>
 

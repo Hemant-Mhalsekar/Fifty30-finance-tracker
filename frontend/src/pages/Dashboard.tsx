@@ -25,6 +25,7 @@ import { addDays, formatRange, todayIst } from '../dates'
 import { donutSlices, firstName, greeting, initial, paceStatus, percentOf } from '../display'
 import { formatPaise, formatPaiseCompact, formatPaiseShort } from '../money'
 import { incomeOf } from '../splits'
+import PageSkeleton from '../components/PageSkeleton'
 
 // Nudge only after a few quiet days; daily loggers should not see it.
 const NUDGE_AFTER_DAYS = 3
@@ -119,7 +120,7 @@ export default function Dashboard({ me }: { me: Me }) {
             {error}
           </p>
         ) : (
-          <p className="muted">Loading…</p>
+          <PageSkeleton />
         )}
       </section>
     )
