@@ -765,7 +765,9 @@ function ThisCycle() {
   const month = cycleMonth(cycle.periodStart, cycle.periodEnd)
   const previousMonth = previous ? cycleMonth(previous.cycle.periodStart, previous.cycle.periodEnd) : null
   const leftToSpend = Math.max(0, needs.remainingPaise) + Math.max(0, wants.remainingPaise)
-  const perDay = days.remaining > 0 ? Math.floor(leftToSpend / days.remaining / 100) * 100 : null
+  // Today included, as on the dashboard: today's money can still be spent.
+  const daysLeft = days.remaining + 1
+  const perDay = Math.floor(leftToSpend / daysLeft / 100) * 100
   const shares = categoryShares(current, previous)
   const to = cycle.periodEnd < todayIst() ? cycle.periodEnd : todayIst()
 
@@ -814,13 +816,11 @@ function ThisCycle() {
               note="Part of what you saved"
             />
           )}
-          {perDay !== null && (
-            <StatementRow
-              label="Daily limit"
-              value={`${formatPaiseShort(perDay)} a day`}
-              note={`${formatPaiseShort(leftToSpend)} of needs and wants left for ${days.remaining} ${days.remaining === 1 ? 'day' : 'days'}`}
-            />
-          )}
+          <StatementRow
+            label="Daily limit"
+            value={`${formatPaiseShort(perDay)} a day`}
+            note={`${formatPaiseShort(leftToSpend)} of needs and wants left for ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}, today included`}
+          />
         </dl>
       </article>
 

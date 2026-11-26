@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { resetApi } from './helpers'
+import { openMoreDetails, resetApi } from './helpers'
 
 test.beforeEach(async ({ request }) => {
   await resetApi(request)
@@ -7,6 +7,7 @@ test.beforeEach(async ({ request }) => {
 
 test('spending over the cycle: pace status, keyboard reading and table', async ({ page }) => {
   await page.goto('/')
+  await openMoreDetails(page)
   const chart = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Spending trend' }) })
   await expect(chart).toBeVisible()
   // The seeded data spends far less than an even pace.
@@ -55,6 +56,7 @@ test('going back a cycle redraws the charts for that cycle', async ({ page }) =>
 
   await page.goto('/')
   await page.getByRole('button', { name: 'Previous cycle' }).click()
+  await openMoreDetails(page)
   const spending = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Spending trend' }) })
   // A finished cycle shows spent of budget instead of a pace status.
   await expect(spending.locator('.chart-head')).toContainText('₹0 of ₹40,000')

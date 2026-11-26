@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { resetApi } from './helpers'
+import { openMoreDetails, resetApi } from './helpers'
 
 test('a new cycle asks once; "same as before" keeps the salary', async ({ page, request }) => {
   await resetApi(request, { onboarded: true, salaryConfirmed: false })
@@ -10,7 +10,7 @@ test('a new cycle asks once; "same as before" keeps the salary', async ({ page, 
   await expect(check).toBeHidden()
 
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Left to spend' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'You can spend today' })).toBeVisible()
   await expect(page.getByRole('article', { name: 'New cycle: did your salary change?' })).toBeHidden()
 })
 
@@ -24,12 +24,15 @@ test('"it changed" updates this cycle\'s salary and the dashboard', async ({ pag
   await expect(check).toContainText('Needs ₹30,000.00')
   await check.getByRole('button', { name: 'Save salary' }).click()
   await expect(check).toBeHidden()
+  // ₹60,000 at 50/30/20: ₹48,000 for needs and wants, and the income card says ₹60,000.
+  await expect(page.getByRole('article', { name: 'You can spend today' })).toContainText('of ₹48,000')
+  await openMoreDetails(page)
   await expect(page.getByRole('article', { name: 'Pay cycle budget' })).toContainText('₹60,000')
 })
 
 test('no question when the cycle is already answered', async ({ page, request }) => {
   await resetApi(request)
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Left to spend' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'You can spend today' })).toBeVisible()
   await expect(page.getByText('did your salary change?')).toBeHidden()
 })

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { resetApi } from './helpers'
+import { openMoreDetails, resetApi } from './helpers'
 
 test.beforeEach(async ({ request }) => {
   await resetApi(request)
@@ -371,8 +371,8 @@ test('split: choosing another split redoes this cycle and the dashboard follows'
   await expect(card.getByRole('status')).toContainText('High rent (60/20/20) now applies')
 
   await page.goto('/')
-  const needs = page.getByRole('article', { name: 'Needs' })
-  await expect(needs).toContainText('60% • Essentials')
+  const needs = page.getByRole('listitem', { name: 'Needs' })
+  await expect(needs).toContainText('60%')
   await expect(needs).toContainText('of ₹30,000')
   await page.goto('/budgets')
   await expect(page.getByRole('article', { name: 'Wants • 20%' })).toContainText('₹10,000')
@@ -380,6 +380,7 @@ test('split: choosing another split redoes this cycle and the dashboard follows'
 
 test('bonus: added to this cycle, split like salary, and removable', async ({ page }) => {
   await page.goto('/')
+  await openMoreDetails(page)
   await page.getByRole('link', { name: '+ Add a bonus' }).click()
   const card = page.getByRole('article', { name: 'Bonus this cycle' })
   await card.getByLabel('Bonus amount (₹)').fill('10000')
@@ -387,15 +388,17 @@ test('bonus: added to this cycle, split like salary, and removable', async ({ pa
   await expect(card.getByRole('status')).toContainText('Bonus of ₹10,000.00 added')
 
   await page.goto('/')
+  await openMoreDetails(page)
   const hero = page.getByRole('article', { name: 'Pay cycle budget' })
   await expect(hero).toContainText('₹60,000')
   await expect(hero).toContainText('Salary ₹50,000 + bonus ₹10,000')
-  await expect(page.getByRole('article', { name: 'Needs' })).toContainText('of ₹30,000')
+  await expect(page.getByRole('listitem', { name: 'Needs' })).toContainText('of ₹30,000')
 
   await page.goto('/settings')
   await card.getByRole('button', { name: 'Remove bonus' }).click()
   await expect(card.getByRole('status')).toContainText('Bonus removed')
   await page.goto('/')
+  await openMoreDetails(page)
   await expect(hero).toContainText('₹50,000')
   await expect(page.getByRole('link', { name: '+ Add a bonus' })).toBeVisible()
 })

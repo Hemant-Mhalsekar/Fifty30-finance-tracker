@@ -44,10 +44,11 @@ test('adding expenses updates the dashboard and flags overspending', async ({ pa
   await expect(rent).toHaveAttribute('aria-pressed', 'true')
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Home' }).click()
-  const needs = page.getByRole('article', { name: 'Needs' })
+  const needs = page.getByRole('listitem', { name: 'Needs' })
   await expect(needs).toContainText('Over by')
-  await expect(needs.locator('.pill')).toHaveClass(/bad/)
-  await expect(page.getByRole('article', { name: 'Left to spend' }).locator('.pill')).toHaveText('Over plan')
+  await expect(needs.locator('.note')).toHaveClass(/over/)
+  const today = page.getByRole('article', { name: 'You can spend today' })
+  await expect(today.locator('.pill')).toHaveText('Over plan')
 })
 
 test('Other needs a type, and bad amounts are rejected', async ({ page, request }) => {
@@ -72,7 +73,7 @@ test('Other needs a type, and bad amounts are rejected', async ({ page, request 
 test('the dashboard moves between cycles and stops at the first one', async ({ page, request }) => {
   await resetApi(request)
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Left to spend' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'You can spend today' })).toBeVisible()
   const next = page.getByRole('button', { name: 'Next cycle' })
   await expect(next).toBeDisabled()
 
@@ -83,7 +84,7 @@ test('the dashboard moves between cycles and stops at the first one', async ({ p
   await expect(page.getByText('There is no earlier cycle.')).toBeVisible()
 
   await next.click()
-  await expect(page.getByRole('heading', { name: 'Left to spend' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'You can spend today' })).toBeVisible()
 })
 
 test('deep links survive a reload and unknown paths go home', async ({ page, request }) => {
@@ -128,7 +129,8 @@ test('setup: a split and current savings can be chosen', async ({ page, request 
   await page.getByLabel('Current savings').fill('2,50,000')
   await page.getByRole('button', { name: 'Start tracking' }).click()
 
-  await expect(page.getByRole('article', { name: 'Savings' })).toContainText('30% • Goal')
+  await expect(page.getByRole('listitem', { name: 'Savings' })).toContainText('30%')
+  await expect(page.getByRole('listitem', { name: 'Savings' })).toContainText('of ₹15,000')
   const me = await (await request.get('http://localhost:8080/api/me')).json()
   expect(me.openingBalancePaise).toBe(25_000_000)
 })
