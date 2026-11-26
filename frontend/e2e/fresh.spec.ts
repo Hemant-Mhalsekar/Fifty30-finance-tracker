@@ -70,3 +70,32 @@ test('pulling down at the top reloads the page from the server', async ({ page }
   await expect.poll(() => gets.includes('/api/cycles/current/report')).toBe(true)
   await expect(page.getByRole('heading', { name: 'Recent transactions' })).toBeVisible()
 })
+
+test('log again: an expense logged twice becomes a one-tap chip, and Undo takes it back', async ({ page, request }) => {
+  const categories = (await (await request.get('http://localhost:8080/api/categories')).json()) as {
+    id: string
+    name: string
+  }[]
+  const dining = categories.find((c) => c.name === 'Dining')!.id
+  for (let i = 0; i < 2; i++) {
+    const r = await request.post('http://localhost:8080/api/expenses', {
+      data: { categoryId: dining, amountPaise: 2_000, description: 'Chai' },
+    })
+    expect(r.ok()).toBeTruthy()
+  }
+  const count = async () =>
+    ((await (await request.get('http://localhost:8080/api/expenses?size=100')).json()) as { totalItems: number })
+      .totalItems
+  const before = await count()
+
+  await page.goto('/add')
+  const chip = page.getByRole('button', { name: 'Log Chai, ₹20.00 in Dining, for today' })
+  await chip.click()
+  const status = page.locator('.quick-status')
+  await expect(status).toContainText('Saved ₹20.00 in Dining.')
+  expect(await count()).toBe(before + 1)
+
+  await status.getByRole('button', { name: 'Undo' }).click()
+  await expect(status).toContainText('Removed.')
+  expect(await count()).toBe(before)
+})

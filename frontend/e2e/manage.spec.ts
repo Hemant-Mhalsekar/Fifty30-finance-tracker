@@ -17,12 +17,21 @@ test('expenses: newest first, paging, day totals and category filter', async ({ 
   await expect(page.getByText('Showing 21–24 of 24')).toBeVisible()
   await expect(page.locator('.tx-row')).toHaveCount(4)
 
-  // Dates and category sit behind the date button.
-  await page.locator('.range-picker summary').click()
-  await page.getByLabel('Category').selectOption({ label: 'Other' })
+  // On a phone, dates and category open in a bottom sheet from the date button.
+  await page.locator('.range-picker-button').click()
+  const sheet = page.getByRole('dialog', { name: 'Filters' })
+  await expect(sheet).toBeVisible()
+  await sheet.getByLabel('Category').selectOption({ label: 'Other' })
   await expect(page.getByText(/across 1 expense$/)).toBeVisible()
-  await page.getByRole('button', { name: 'Reset to this cycle' }).click()
+  await sheet.getByRole('button', { name: 'Reset to this cycle' }).click()
   await expect(page.getByText(/across 24 expenses/)).toBeVisible()
+  await sheet.getByRole('button', { name: 'Done' }).click()
+  await expect(sheet).toBeHidden()
+  // Escape closes it too.
+  await page.locator('.range-picker-button').click()
+  await expect(sheet).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
 })
 
 test('expenses: search and type filters narrow the list and its total', async ({ page }) => {
@@ -45,12 +54,14 @@ test('expenses: edit keeps the chosen type for Other and saves the new amount', 
   // Tapping a row opens it for editing.
   await page.getByRole('button', { name: /^Edit Gift for Asha,/ }).click()
 
-  const form = page.locator('.tx-list form')
+  // On a phone the form opens in a bottom sheet over the list.
+  const form = page.getByRole('dialog', { name: 'Edit expense' })
   await expect(form.getByLabel('Amount')).toHaveValue('555')
   await expect(form.getByLabel('Want')).toBeChecked()
   await form.getByLabel('Amount').fill('600.25')
   await form.getByRole('button', { name: 'Save changes' }).click()
 
+  await expect(form).toBeHidden()
   await expect(page.locator('.tx-row', { hasText: 'Gift for Asha' })).toContainText('₹600.25')
 })
 
@@ -280,16 +291,18 @@ test('wide screens use columns instead of one narrow column', async ({ page }) =
 
 test('expenses: download the filtered list as CSV', async ({ page }) => {
   await page.goto('/expenses')
-  await page.locator('.range-picker summary').click()
-  await page.getByLabel('Category').selectOption({ label: 'Other' })
+  await page.locator('.range-picker-button').click()
+  const sheet = page.getByRole('dialog', { name: 'Filters' })
+  await sheet.getByLabel('Category').selectOption({ label: 'Other' })
   await expect(page.getByText(/across 1 expense$/)).toBeVisible()
+  const from = await sheet.getByLabel('From', { exact: true }).inputValue()
+  const to = await sheet.getByLabel('To', { exact: true }).inputValue()
+  await sheet.getByRole('button', { name: 'Done' }).click()
 
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export CSV' }).click()
   const download = await downloadPromise
 
-  const from = await page.getByLabel('From', { exact: true }).inputValue()
-  const to = await page.getByLabel('To', { exact: true }).inputValue()
   expect(download.suggestedFilename()).toBe(`fifty30-expenses-${from}-to-${to}.csv`)
   const stream = await download.createReadStream()
   const chunks: Buffer[] = []

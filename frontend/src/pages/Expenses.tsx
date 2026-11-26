@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import {
   deleteExpense,
@@ -19,6 +19,8 @@ import { formatRange, todayIst } from '../dates'
 import { dayLabel } from '../display'
 import { formatPaiseShort } from '../money'
 import PageSkeleton from '../components/PageSkeleton'
+import Sheet from '../components/Sheet'
+import { useIsPhone } from '../useIsPhone'
 
 const PAGE_SIZE = 20
 // Typing pauses this long before the list reloads, so each key press is not a request.
@@ -67,7 +69,10 @@ export default function Expenses() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [downloading, setDownloading] = useState(false)
-  const rangeRef = useRef<HTMLDetailsElement>(null)
+  const isPhone = useIsPhone()
+  // The wide-screen popover's open state, so Done can close it.
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   // Defaults: the current cycle, everything in it.
   useEffect(() => {
@@ -117,6 +122,7 @@ export default function Expenses() {
 
   const loading = requestKey !== null && result?.key !== requestKey
   const page = result?.page ?? null
+  const editingExpense = page?.items.find((e) => e.id === editingId) ?? null
   const categoryById = new Map((categories ?? []).map((c) => [c.id, c]))
 
   function closeRow() {
@@ -211,6 +217,70 @@ export default function Expenses() {
   const first = page ? page.page * PAGE_SIZE + 1 : 0
   const last = page ? page.page * PAGE_SIZE + page.items.length : 0
 
+  // The date and category filters: a popover on wide screens, a bottom sheet on phones.
+  const filterPanel = (close: () => void) => (
+    <div className="range-panel">
+      <div className="two">
+        <div className="field">
+          <label htmlFor="filter-from">From</label>
+          <input
+            id="filter-from"
+            type="date"
+            min="2000-01-01"
+            max={query.to}
+            value={query.from}
+            onChange={(e) => e.target.value && updateFilter({ from: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="filter-to">To</label>
+          <input
+            id="filter-to"
+            type="date"
+            min={query.from}
+            max={todayIst()}
+            value={query.to}
+            onChange={(e) => e.target.value && updateFilter({ to: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className="field">
+        <label htmlFor="filter-category">Category</label>
+        <select
+          id="filter-category"
+          value={query.categoryId}
+          onChange={(e) => updateFilter({ categoryId: e.target.value })}
+        >
+          <option value="">All categories</option>
+          {[...categories]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.archived ? ' (archived)' : ''}
+              </option>
+            ))}
+        </select>
+      </div>
+      <div className="form-actions">
+        <button
+          type="button"
+          className="secondary"
+          disabled={showingCurrentCycle}
+          onClick={() => {
+            setSearchText('')
+            updateFilter({ ...cycleRange, categoryId: '', type: '', q: '' })
+          }}
+        >
+          Reset to this cycle
+        </button>
+        <button type="button" onClick={close}>
+          Done
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <section className="expenses" aria-busy={loading}>
       <div className="page-head">
@@ -254,73 +324,27 @@ export default function Expenses() {
           />
         </div>
         <div className="filter-row">
-          <details className="range-picker" ref={rangeRef}>
-            <summary>
-              <CalendarIcon size={16} />
-              {rangeLabel}
-              {categoryName && ` • ${categoryName}`}
-            </summary>
-            <div className="range-panel">
-              <div className="two">
-                <div className="field">
-                  <label htmlFor="filter-from">From</label>
-                  <input
-                    id="filter-from"
-                    type="date"
-                    min="2000-01-01"
-                    max={query.to}
-                    value={query.from}
-                    onChange={(e) => e.target.value && updateFilter({ from: e.target.value })}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="filter-to">To</label>
-                  <input
-                    id="filter-to"
-                    type="date"
-                    min={query.from}
-                    max={todayIst()}
-                    value={query.to}
-                    onChange={(e) => e.target.value && updateFilter({ to: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="field">
-                <label htmlFor="filter-category">Category</label>
-                <select
-                  id="filter-category"
-                  value={query.categoryId}
-                  onChange={(e) => updateFilter({ categoryId: e.target.value })}
-                >
-                  <option value="">All categories</option>
-                  {[...categories]
-                    .sort((a, b) => a.name.localeCompare(b.name))
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                        {c.archived ? ' (archived)' : ''}
-                      </option>
-                    ))}
-                </select>
-              </div>
-              <div className="form-actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={showingCurrentCycle}
-                  onClick={() => {
-                    setSearchText('')
-                    updateFilter({ ...cycleRange, categoryId: '', type: '', q: '' })
-                  }}
-                >
-                  Reset to this cycle
-                </button>
-                <button type="button" onClick={() => rangeRef.current?.removeAttribute('open')}>
-                  Done
-                </button>
-              </div>
-            </div>
-          </details>
+          {isPhone ? (
+            <>
+              <button type="button" className="range-picker-button" onClick={() => setFiltersOpen(true)}>
+                <CalendarIcon size={16} />
+                {rangeLabel}
+                {categoryName && ` • ${categoryName}`}
+              </button>
+              <Sheet open={filtersOpen} title="Filters" onClose={() => setFiltersOpen(false)}>
+                {filterPanel(() => setFiltersOpen(false))}
+              </Sheet>
+            </>
+          ) : (
+            <details className="range-picker" open={popoverOpen} onToggle={(e) => setPopoverOpen(e.currentTarget.open)}>
+              <summary>
+                <CalendarIcon size={16} />
+                {rangeLabel}
+                {categoryName && ` • ${categoryName}`}
+              </summary>
+              {filterPanel(() => setPopoverOpen(false))}
+            </details>
+          )}
           <div className="chips type-chips" role="group" aria-label="Type">
             {TYPE_FILTERS.map((t) => (
               <button
@@ -366,7 +390,7 @@ export default function Expenses() {
               <ul className="tx-list">
                 {items.map((expense) => {
                   const category = categoryById.get(expense.categoryId)
-                  if (editingId === expense.id) {
+                  if (editingId === expense.id && !isPhone) {
                     return (
                       <li key={expense.id} className="editing">
                         <div className="edit-panel">
@@ -450,6 +474,25 @@ export default function Expenses() {
             </section>
           ))
         ))}
+
+      {isPhone && (
+        <Sheet open={editingExpense !== null} title="Edit expense" onClose={closeRow}>
+          {editingExpense && (
+            <ExpenseForm
+              categories={editableCategories(editingExpense)}
+              initial={editingExpense}
+              submitLabel="Save changes"
+              onSubmit={async (changes) => {
+                await updateExpense(editingExpense.id, changes)
+                closeRow()
+                setReloadCount((n) => n + 1)
+                return null
+              }}
+              onCancel={closeRow}
+            />
+          )}
+        </Sheet>
+      )}
 
       {page && page.totalItems > 0 && (
         <nav className="pager" aria-label="Pages">

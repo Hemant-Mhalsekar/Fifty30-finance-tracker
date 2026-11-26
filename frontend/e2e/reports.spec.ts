@@ -61,7 +61,7 @@ test('this cycle: one statement against the same day last cycle, and categories 
   await groceries.click()
   await expect(page).toHaveURL(/\/expenses\?categoryId=/)
   // The list opens filtered to groceries over this cycle.
-  await expect(page.locator('details.range-picker summary')).toContainText('Groceries')
+  await expect(page.locator('.range-picker-button')).toContainText('Groceries')
   await expect(page.getByText('₹1,500').first()).toBeVisible()
 })
 

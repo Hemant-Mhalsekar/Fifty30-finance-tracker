@@ -1,10 +1,28 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ApiError, createExpense, listCategories, listExpenses, type Category, type NewExpense } from '../api'
+import {
+  ApiError,
+  createExpense,
+  deleteExpense,
+  listCategories,
+  listExpenses,
+  type Category,
+  type NewExpense,
+} from '../api'
 import { orderByRecentUse } from '../categoryOrder'
 import ExpenseForm from '../components/ExpenseForm'
 import PendingList from '../components/PendingList'
-import { addPending, isRetryable, newClientId, rememberCategories, rememberedCategories } from '../offline'
+import QuickRepeats, { type Logged } from '../components/QuickRepeats'
+import { todayIst } from '../dates'
+import {
+  addPending,
+  isRetryable,
+  newClientId,
+  rememberCategories,
+  rememberedCategories,
+  removePending,
+} from '../offline'
+import { quickRepeats, repeatExpense, type QuickRepeat } from '../quickRepeats'
 import { ArrowLeftIcon, CloudOffIcon } from '../components/icons'
 import { useOnline } from '../useOffline'
 import { formatPaise } from '../money'
@@ -16,6 +34,7 @@ const OFFLINE_SAVED = 'Saved on this phone. It will be sent when you are back on
 
 export default function AddExpense({ userId }: { userId: string }) {
   const [categories, setCategories] = useState<Category[] | null>(null)
+  const [repeats, setRepeats] = useState<QuickRepeat[]>([])
   const navigate = useNavigate()
   const online = useOnline()
   // Back to where the user came from; opened directly (a shortcut or bookmark), back to the dashboard.
@@ -31,6 +50,7 @@ export default function AddExpense({ userId }: { userId: string }) {
         // Kept on the phone so expenses can be added without a connection next time.
         rememberCategories(userId, all)
         setCategories(orderByRecentUse(all, latest?.items.map((e) => e.categoryId) ?? []))
+        setRepeats(quickRepeats(latest?.items ?? [], all))
       })
       .catch((e: unknown) => {
         if (cancelled) return
@@ -52,8 +72,9 @@ export default function AddExpense({ userId }: { userId: string }) {
   }, [userId])
 
   // Sends the expense with a fresh clientId, so a retry can never store it twice. With no
-  // connection (or a server that is down), it waits on the phone instead.
-  async function save(expense: NewExpense, category: Category): Promise<string> {
+  // connection (or a server that is down), it waits on the phone instead. The undo removes
+  // whichever of the two happened.
+  async function send(expense: NewExpense, category: Category): Promise<Logged> {
     const clientId = newClientId()
     const keep = () => {
       const kept = addPending({
@@ -64,18 +85,24 @@ export default function AddExpense({ userId }: { userId: string }) {
         savedAt: new Date().toISOString(),
       })
       if (!kept) throw new Error('No connection, and this phone could not store the expense. Try again when online.')
-      return OFFLINE_SAVED
+      return { message: OFFLINE_SAVED, undo: async () => removePending(clientId) }
     }
     if (!navigator.onLine) return keep()
     try {
       const saved = await createExpense({ ...expense, clientId })
-      return `Saved ${formatPaise(saved.amountPaise)} in ${category.name}.`
+      return {
+        message: `Saved ${formatPaise(saved.amountPaise)} in ${category.name}.`,
+        undo: () => deleteExpense(saved.id),
+      }
     } catch (e) {
       // 401 means the session ended; the app is already showing the login form.
       if (e instanceof ApiError && isRetryable(e.status) && e.status !== 401) return keep()
       throw e
     }
   }
+
+  const save = (expense: NewExpense, category: Category) => send(expense, category).then((r) => r.message)
+  const logAgain = (r: QuickRepeat) => send(repeatExpense(r, todayIst()), r.category)
 
   return (
     <section className="add-expense">
@@ -101,6 +128,7 @@ export default function AddExpense({ userId }: { userId: string }) {
         </p>
       )}
       {!loadError && !categories && <p className="muted">Loading categories…</p>}
+      {categories && <QuickRepeats repeats={repeats} onLog={logAgain} />}
       {categories && (
         <div className="card">
           <ExpenseForm

@@ -2548,7 +2548,8 @@ details.range-picker {
   position: relative;
 }
 
-details.range-picker > summary {
+details.range-picker > summary,
+.range-picker-button {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -3720,4 +3721,123 @@ html {
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
     gap: 1.5rem;
   }
+}
+
+/* ---- add expense: log again ---- */
+.add-expense .quick-repeats {
+  margin-bottom: 1rem;
+}
+
+.quick-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.quick-head h2 {
+  margin: 0;
+}
+
+.quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.quick-chip strong {
+  font-weight: 600;
+}
+
+.quick-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.quick-status:empty {
+  display: none;
+}
+
+/* ---- bottom sheet (phones) ---- */
+dialog.sheet {
+  width: 100%;
+  max-width: 100%;
+  max-height: 88dvh;
+  margin: auto 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 24px 24px 0 0;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 -8px 30px rgb(0 0 0 / 18%);
+}
+
+dialog.sheet::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
+dialog.sheet[open] {
+  animation: sheet-up 0.22s ease-out;
+}
+
+.sheet-panel:focus {
+  outline: none;
+}
+
+.sheet-panel {
+  padding: 0.5rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom));
+}
+
+.sheet-panel > h2 {
+  margin: 0.25rem 0 1rem;
+}
+
+.sheet-handle {
+  width: 40px;
+  height: 5px;
+  margin: 0.25rem auto 0.75rem;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog.sheet[open] {
+    animation: none;
+  }
+}
+
+/* Phones: the same filter button opens the filters in a bottom sheet instead of a popover. */
+.range-picker-button {
+  color: var(--text);
+}
+
+.sheet .range-panel {
+  position: static;
+  width: auto;
+  padding: 0;
+  border: none;
+  box-shadow: none;
 }
