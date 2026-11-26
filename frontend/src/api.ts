@@ -1,9 +1,17 @@
+import { cachedGet, clearApiCache } from './apiCache'
 import { errorMessage } from './errors'
 import type { SplitPreset } from './splits'
 
 // The access token lives only in this module variable (never in any browser storage).
 // It is lost on page reload; the HttpOnly refresh cookie is used to get a new one.
 let accessToken: string | null = null
+
+// Every new token (login, refresh, logout) starts with an empty answer cache, so one person's
+// data can never be shown to the next person on the same device.
+function setAccessToken(token: string | null) {
+  accessToken = token
+  clearApiCache()
+}
 
 const AUTH_PATHS = [
   '/api/auth/login',
@@ -81,13 +89,13 @@ async function doRefresh(): Promise<boolean> {
     const response = await apiFetch('/api/auth/refresh', { method: 'POST' })
     const token = response.ok ? await readAccessToken(response) : null
     if (!token) {
-      accessToken = null
+      setAccessToken(null)
       return false
     }
-    accessToken = token
+    setAccessToken(token)
     return true
   } catch {
-    accessToken = null
+    setAccessToken(null)
     return false
   }
 }
@@ -188,7 +196,7 @@ async function authenticate(path: string, payload: Record<string, string>): Prom
   if (!token) {
     throw new Error('Something went wrong')
   }
-  accessToken = token
+  setAccessToken(token)
   return body?.accountRestored === true
 }
 
@@ -208,7 +216,7 @@ export async function logout(): Promise<void> {
   } catch {
     // Ignored: the token is cleared below either way.
   } finally {
-    accessToken = null
+    setAccessToken(null)
   }
 }
 
@@ -224,7 +232,15 @@ export class ApiError extends Error {
   }
 }
 
-async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+// GETs come from the short-lived cache (apiCache.ts); anything else clears it, because it may
+// have changed what the GETs would answer.
+function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method ?? 'GET').toUpperCase()
+  if (method === 'GET') return cachedGet(path, () => sendRequest<T>(path, init))
+  return sendRequest<T>(path, init).finally(clearApiCache)
+}
+
+async function sendRequest<T>(path: string, init: RequestInit): Promise<T> {
   let response: Response
   try {
     response = await apiFetch(path, init)

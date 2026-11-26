@@ -14,6 +14,7 @@ import { AlertIcon, ChevronLeftIcon, ChevronRightIcon } from '../components/icon
 import { addDays, formatRange, todayIst } from '../dates'
 import { percentOf } from '../display'
 import { formatPaiseShort } from '../money'
+import PageSkeleton from '../components/PageSkeleton'
 
 const COLORS: Record<BudgetType, { c: string; t: string }> = {
   NEED: { c: 'var(--need)', t: 'var(--need-soft)' },
@@ -86,7 +87,7 @@ export default function Budgets() {
             {error}
           </p>
         ) : (
-          <p className="muted">Loading…</p>
+          <PageSkeleton />
         )}
       </section>
     )

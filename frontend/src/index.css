@@ -3481,3 +3481,83 @@ details.range-picker[open] > summary {
 .hero-card .hero-link:hover {
   text-decoration: underline;
 }
+
+/* ---- loading placeholders ---- */
+.skeleton {
+  display: grid;
+  gap: 1rem;
+}
+
+.skeleton-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.skeleton-block {
+  height: 7rem;
+  border-radius: 20px;
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shine 1.4s ease-in-out infinite;
+}
+
+.skeleton-block.tall {
+  height: 12rem;
+}
+
+.skeleton-block.line {
+  height: 4rem;
+  border-radius: 14px;
+}
+
+.skeleton-list {
+  gap: 0.6rem;
+}
+
+@keyframes skeleton-shine {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block {
+    animation: none;
+  }
+}
+
+/* ---- pull to refresh ---- */
+/* The app handles the pull itself, so the browser's own pull-to-reload (a full page reload) is off. */
+html {
+  overscroll-behavior-y: contain;
+}
+
+.pull-indicator {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  z-index: 60;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  box-shadow: var(--shadow);
+  font-size: 0.875rem;
+  font-weight: 500;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.pull-indicator.ready {
+  color: var(--text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pull-indicator {
+    display: none;
+  }
+}

@@ -18,6 +18,7 @@ import { CalendarIcon, DownloadIcon, PencilIcon, SearchIcon, TrashIcon } from '.
 import { formatRange, todayIst } from '../dates'
 import { dayLabel } from '../display'
 import { formatPaiseShort } from '../money'
+import PageSkeleton from '../components/PageSkeleton'
 
 const PAGE_SIZE = 20
 // Typing pauses this long before the list reloads, so each key press is not a request.
@@ -173,7 +174,7 @@ export default function Expenses() {
             {error}
           </p>
         ) : (
-          <p className="muted">Loading…</p>
+          <PageSkeleton variant="list" />
         )}
       </section>
     )
@@ -323,6 +324,8 @@ export default function Expenses() {
           {error}
         </p>
       )}
+
+      {!page && !error && <PageSkeleton variant="list" />}
 
       {page &&
         (page.items.length === 0 ? (

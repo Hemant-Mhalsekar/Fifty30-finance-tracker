@@ -14,6 +14,7 @@ import RecurringForm from '../components/RecurringForm'
 import { formatDate } from '../dates'
 import { formatPaise } from '../money'
 import { scheduleLabel } from '../recurring'
+import PageSkeleton from '../components/PageSkeleton'
 
 function isWide(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(min-width: 900px)').matches === true
@@ -71,7 +72,7 @@ export default function Recurring() {
             {loadError}
           </p>
         ) : (
-          <p className="muted">Loading…</p>
+          <PageSkeleton variant="list" />
         )}
       </section>
     )

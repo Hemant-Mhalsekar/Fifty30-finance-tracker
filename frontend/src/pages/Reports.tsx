@@ -25,6 +25,7 @@ import {
   type MonthRow,
 } from '../reports'
 import { incomeOf } from '../splits'
+import PageSkeleton from '../components/PageSkeleton'
 
 type View = 'weekly' | 'monthly' | 'categories' | 'yearly' | 'savings'
 const VIEWS: { value: View; label: string }[] = [
@@ -128,7 +129,7 @@ function Status({ error }: { error: string | null }) {
       {error}
     </p>
   ) : (
-    <p className="muted">Loading…</p>
+    <PageSkeleton />
   )
 }
 

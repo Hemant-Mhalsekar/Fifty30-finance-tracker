@@ -3,6 +3,7 @@ import { createCategory, deleteCategory, listCategories, updateCategory, type Bu
 import { CategoryIcon } from '../components/icons'
 import { typeClass } from '../display'
 import { TYPE_COLORS, TYPE_LABELS } from '../labels'
+import PageSkeleton from '../components/PageSkeleton'
 
 const MAX_NAME_LENGTH = 50
 const TYPES = Object.keys(TYPE_LABELS) as BudgetType[]
@@ -49,7 +50,7 @@ export default function Categories() {
             {loadError}
           </p>
         ) : (
-          <p className="muted">Loading…</p>
+          <PageSkeleton variant="list" />
         )}
       </section>
     )
