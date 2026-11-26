@@ -3561,3 +3561,163 @@ html {
     display: none;
   }
 }
+
+/* ---- reports: this cycle statement and category bars ---- */
+.trend-switch {
+  margin-top: -0.25rem;
+}
+
+.statement-head {
+  margin-bottom: 0.75rem;
+}
+
+.statement-head h2 {
+  margin: 0 0 0.15rem;
+}
+
+.statement-rows {
+  display: grid;
+  margin: 0;
+}
+
+.statement-row {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 30%) 1fr;
+  gap: 0.25rem 1rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.statement-row:first-child {
+  border-top: none;
+}
+
+.statement-row dt {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.statement-row dd {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+}
+
+.statement-row dd strong {
+  font-size: 1.15rem;
+}
+
+.pace {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.pace.up,
+.category-bars .up {
+  color: var(--danger);
+}
+
+.pace.down,
+.category-bars .down {
+  color: var(--success);
+}
+
+.category-bars {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.category-bars > li > a,
+.category-bars > li > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: var(--tap);
+  padding: 0.6rem 0.5rem;
+  margin: 0 -0.5rem;
+  border-radius: 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.category-bars > li > a:hover,
+.category-bars > li > a:focus-visible {
+  background: var(--surface-2);
+}
+
+.bar-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.bar-main {
+  display: grid;
+  flex: 1;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.bar-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.bar-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.bar-fill.need {
+  background: var(--need);
+}
+
+.bar-fill.want {
+  background: var(--want);
+}
+
+.bar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.cycle-report {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .cycle-report {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+}

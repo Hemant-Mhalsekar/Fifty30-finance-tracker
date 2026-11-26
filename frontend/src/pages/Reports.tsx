@@ -1,40 +1,72 @@
-import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Link, useSearchParams } from 'react-router'
 import {
+  ApiError,
   getAllCycles,
   getCategoryTrends,
+  getCurrentReport,
+  getReportForDate,
   getWeekly,
   type CategoryTrends,
   type CycleHistoryItem,
+  type CycleReport,
   type WeeklyData,
 } from '../api'
+import CategoryBars from '../components/CategoryBars'
+import ChartTable from '../components/ChartTable'
 import ColumnChart from '../components/ColumnChart'
-import { formatDate, formatRange, todayIst } from '../dates'
+import { addDays, formatDate, formatRange, todayIst } from '../dates'
 import { formatPaiseCompact, formatPaiseShort } from '../money'
 import {
+  categoryExpensesLink,
   categoryInsights,
+  categoryShares,
   categoryTrends,
   changePct,
   cycleInsights,
   cycleMonth,
   monthRows,
+  samePointLastCycle,
   savingsRate,
   savingsSummary,
   weekRows,
   yearRows,
   type MonthRow,
+  type PaceComparison,
 } from '../reports'
 import { incomeOf } from '../splits'
 import PageSkeleton from '../components/PageSkeleton'
 
-type View = 'weekly' | 'monthly' | 'categories' | 'yearly' | 'savings'
+type View = 'cycle' | 'trends' | 'savings'
 const VIEWS: { value: View; label: string }[] = [
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' },
-  { value: 'categories', label: 'Categories' },
-  { value: 'yearly', label: 'Yearly' },
+  { value: 'cycle', label: 'This cycle' },
+  { value: 'trends', label: 'Trends' },
   { value: 'savings', label: 'Savings' },
 ]
+type TrendBy = 'weeks' | 'cycles' | 'categories' | 'years'
+const TREND_BY: { value: TrendBy; label: string }[] = [
+  { value: 'weeks', label: 'Weeks' },
+  { value: 'cycles', label: 'Cycles' },
+  { value: 'categories', label: 'Categories' },
+  { value: 'years', label: 'Years' },
+]
+// Addresses from before the three tabs (saved links, the home-screen app) still open the same report.
+const OLD_VIEWS: Record<string, TrendBy> = {
+  weekly: 'weeks',
+  monthly: 'cycles',
+  categories: 'categories',
+  yearly: 'years',
+}
+
+function viewFromAddress(params: URLSearchParams): { view: View; by: TrendBy } {
+  const view = params.get('view') ?? ''
+  const by = params.get('by') ?? ''
+  if (view in OLD_VIEWS) return { view: 'trends', by: OLD_VIEWS[view] }
+  return {
+    view: VIEWS.some((v) => v.value === view) ? (view as View) : 'cycle',
+    by: TREND_BY.some((b) => b.value === by) ? (by as TrendBy) : 'cycles',
+  }
+}
 const WEEKS = 8
 // Module-level so the loader passed to useLoad never changes between renders.
 const loadWeekly = () => getWeekly(WEEKS)
@@ -54,9 +86,12 @@ const shortDate = (iso: string) => DAY_MONTH.format(new Date(`${iso}T00:00:00Z`)
 export default function Reports({ openingBalancePaise }: { openingBalancePaise: number | null }) {
   // The view lives in the address, so a reload or a shared link keeps it.
   const [params, setParams] = useSearchParams()
-  const fromAddress = params.get('view')
   // Local state answers the tap at once; the address update can land a moment later.
-  const [view, setView] = useState<View>(VIEWS.some((v) => v.value === fromAddress) ? (fromAddress as View) : 'weekly')
+  const [{ view, by }, setChoice] = useState(() => viewFromAddress(params))
+  const choose = (next: { view: View; by: TrendBy }) => {
+    setChoice(next)
+    setParams(next.view === 'trends' ? { view: next.view, by: next.by } : { view: next.view }, { replace: true })
+  }
   const switchRef = useRef<HTMLDivElement>(null)
   // On a phone the row scrolls sideways: keep the chosen report in sight (a shared link may open on the last one).
   useEffect(() => {
@@ -70,7 +105,9 @@ export default function Reports({ openingBalancePaise }: { openingBalancePaise: 
       <div className="page-head">
         <div>
           <h1>Reports</h1>
-          <p className="sub">Weekly, monthly and yearly spending, where it goes, and what you have saved over time</p>
+          <p className="sub">
+            How this pay cycle is going, how your spending changes over time, and what you have saved
+          </p>
         </div>
       </div>
       <fieldset className="field report-switch">
@@ -83,22 +120,42 @@ export default function Reports({ openingBalancePaise }: { openingBalancePaise: 
                 name="report-view"
                 value={v.value}
                 checked={view === v.value}
-                onChange={() => {
-                  setView(v.value)
-                  setParams({ view: v.value }, { replace: true })
-                }}
+                onChange={() => choose({ view: v.value, by })}
               />
               {v.label}
             </label>
           ))}
         </div>
       </fieldset>
-      {view === 'weekly' ? (
+      {view === 'trends' && (
+        <fieldset className="field report-switch trend-switch">
+          <legend className="visually-hidden">Trends by</legend>
+          <div className="segmented">
+            {TREND_BY.map((b) => (
+              <label key={b.value}>
+                <input
+                  type="radio"
+                  name="trend-by"
+                  value={b.value}
+                  checked={by === b.value}
+                  onChange={() => choose({ view, by: b.value })}
+                />
+                {b.label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {view === 'cycle' ? (
+        <ThisCycle />
+      ) : view === 'savings' ? (
+        <CycleReports view="savings" openingPaise={openingBalancePaise ?? 0} />
+      ) : by === 'weeks' ? (
         <WeeklyReport />
-      ) : view === 'categories' ? (
+      ) : by === 'categories' ? (
         <CategoryReport />
       ) : (
-        <CycleReports view={view} openingPaise={openingBalancePaise ?? 0} />
+        <CycleReports view={by === 'years' ? 'yearly' : 'monthly'} openingPaise={openingBalancePaise ?? 0} />
       )}
     </section>
   )
@@ -541,70 +598,257 @@ function CategoryReport() {
   if (beforeIndex >= 0) columns.push(month(beforeIndex), 'Change')
   if (finished.length > 1) columns.push(`Average of ${finished.length}`)
 
+  const table = {
+    columns,
+    rows: categories.map((c) => {
+      const cells = [c.archived ? `${c.name} (archived)` : c.name]
+      if (currentIndex >= 0) cells.push(formatPaiseShort(c.perCycle[currentIndex]))
+      if (lastIndex >= 0) cells.push(formatPaiseShort(c.perCycle[lastIndex]))
+      if (beforeIndex >= 0) {
+        cells.push(
+          formatPaiseShort(c.perCycle[beforeIndex]),
+          signedPercent(changePct(c.perCycle[lastIndex], c.perCycle[beforeIndex])),
+        )
+      }
+      const avg = average(c.perCycle)
+      if (finished.length > 1 && avg !== null) cells.push(formatPaiseShort(Math.round(avg / 100) * 100))
+      return cells
+    }),
+  }
+  // Phones get one cycle as bars: the last finished one against the cycle before (or this one so far).
+  const shown = lastIndex >= 0 ? lastIndex : currentIndex
+  const compared = lastIndex >= 0 ? beforeIndex : -1
+
   return (
     <>
       <Insights lines={categoryInsights(summary)} />
-      <ColumnChart
-        title="Where the money goes"
-        subtitle={`Needs and wants by category, last ${cycles.length} ${cycles.length === 1 ? 'cycle' : 'cycles'}`}
-        emptyText="No spending logged in these cycles yet."
-        legend={[
-          ...top.map((c, i) => ({ name: c.name, color: CATEGORY_COLORS[i] })),
-          ...(rest.length > 0 ? [{ name: `${rest.length} more`, color: 'var(--slate)' }] : []),
-        ]}
-        columns={
-          categories.length === 0
-            ? []
-            : cycles.map((c, i) => {
-                const total = categories.reduce((t, cat) => t + cat.perCycle[i], 0)
-                return {
-                  key: c.periodStart,
-                  label: month(i).split(' ')[0],
-                  strong: i === currentIndex,
-                  segments: [
-                    ...top.map((cat, k) => ({ key: cat.key, value: cat.perCycle[i], color: CATEGORY_COLORS[k] })),
-                    { key: 'rest', value: restPer[i], color: 'var(--slate)' },
-                  ],
-                  topLabel: formatPaiseCompact(total),
-                  ariaLabel: `${month(i)}${i === currentIndex ? ' (so far)' : ''}: ${top
-                    .map((cat) => `${cat.name} ${formatPaiseShort(cat.perCycle[i])}`)
-                    .join(', ')}${rest.length > 0 ? `, other categories ${formatPaiseShort(restPer[i])}` : ''}`,
-                  tooltip: {
-                    title: `${month(i)} · ${formatRange(c.periodStart, c.periodEnd)}${i === currentIndex ? ' (so far)' : ''}`,
-                    lines: [
-                      ...top
-                        .filter((cat) => cat.perCycle[i] > 0)
-                        .map((cat) => `${cat.name} ${formatPaiseShort(cat.perCycle[i])}`),
-                      ...(restPer[i] > 0 ? [`Other categories ${formatPaiseShort(restPer[i])}`] : []),
-                      `Total ${formatPaiseShort(total)}`,
+      {shown >= 0 && categories.length > 0 && (
+        <article className="card phone-only" aria-labelledby="bars-title">
+          <div className="card-head">
+            <h2 id="bars-title">
+              {month(shown)}
+              {shown === currentIndex ? ' so far' : ''}
+            </h2>
+            <span className="muted">Needs and wants by category</span>
+          </div>
+          <CategoryBars
+            title={`Spending by category, ${month(shown)}`}
+            compareLabel={compared >= 0 ? `vs ${month(compared)}` : ''}
+            rows={categories
+              .filter((c) => c.perCycle[shown] > 0)
+              .sort((a, b) => b.perCycle[shown] - a.perCycle[shown])
+              .map((c) => ({
+                key: c.key,
+                name: c.name,
+                type: c.type,
+                amountPaise: c.perCycle[shown],
+                comparePaise: compared >= 0 ? c.perCycle[compared] : null,
+                href: categoryExpensesLink(
+                  c,
+                  cycles[shown].periodStart,
+                  cycles[shown].periodEnd < todayIst() ? cycles[shown].periodEnd : todayIst(),
+                ),
+              }))}
+          />
+          <ChartTable {...table} />
+        </article>
+      )}
+      <div className="wide-only">
+        <ColumnChart
+          title="Where the money goes"
+          subtitle={`Needs and wants by category, last ${cycles.length} ${cycles.length === 1 ? 'cycle' : 'cycles'}`}
+          emptyText="No spending logged in these cycles yet."
+          legend={[
+            ...top.map((c, i) => ({ name: c.name, color: CATEGORY_COLORS[i] })),
+            ...(rest.length > 0 ? [{ name: `${rest.length} more`, color: 'var(--slate)' }] : []),
+          ]}
+          columns={
+            categories.length === 0
+              ? []
+              : cycles.map((c, i) => {
+                  const total = categories.reduce((t, cat) => t + cat.perCycle[i], 0)
+                  return {
+                    key: c.periodStart,
+                    label: month(i).split(' ')[0],
+                    strong: i === currentIndex,
+                    segments: [
+                      ...top.map((cat, k) => ({ key: cat.key, value: cat.perCycle[i], color: CATEGORY_COLORS[k] })),
+                      { key: 'rest', value: restPer[i], color: 'var(--slate)' },
                     ],
-                  },
-                }
-              })
-        }
-        table={{
-          columns,
-          rows: categories.map((c) => {
-            const cells = [c.archived ? `${c.name} (archived)` : c.name]
-            if (currentIndex >= 0) cells.push(formatPaiseShort(c.perCycle[currentIndex]))
-            if (lastIndex >= 0) cells.push(formatPaiseShort(c.perCycle[lastIndex]))
-            if (beforeIndex >= 0) {
-              cells.push(
-                formatPaiseShort(c.perCycle[beforeIndex]),
-                signedPercent(changePct(c.perCycle[lastIndex], c.perCycle[beforeIndex])),
-              )
-            }
-            const avg = average(c.perCycle)
-            if (finished.length > 1 && avg !== null) cells.push(formatPaiseShort(Math.round(avg / 100) * 100))
-            return cells
-          }),
-        }}
-      >
-        <p className="hint chart-note">
-          Each cycle is named after the month most of it falls in. Change compares the last two finished cycles.
-          Investments are savings, so they are left out.
-        </p>
-      </ColumnChart>
+                    topLabel: formatPaiseCompact(total),
+                    ariaLabel: `${month(i)}${i === currentIndex ? ' (so far)' : ''}: ${top
+                      .map((cat) => `${cat.name} ${formatPaiseShort(cat.perCycle[i])}`)
+                      .join(', ')}${rest.length > 0 ? `, other categories ${formatPaiseShort(restPer[i])}` : ''}`,
+                    tooltip: {
+                      title: `${month(i)} · ${formatRange(c.periodStart, c.periodEnd)}${i === currentIndex ? ' (so far)' : ''}`,
+                      lines: [
+                        ...top
+                          .filter((cat) => cat.perCycle[i] > 0)
+                          .map((cat) => `${cat.name} ${formatPaiseShort(cat.perCycle[i])}`),
+                        ...(restPer[i] > 0 ? [`Other categories ${formatPaiseShort(restPer[i])}`] : []),
+                        `Total ${formatPaiseShort(total)}`,
+                      ],
+                    },
+                  }
+                })
+          }
+          table={table}
+        >
+          <p className="hint chart-note">
+            Each cycle is named after the month most of it falls in. Change compares the last two finished cycles.
+            Investments are savings, so they are left out.
+          </p>
+        </ColumnChart>
+      </div>
     </>
+  )
+}
+
+// The current cycle and the one before it: the first for the statement, the second to compare with.
+// A brand-new account has no earlier cycle (404); that only removes the comparisons.
+function loadThisCycle(): Promise<{ current: CycleReport; previous: CycleReport | null }> {
+  return getCurrentReport().then((current) =>
+    getReportForDate(addDays(current.cycle.periodStart, -1))
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 404) return null
+        throw e
+      })
+      .then((previous) => ({ current, previous })),
+  )
+}
+
+// "▲ 12% vs day 11 last cycle". Spending more is the warning colour; the arrow and the words carry
+// the meaning, so colour is never the only signal.
+function Pace({ pace }: { pace: PaceComparison | null }) {
+  if (!pace || (pace.nowPaise === 0 && pace.thenPaise === 0)) return null
+  const by = `by day ${pace.day} last cycle`
+  if (pace.pct === null) return <span className="pace up">Nothing spent {by}</span>
+  if (pace.pct === 0) return <span className="pace">Same as {by}</span>
+  return (
+    <span className={`pace ${pace.pct > 0 ? 'up' : 'down'}`}>
+      {pace.pct > 0 ? '▲' : '▼'} {Math.abs(pace.pct)}% {pace.pct > 0 ? 'more' : 'less'} than {by} (
+      {formatPaiseShort(pace.thenPaise)})
+    </span>
+  )
+}
+
+function StatementRow({
+  label,
+  value,
+  note,
+  children,
+}: {
+  label: string
+  value: string
+  note?: string
+  children?: ReactNode
+}) {
+  return (
+    <div className="statement-row">
+      <dt>{label}</dt>
+      <dd>
+        <strong className="num">{value}</strong>
+        {note && <span className="muted">{note}</span>}
+        {children}
+      </dd>
+    </div>
+  )
+}
+
+// One statement for the cycle under way, every figure with what it means, then where the money went.
+function ThisCycle() {
+  const { data, error } = useLoad(loadThisCycle)
+  if (!data) return <Status error={error} />
+  const { current, previous } = data
+  const { cycle, days, needs, wants, savings } = current
+  const income = incomeOf(cycle)
+  const month = cycleMonth(cycle.periodStart, cycle.periodEnd)
+  const previousMonth = previous ? cycleMonth(previous.cycle.periodStart, previous.cycle.periodEnd) : null
+  const leftToSpend = Math.max(0, needs.remainingPaise) + Math.max(0, wants.remainingPaise)
+  const perDay = days.remaining > 0 ? Math.floor(leftToSpend / days.remaining / 100) * 100 : null
+  const shares = categoryShares(current, previous)
+  const to = cycle.periodEnd < todayIst() ? cycle.periodEnd : todayIst()
+
+  return (
+    <div className="cycle-report">
+      <article className="card statement" aria-labelledby="statement-title">
+        <div className="statement-head">
+          <h2 id="statement-title">{month} cycle so far</h2>
+          <p className="muted">
+            {formatRange(cycle.periodStart, cycle.periodEnd)} · day {days.elapsed} of {days.total}
+          </p>
+        </div>
+        <dl className="statement-rows">
+          <StatementRow
+            label="Income"
+            value={formatPaiseShort(income)}
+            note={
+              cycle.bonusPaise > 0
+                ? `Salary ${formatPaiseShort(cycle.salaryPaise)} + bonus ${formatPaiseShort(cycle.bonusPaise)}`
+                : undefined
+            }
+          />
+          <StatementRow
+            label="Needs"
+            value={formatPaiseShort(needs.spentPaise)}
+            note={`of ${formatPaiseShort(needs.allocatedPaise)} planned (${percent(savingsRate(needs.spentPaise, needs.allocatedPaise))})`}
+          >
+            <Pace pace={samePointLastCycle(current, previous, 'NEED')} />
+          </StatementRow>
+          <StatementRow
+            label="Wants"
+            value={formatPaiseShort(wants.spentPaise)}
+            note={`of ${formatPaiseShort(wants.allocatedPaise)} planned (${percent(savingsRate(wants.spentPaise, wants.allocatedPaise))})`}
+          >
+            <Pace pace={samePointLastCycle(current, previous, 'WANT')} />
+          </StatementRow>
+          <StatementRow
+            label={savings.deficit ? 'Deficit so far' : 'Saved so far'}
+            value={formatPaiseShort(Math.abs(savings.savedPaise))}
+            note={`${percent(savingsRate(savings.savedPaise, income))} of income if you stop spending now; target ${formatPaiseShort(savings.plannedPaise)}`}
+          />
+          {savings.investedPaise > 0 && (
+            <StatementRow
+              label="Invested"
+              value={formatPaiseShort(savings.investedPaise)}
+              note="Part of what you saved"
+            />
+          )}
+          {perDay !== null && (
+            <StatementRow
+              label="Daily limit"
+              value={`${formatPaiseShort(perDay)} a day`}
+              note={`${formatPaiseShort(leftToSpend)} of needs and wants left for ${days.remaining} ${days.remaining === 1 ? 'day' : 'days'}`}
+            />
+          )}
+        </dl>
+      </article>
+
+      <article className="card" aria-labelledby="went-title">
+        <div className="statement-head">
+          <h2 id="went-title">Where it went</h2>
+          <p className="muted">Needs and wants by category. Tap one to see its expenses.</p>
+        </div>
+        {shares.length === 0 ? (
+          <p className="muted">
+            Nothing spent on needs or wants yet this cycle. <Link to="/add">Add an expense</Link>
+          </p>
+        ) : (
+          <CategoryBars
+            title={`Spending by category, ${month}`}
+            compareLabel={previousMonth ? `vs ${previousMonth}` : ''}
+            compareAs="amount"
+            rows={shares.map((s) => ({
+              key: s.key,
+              name: s.name,
+              type: s.type,
+              amountPaise: s.spentPaise,
+              comparePaise: s.lastCyclePaise,
+              href: categoryExpensesLink(s, cycle.periodStart, to),
+            }))}
+          />
+        )}
+      </article>
+    </div>
   )
 }
