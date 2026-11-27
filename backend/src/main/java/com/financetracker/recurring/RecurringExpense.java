@@ -39,8 +39,19 @@ public class RecurringExpense {
     @Column(nullable = false)
     private String description;
 
-    @Column(name = "day_of_month", nullable = false)
-    private short dayOfMonth;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Frequency frequency;
+
+    // Only the fields of the frequency are set (see Schedule); the database checks the combination.
+    @Column(name = "day_of_month")
+    private Short dayOfMonth;
+
+    @Column(name = "day_of_week")
+    private Short dayOfWeek;
+
+    @Column(name = "month_of_year")
+    private Short monthOfYear;
 
     @Column(name = "next_due_date", nullable = false)
     private LocalDate nextDueDate;
@@ -62,14 +73,14 @@ public class RecurringExpense {
             BudgetType type,
             long amountPaise,
             String description,
-            short dayOfMonth,
+            Schedule schedule,
             LocalDate nextDueDate) {
         this.userId = userId;
         this.categoryId = categoryId;
         this.type = type;
         this.amountPaise = amountPaise;
         this.description = description;
-        this.dayOfMonth = dayOfMonth;
+        setSchedule(schedule);
         this.nextDueDate = nextDueDate;
         this.paused = false;
     }
@@ -98,8 +109,8 @@ public class RecurringExpense {
         return description;
     }
 
-    public short getDayOfMonth() {
-        return dayOfMonth;
+    public Schedule getSchedule() {
+        return new Schedule(frequency, toInteger(dayOfMonth), toInteger(dayOfWeek), toInteger(monthOfYear));
     }
 
     public LocalDate getNextDueDate() {
@@ -130,8 +141,19 @@ public class RecurringExpense {
         this.description = description;
     }
 
-    public void setDayOfMonth(short dayOfMonth) {
-        this.dayOfMonth = dayOfMonth;
+    public void setSchedule(Schedule schedule) {
+        this.frequency = schedule.frequency();
+        this.dayOfMonth = toShort(schedule.dayOfMonth());
+        this.dayOfWeek = toShort(schedule.dayOfWeek());
+        this.monthOfYear = toShort(schedule.monthOfYear());
+    }
+
+    private static Short toShort(Integer value) {
+        return value == null ? null : value.shortValue();
+    }
+
+    private static Integer toInteger(Short value) {
+        return value == null ? null : value.intValue();
     }
 
     public void setNextDueDate(LocalDate nextDueDate) {

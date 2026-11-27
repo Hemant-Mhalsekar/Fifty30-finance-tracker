@@ -37,6 +37,47 @@ function following(iso, day) {
   return m === 12 ? occurrenceIn(y + 1, 1, day) : occurrenceIn(y, m + 1, day)
 }
 
+// Weekly (dayOfWeek 1 = Monday), monthly and yearly rules, like the server's Schedule.
+function isoWeekday(iso) {
+  const day = new Date(`${iso}T00:00:00Z`).getUTCDay()
+  return day === 0 ? 7 : day
+}
+function plusDays(iso, days) {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+function scheduleOf(body) {
+  const frequency = body.frequency ?? 'MONTHLY'
+  return {
+    frequency,
+    dayOfMonth: frequency === 'WEEKLY' ? null : body.dayOfMonth,
+    dayOfWeek: frequency === 'WEEKLY' ? body.dayOfWeek : null,
+    monthOfYear: frequency === 'YEARLY' ? body.monthOfYear : null,
+  }
+}
+function ruleFirstOnOrAfter(r, iso) {
+  const [y] = iso.split('-').map(Number)
+  if (r.frequency === 'WEEKLY') return plusDays(iso, (r.dayOfWeek - isoWeekday(iso) + 7) % 7)
+  if (r.frequency === 'YEARLY') {
+    const here = occurrenceIn(y, r.monthOfYear, r.dayOfMonth)
+    return here >= iso ? here : occurrenceIn(y + 1, r.monthOfYear, r.dayOfMonth)
+  }
+  return firstOnOrAfter(iso, r.dayOfMonth)
+}
+function ruleFollowing(r, iso) {
+  const [y] = iso.split('-').map(Number)
+  if (r.frequency === 'WEEKLY') return plusDays(iso, 7)
+  if (r.frequency === 'YEARLY') return occurrenceIn(y + 1, r.monthOfYear, r.dayOfMonth)
+  return following(iso, r.dayOfMonth)
+}
+function ruleInSamePeriod(r, iso) {
+  const [y, m] = iso.split('-').map(Number)
+  if (r.frequency === 'WEEKLY') return plusDays(iso, r.dayOfWeek - isoWeekday(iso))
+  if (r.frequency === 'YEARLY') return occurrenceIn(y, r.monthOfYear, r.dayOfMonth)
+  return occurrenceIn(y, m, r.dayOfMonth)
+}
+
 const PRESETS = {
   BALANCED: [50, 30, 20],
   HIGH_RENT: [60, 20, 20],
@@ -391,7 +432,11 @@ function handle(req, res, body) {
   }
   if (path === '/api/cycles/current/salary') {
     const c = currentCycle()
-    Object.assign(c, { salaryPaise: body.salaryPaise, ...split(body.salaryPaise, c.bonusPaise, pctOf(c)), salaryConfirmed: true })
+    Object.assign(c, {
+      salaryPaise: body.salaryPaise,
+      ...split(body.salaryPaise, c.bonusPaise, pctOf(c)),
+      salaryConfirmed: true,
+    })
     return send(res, 200, currentCycle())
   }
   if (path === '/api/settings/opening-balance') {
@@ -537,14 +582,15 @@ function handle(req, res, body) {
     const category = state.categories.find((c) => c.id === body.categoryId)
     if (!category) return fail(res, 404, 'Category not found')
     if (category.type === null && !body.type) return fail(res, 400, 'Type is required for this category')
+    const schedule = scheduleOf(body)
     const recurring = {
       id: state.id('r'),
       categoryId: category.id,
       type: category.type === null ? body.type : null,
       amountPaise: body.amountPaise,
       description: body.description.trim(),
-      dayOfMonth: body.dayOfMonth,
-      nextDueDate: firstOnOrAfter(today(), body.dayOfMonth),
+      ...schedule,
+      nextDueDate: ruleFirstOnOrAfter(schedule, today()),
       paused: false,
     }
     state.recurring.push(recurring)
@@ -570,7 +616,7 @@ function handle(req, res, body) {
         })
         if (!expense) return
       }
-      recurring.nextDueDate = following(recurring.nextDueDate, recurring.dayOfMonth)
+      recurring.nextDueDate = ruleFollowing(recurring, recurring.nextDueDate)
       return action === 'confirm'
         ? send(res, 201, { expense: publicExpense(expense), recurring: recurringView(recurring) })
         : send(res, 200, recurringView(recurring))
@@ -581,19 +627,25 @@ function handle(req, res, body) {
     }
     const category = state.categories.find((c) => c.id === body.categoryId)
     if (!category) return fail(res, 404, 'Category not found')
-    if (body.dayOfMonth !== recurring.dayOfMonth) {
-      const [y, m] = recurring.nextDueDate.split('-').map(Number)
-      recurring.nextDueDate = occurrenceIn(y, m, body.dayOfMonth)
+    const schedule = scheduleOf(body)
+    if (schedule.frequency !== recurring.frequency) {
+      recurring.nextDueDate = ruleFirstOnOrAfter(schedule, today())
+    } else if (
+      schedule.dayOfMonth !== recurring.dayOfMonth ||
+      schedule.dayOfWeek !== recurring.dayOfWeek ||
+      schedule.monthOfYear !== recurring.monthOfYear
+    ) {
+      recurring.nextDueDate = ruleInSamePeriod(schedule, recurring.nextDueDate)
     }
     if (recurring.paused && !body.paused && recurring.nextDueDate < today()) {
-      recurring.nextDueDate = firstOnOrAfter(today(), body.dayOfMonth)
+      recurring.nextDueDate = ruleFirstOnOrAfter(schedule, today())
     }
     Object.assign(recurring, {
       categoryId: category.id,
       type: category.type === null ? body.type : null,
       amountPaise: body.amountPaise,
       description: body.description.trim(),
-      dayOfMonth: body.dayOfMonth,
+      ...schedule,
       paused: body.paused,
     })
     return send(res, 200, recurringView(recurring))

@@ -743,6 +743,19 @@ fieldset.field > legend {
   margin-top: 2px;
 }
 
+/* Yearly recurring: day and month side by side. */
+.date-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 0.75rem;
+}
+
+.date-pair > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .budget-alerts {
   margin: 0;
   padding: 0;

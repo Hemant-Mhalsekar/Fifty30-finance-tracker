@@ -1,6 +1,7 @@
 package com.financetracker;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -28,6 +30,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.financetracker.recurring.MonthlySchedule;
+import com.financetracker.recurring.Schedule;
 
 import tools.jackson.databind.JsonNode;
 
@@ -345,7 +348,112 @@ class RecurringExpenseIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void weeklyAndYearlyComeDueOnTheirDayAndCheckTheirFields() throws Exception {
+        String token = registerUserAndGetToken();
+        onboardUser(token);
+        UUID rent = findCategoryIdByName(token, "Rent");
+        LocalDate today = LocalDate.now(clock);
+        int weekday = today.getDayOfWeek().getValue();
+
+        // Weekly on today's weekday: due today, then a week later.
+        JsonNode weekly = create(token, scheduled(rent, "Maid", "\"frequency\":\"WEEKLY\",\"dayOfWeek\":" + weekday));
+        assertEquals("WEEKLY", weekly.get("frequency").asText());
+        assertEquals(weekday, weekly.get("dayOfWeek").asInt());
+        assertTrue(weekly.get("dayOfMonth").isNull());
+        assertTrue(weekly.get("monthOfYear").isNull());
+        assertEquals(today.toString(), weekly.get("nextDueDate").asText());
+        assertEquals(true, weekly.get("due").asBoolean());
+        mockMvc.perform(post(BASE + "/" + id(weekly) + "/confirm")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dueDate\":\"" + today + "\",\"amountPaise\":50000}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.expense.expenseDate").value(today.toString()))
+                .andExpect(jsonPath("$.recurring.nextDueDate").value(today.plusWeeks(1).toString()))
+                .andExpect(jsonPath("$.recurring.due").value(false));
+
+        // Yearly on today's date: skipping moves it a year on (29 Feb falls on 28 Feb in other years).
+        JsonNode yearly = create(token, scheduled(rent, "Insurance", "\"frequency\":\"YEARLY\",\"monthOfYear\":"
+                + today.getMonthValue() + ",\"dayOfMonth\":" + today.getDayOfMonth()));
+        assertEquals("YEARLY", yearly.get("frequency").asText());
+        assertEquals(today.getMonthValue(), yearly.get("monthOfYear").asInt());
+        assertEquals(today.toString(), yearly.get("nextDueDate").asText());
+        mockMvc.perform(post(BASE + "/" + id(yearly) + "/skip")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dueDate\":\"" + today + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nextDueDate").value(
+                        Schedule.yearly(today.getMonthValue(), today.getDayOfMonth()).following(today).toString()));
+
+        // Without a frequency it is monthly, as before weekly and yearly existed; other fields are ignored.
+        JsonNode monthly = create(token, scheduled(rent, "Rent", "\"dayOfMonth\":5,\"dayOfWeek\":3"));
+        assertEquals("MONTHLY", monthly.get("frequency").asText());
+        assertEquals(5, monthly.get("dayOfMonth").asInt());
+        assertTrue(monthly.get("dayOfWeek").isNull());
+
+        String weekdayRange = "Day of week must be between 1 (Monday) and 7 (Sunday)";
+        expectBadRequest(token, scheduled(rent, "Maid", "\"frequency\":\"WEEKLY\",\"dayOfMonth\":5"), weekdayRange);
+        expectBadRequest(token, scheduled(rent, "Maid", "\"frequency\":\"WEEKLY\",\"dayOfWeek\":8"), weekdayRange);
+        expectBadRequest(token, scheduled(rent, "Fee", "\"frequency\":\"YEARLY\",\"dayOfMonth\":5"),
+                "Month must be between 1 and 12");
+        expectBadRequest(token, scheduled(rent, "Fee", "\"frequency\":\"YEARLY\",\"monthOfYear\":13,\"dayOfMonth\":5"),
+                "Month must be between 1 and 12");
+        expectBadRequest(token, scheduled(rent, "Fee", "\"frequency\":\"YEARLY\",\"monthOfYear\":4"),
+                "Day of month must be between 1 and 31");
+        expectBadRequest(token, scheduled(rent, "Fee", "\"frequency\":\"YEARLY\",\"monthOfYear\":2,\"dayOfMonth\":30"),
+                "That month does not have this day");
+        expectBadRequest(token, scheduled(rent, "Fee", "\"frequency\":\"YEARLY\",\"monthOfYear\":4,\"dayOfMonth\":31"),
+                "That month does not have this day");
+        expectBadRequest(token, scheduled(rent, "Fee", "\"frequency\":\"DAILY\",\"dayOfMonth\":5"),
+                "Malformed request body");
+        // 29 Feb is a valid yearly date.
+        create(token, scheduled(rent, "Leap", "\"frequency\":\"YEARLY\",\"monthOfYear\":2,\"dayOfMonth\":29"));
+    }
+
+    @Test
+    void aNewWeekdayKeepsTheWaitingWeekAndANewFrequencyStartsFromToday() throws Exception {
+        String token = registerUserAndGetToken();
+        onboardUser(token);
+        UUID rent = findCategoryIdByName(token, "Rent");
+        LocalDate today = LocalDate.now(clock);
+        UUID id = id(create(token, scheduled(rent, "Maid", "\"frequency\":\"WEEKLY\",\"dayOfWeek\":3")));
+        // The Wednesday two weeks ago is still waiting.
+        LocalDate twoWeeksAgo = today.with(DayOfWeek.MONDAY).minusWeeks(2);
+        setNextDue(id, twoWeeksAgo.plusDays(2));
+
+        mockMvc.perform(put(BASE + "/" + id)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateScheduled(rent, "Maid", "\"frequency\":\"WEEKLY\",\"dayOfWeek\":1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dayOfWeek").value(1))
+                .andExpect(jsonPath("$.nextDueDate").value(twoWeeksAgo.toString()))
+                .andExpect(jsonPath("$.due").value(true));
+
+        // Monthly instead: the weeks still waiting are dropped and the next 1st, today included, is due.
+        mockMvc.perform(put(BASE + "/" + id)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateScheduled(rent, "Maid", "\"frequency\":\"MONTHLY\",\"dayOfMonth\":1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.frequency").value("MONTHLY"))
+                .andExpect(jsonPath("$.dayOfWeek").isEmpty())
+                .andExpect(jsonPath("$.nextDueDate").value(MonthlySchedule.firstOnOrAfter(today, 1).toString()));
+    }
+
     // ---- helpers ----
+
+    private static String scheduled(UUID categoryId, String description, String scheduleFields) {
+        return "{\"categoryId\":\"" + categoryId + "\",\"amountPaise\":100000,\"description\":\"" + description
+                + "\"," + scheduleFields + "}";
+    }
+
+    private static String updateScheduled(UUID categoryId, String description, String scheduleFields) {
+        return "{\"categoryId\":\"" + categoryId + "\",\"amountPaise\":100000,\"description\":\"" + description
+                + "\"," + scheduleFields + ",\"paused\":false}";
+    }
 
     private static String body(UUID categoryId, String type, long amountPaise, String description, int day) {
         return "{\"categoryId\":\"" + categoryId + "\","

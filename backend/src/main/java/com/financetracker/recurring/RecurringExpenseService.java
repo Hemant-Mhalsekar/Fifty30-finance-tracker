@@ -2,7 +2,7 @@ package com.financetracker.recurring;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.YearMonth;
+import java.time.Month;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -18,7 +18,7 @@ import com.financetracker.common.BudgetType;
 import com.financetracker.expense.ExpenseService;
 import com.financetracker.expense.ExpenseView;
 
-// Monthly expenses that the user confirms (or skips) each time they come due. Confirming logs a
+// Weekly, monthly or yearly expenses that the user confirms (or skips) each time they come due. Confirming logs a
 // normal expense through ExpenseService, so every expense rule (limits, archived categories,
 // type snapshot, no future dates) applies unchanged.
 @Service
@@ -71,8 +71,11 @@ public class RecurringExpenseService {
             BudgetType type,
             Long amountPaise,
             String description,
-            Integer dayOfMonth) {
-        Fields fields = validate(amountPaise, description, dayOfMonth);
+            Frequency frequency,
+            Integer dayOfMonth,
+            Integer dayOfWeek,
+            Integer monthOfYear) {
+        Fields fields = validate(amountPaise, description, frequency, dayOfMonth, dayOfWeek, monthOfYear);
         if (recurringRepository.countByUserId(userId) >= MAX_RECURRING_PER_USER) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Recurring expense limit reached");
         }
@@ -84,8 +87,8 @@ public class RecurringExpenseService {
                 checkType(category, type),
                 fields.amountPaise(),
                 fields.description(),
-                fields.dayOfMonth(),
-                MonthlySchedule.firstOnOrAfter(today(), fields.dayOfMonth())));
+                fields.schedule(),
+                fields.schedule().firstOnOrAfter(today())));
         return RecurringExpenseView.from(saved, today());
     }
 
@@ -97,9 +100,12 @@ public class RecurringExpenseService {
             BudgetType type,
             Long amountPaise,
             String description,
+            Frequency frequency,
             Integer dayOfMonth,
+            Integer dayOfWeek,
+            Integer monthOfYear,
             Boolean paused) {
-        Fields fields = validate(amountPaise, description, dayOfMonth);
+        Fields fields = validate(amountPaise, description, frequency, dayOfMonth, dayOfWeek, monthOfYear);
         if (paused == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Paused is required");
         }
@@ -117,21 +123,26 @@ public class RecurringExpenseService {
 
         LocalDate today = today();
         LocalDate nextDue = recurring.getNextDueDate();
-        if (fields.dayOfMonth() != recurring.getDayOfMonth()) {
-            // Same month as the occurrence that is waiting, so a month already answered is not
-            // asked again and a month not answered yet is not lost.
-            nextDue = MonthlySchedule.occurrenceIn(YearMonth.from(nextDue), fields.dayOfMonth());
+        Schedule current = recurring.getSchedule();
+        Schedule schedule = fields.schedule();
+        if (schedule.frequency() != current.frequency()) {
+            // A new rhythm starts again from today; occurrences of the old one are not asked about.
+            nextDue = schedule.firstOnOrAfter(today);
+        } else if (!schedule.equals(current)) {
+            // Same week, month or year as the occurrence that is waiting, so a period already
+            // answered is not asked again and one not answered yet is not lost.
+            nextDue = schedule.inSamePeriodAs(nextDue);
         }
         if (recurring.isPaused() && !paused && nextDue.isBefore(today)) {
-            // Months that passed while paused are not asked about.
-            nextDue = MonthlySchedule.firstOnOrAfter(today, fields.dayOfMonth());
+            // Occurrences that passed while paused are not asked about.
+            nextDue = schedule.firstOnOrAfter(today);
         }
 
         recurring.setCategoryId(category.getId());
         recurring.setType(checkType(category, type));
         recurring.setAmountPaise(fields.amountPaise());
         recurring.setDescription(fields.description());
-        recurring.setDayOfMonth(fields.dayOfMonth());
+        recurring.setSchedule(schedule);
         recurring.setNextDueDate(nextDue);
         recurring.setPaused(paused);
         recurringRepository.flush();
@@ -145,7 +156,7 @@ public class RecurringExpenseService {
         }
     }
 
-    // Logs the expense for the waiting occurrence and moves on to the next month. The amount can
+    // Logs the expense for the waiting occurrence and moves on to the next one. The amount can
     // differ from the usual one (a bill that changed), and the date defaults to the due date.
     @Transactional
     public ConfirmResult confirm(
@@ -191,8 +202,7 @@ public class RecurringExpenseService {
     }
 
     private RecurringExpenseView advance(RecurringExpense recurring) {
-        recurring.setNextDueDate(
-                MonthlySchedule.following(recurring.getNextDueDate(), recurring.getDayOfMonth()));
+        recurring.setNextDueDate(recurring.getSchedule().following(recurring.getNextDueDate()));
         recurringRepository.flush();
         return RecurringExpenseView.from(recurring, today());
     }
@@ -225,10 +235,16 @@ public class RecurringExpenseService {
         return type;
     }
 
-    private record Fields(long amountPaise, String description, short dayOfMonth) {
+    private record Fields(long amountPaise, String description, Schedule schedule) {
     }
 
-    private static Fields validate(Long amountPaise, String description, Integer dayOfMonth) {
+    private static Fields validate(
+            Long amountPaise,
+            String description,
+            Frequency frequency,
+            Integer dayOfMonth,
+            Integer dayOfWeek,
+            Integer monthOfYear) {
         if (amountPaise == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Amount is required");
         }
@@ -246,10 +262,34 @@ public class RecurringExpenseService {
                     HttpStatus.BAD_REQUEST,
                     "Description must be at most 200 characters");
         }
+        return new Fields(amountPaise, trimmed, schedule(frequency, dayOfMonth, dayOfWeek, monthOfYear));
+    }
+
+    // No frequency means monthly (the API before weekly and yearly existed). Fields that do not
+    // belong to the frequency are ignored, so a form can send everything it holds.
+    private static Schedule schedule(Frequency frequency, Integer dayOfMonth, Integer dayOfWeek, Integer monthOfYear) {
+        Frequency chosen = frequency == null ? Frequency.MONTHLY : frequency;
+        if (chosen == Frequency.WEEKLY) {
+            if (dayOfWeek == null || dayOfWeek < 1 || dayOfWeek > 7) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Day of week must be between 1 (Monday) and 7 (Sunday)");
+            }
+            return Schedule.weekly(dayOfWeek);
+        }
+        if (chosen == Frequency.YEARLY && (monthOfYear == null || monthOfYear < 1 || monthOfYear > 12)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Month must be between 1 and 12");
+        }
         if (dayOfMonth == null || dayOfMonth < 1 || dayOfMonth > 31) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Day of month must be between 1 and 31");
         }
-        return new Fields(amountPaise, trimmed, dayOfMonth.shortValue());
+        if (chosen == Frequency.MONTHLY) {
+            return Schedule.monthly(dayOfMonth);
+        }
+        // 29 Feb is allowed (it falls on 28 Feb in other years); 30 Feb or 31 Apr never happen.
+        if (dayOfMonth > Month.of(monthOfYear).maxLength()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "That month does not have this day");
+        }
+        return Schedule.yearly(monthOfYear, dayOfMonth);
     }
 
     private LocalDate today() {

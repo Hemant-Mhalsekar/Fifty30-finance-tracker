@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import com.financetracker.common.BudgetType;
 
+// Only the fields of the frequency are set (see Schedule), the others are null.
 // due: not paused and the next due date is today or earlier, so it is waiting for Confirm or Skip.
 public record RecurringExpenseView(
         UUID id,
@@ -12,19 +13,26 @@ public record RecurringExpenseView(
         BudgetType type,
         long amountPaise,
         String description,
-        int dayOfMonth,
+        Frequency frequency,
+        Integer dayOfMonth,
+        Integer dayOfWeek,
+        Integer monthOfYear,
         LocalDate nextDueDate,
         boolean paused,
         boolean due) {
 
     public static RecurringExpenseView from(RecurringExpense r, LocalDate today) {
+        Schedule schedule = r.getSchedule();
         return new RecurringExpenseView(
                 r.getId(),
                 r.getCategoryId(),
                 r.getType(),
                 r.getAmountPaise(),
                 r.getDescription(),
-                r.getDayOfMonth(),
+                schedule.frequency(),
+                schedule.dayOfMonth(),
+                schedule.dayOfWeek(),
+                schedule.monthOfYear(),
                 r.getNextDueDate(),
                 r.isPaused(),
                 !r.isPaused() && !r.getNextDueDate().isAfter(today));
