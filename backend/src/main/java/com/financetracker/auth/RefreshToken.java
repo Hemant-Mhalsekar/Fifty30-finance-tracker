@@ -31,6 +31,13 @@ public class RefreshToken {
     @Column(nullable = false)
     private boolean revoked;
 
+    // Set only when the token was replaced by rotation; starts the reuse grace period.
+    @Column(name = "rotated_at")
+    private OffsetDateTime rotatedAt;
+
+    @Column(name = "grace_used", nullable = false)
+    private boolean graceUsed;
+
     // Set by the database default (now()), so it is never written by the app.
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -63,6 +70,14 @@ public class RefreshToken {
 
     public boolean isRevoked() {
         return revoked;
+    }
+
+    public OffsetDateTime getRotatedAt() {
+        return rotatedAt;
+    }
+
+    public boolean isGraceUsed() {
+        return graceUsed;
     }
 
     public OffsetDateTime getCreatedAt() {
