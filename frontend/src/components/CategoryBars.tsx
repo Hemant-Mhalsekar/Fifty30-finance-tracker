@@ -25,6 +25,7 @@ export default function CategoryBars({
   rows,
   compareLabel,
   compareAs = 'change',
+  totalPaise,
 }: {
   title: string
   rows: CategoryBar[]
@@ -33,8 +34,10 @@ export default function CategoryBars({
   // 'amount' prints the other figure plainly ("Oct ₹15,000"): right when this one is a cycle still
   // under way, where a percentage against a whole cycle would always look like a drop.
   compareAs?: 'change' | 'amount'
+  // The whole when only the top rows are shown, so their shares stay true.
+  totalPaise?: number
 }) {
-  const total = rows.reduce((t, r) => t + r.amountPaise, 0)
+  const total = totalPaise ?? rows.reduce((t, r) => t + r.amountPaise, 0)
   const max = Math.max(1, ...rows.map((r) => r.amountPaise))
   return (
     <ul className="category-bars" aria-label={title}>

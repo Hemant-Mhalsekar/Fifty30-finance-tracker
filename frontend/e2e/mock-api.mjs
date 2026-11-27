@@ -400,6 +400,13 @@ function handle(req, res, body) {
     const rows = cycles.flatMap((c) => report(c).categories.map((row) => ({ periodStart: c.periodStart, ...row })))
     return send(res, 200, { cycles, rows })
   }
+  if (path === '/api/reports/year') {
+    const year = Number(url.searchParams.get('year'))
+    if (!(year >= 2000 && year <= 9999)) return fail(res, 400, 'Year must be between 2000 and 9999')
+    const cycles = state.cycles.filter((c) => c.periodStart.startsWith(`${year}-`))
+    const rows = cycles.flatMap((c) => report(c).categories.map((row) => ({ periodStart: c.periodStart, ...row })))
+    return send(res, 200, { cycles, rows })
+  }
   if (path === '/api/reports/weekly') {
     const weeks = Number(url.searchParams.get('weeks') ?? 8)
     if (!(weeks >= 1 && weeks <= 26)) return fail(res, 400, 'Weeks must be between 1 and 26')

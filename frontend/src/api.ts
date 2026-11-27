@@ -482,6 +482,11 @@ export function getCategoryTrends(count = 6): Promise<CategoryTrends> {
   return requestJson<CategoryTrends>(`/api/reports/categories?count=${count}`)
 }
 
+/** The cycles that start in a calendar year, oldest first, with spending per category in each. */
+export function getYearReport(year: number): Promise<CategoryTrends> {
+  return requestJson<CategoryTrends>(`/api/reports/year?year=${year}`)
+}
+
 /** The cycle containing the date (today if left out) and up to count - 1 before it, oldest first. */
 export function getHistory(date?: string, count = 6): Promise<CycleHistoryItem[]> {
   const params = new URLSearchParams({ count: String(count) })

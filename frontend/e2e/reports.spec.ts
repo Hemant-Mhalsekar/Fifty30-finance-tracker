@@ -132,7 +132,7 @@ test('yearly: one column per year with this year in bold', async ({ page }) => {
   const chart = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'By year' }) })
   await expect(chart.getByRole('button')).toHaveCount(new Set([daysAgo(41).slice(0, 4), daysAgo(10).slice(0, 4)]).size)
   await expect(chart.locator('text.strong')).toHaveCount(1)
-  await expect(page.getByText(`${daysAgo(0).slice(0, 4)} so far`)).toBeVisible()
+  await expect(page.getByText(`${daysAgo(0).slice(0, 4)} so far`, { exact: true })).toBeVisible()
 })
 
 test('savings: only finished cycles with expenses count; the current one stays apart', async ({ page, request }) => {
@@ -148,4 +148,19 @@ test('savings: only finished cycles with expenses count; the current one stays a
   await expect(chart.getByRole('button')).toHaveCount(1)
   await expect(chart.getByRole('button')).toHaveAccessibleName(/saved ₹38,000, running total ₹38,000/)
   await expect(page.locator('.stat-tile', { hasText: 'Saved in finished cycles' })).toContainText('₹38,000')
+})
+
+test('year in review: totals, plain sentences and the top categories of the year', async ({ page, request }) => {
+  // ₹12,000 of rent in the previous, finished cycle (salary ₹50,000).
+  await logExpense(request, 'Rent', 1_200_000, daysAgo(20))
+  await page.goto('/reports?view=trends&by=years')
+  const review = page.getByRole('article', { name: 'Year in review' })
+  // The mock also has some spending in the current cycle, so Rent is most but not all of it.
+  await expect(review).toContainText(/Rent took the most: ₹12,000, \d+% of needs and wants\./)
+  await expect(review.locator('.stat-tile').filter({ has: page.getByText('Saved', { exact: true }) })).toContainText(
+    '₹38,000',
+  )
+  const rent = review.getByRole('list', { name: /Top categories in/ }).getByRole('link', { name: /Rent/ })
+  await rent.click()
+  await expect(page).toHaveURL(/\/expenses\?categoryId=/)
 })

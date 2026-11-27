@@ -42,6 +42,15 @@ public class ReportsController {
         return reportService.categoryTrends(UUID.fromString(jwt.getSubject()), count);
     }
 
+    // year is checked in the service (2000 to 9999) so a bad value is a 400, not a 500.
+    @Operation(summary = "Spending per category in a calendar year",
+            description = "The cycles that start in the year, oldest first, with spending per category in each."
+                    + " A year without cycles returns two empty lists.")
+    @GetMapping("/year")
+    public CategoryTrends year(@AuthenticationPrincipal Jwt jwt, @RequestParam int year) {
+        return reportService.year(UUID.fromString(jwt.getSubject()), year);
+    }
+
     // weeks is checked in the service (1 to 26) so a bad value is a 400, not a 500.
     @Operation(summary = "Daily totals for the last weeks",
             description = "weeks is 1 to 26 (default 8), Monday to Sunday.")

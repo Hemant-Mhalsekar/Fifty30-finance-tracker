@@ -13,6 +13,8 @@ import {
   savingsRate,
   savingsSummary,
   weekRows,
+  yearReview,
+  yearReviewLines,
   yearRows,
 } from './reports'
 
@@ -362,5 +364,107 @@ describe('this cycle against the last one', () => {
     expect(categoryExpensesLink(shares[1], '2026-11-25', '2026-11-28')).toBe(
       '/expenses?categoryId=other&from=2026-11-25&to=2026-11-28&type=WANT',
     )
+  })
+})
+
+describe('yearReview', () => {
+  // Salary ₹10,000: needs plan ₹5,000, wants plan ₹3,000.
+  const items = [
+    item('2025-12-25', '2026-01-24', { needs: 100_000, count: 1 }),
+    item('2026-01-25', '2026-02-24', { needs: 400_000, wants: 100_000, count: 3 }), // saved 50%
+    item('2026-02-25', '2026-03-24', { needs: 550_000, wants: 350_000, count: 4 }), // saved 10%, both over plan
+    item('2026-03-25', '2026-04-24', { needs: 200_000, wants: 100_000, invested: 50_000, count: 2 }), // 70%
+    item('2026-04-25', '2026-05-24', { needs: 10_000, count: 1 }), // current: not saved yet
+  ]
+  const rows = [
+    {
+      periodStart: '2026-01-25',
+      categoryId: 'rent',
+      name: 'Rent',
+      archived: false,
+      type: 'NEED' as BudgetType,
+      spentPaise: 300_000,
+      expenseCount: 1,
+    },
+    {
+      periodStart: '2026-02-25',
+      categoryId: 'rent',
+      name: 'Rent',
+      archived: false,
+      type: 'NEED' as BudgetType,
+      spentPaise: 300_000,
+      expenseCount: 1,
+    },
+    {
+      periodStart: '2026-02-25',
+      categoryId: 'other',
+      name: 'Other',
+      archived: false,
+      type: 'WANT' as BudgetType,
+      spentPaise: 50_000,
+      expenseCount: 1,
+    },
+    {
+      periodStart: '2026-03-25',
+      categoryId: 'other',
+      name: 'Other',
+      archived: false,
+      type: 'NEED' as BudgetType,
+      spentPaise: 20_000,
+      expenseCount: 1,
+    },
+    {
+      periodStart: '2026-03-25',
+      categoryId: 'sip',
+      name: 'Investments',
+      archived: false,
+      type: 'INVESTMENT' as BudgetType,
+      spentPaise: 50_000,
+      expenseCount: 1,
+    },
+  ]
+
+  it('sums the cycles that start in the year and picks the best, toughest and biggest', () => {
+    const review = yearReview(items, rows, 2026, '2026-05-01')!
+    expect(review).toMatchObject({
+      year: 2026,
+      from: '2026-01-25',
+      to: '2026-05-24',
+      cycles: 4,
+      complete: false,
+      incomePaise: 4_000_000,
+      investedPaise: 50_000,
+      savedPaise: 1_300_000,
+      savedCycles: 3,
+      savingsRatePct: 43,
+      needsOverCycles: 1,
+      wantsOverCycles: 1,
+      best: { month: 'Apr 2026', ratePct: 70 },
+      worst: { month: 'Mar 2026', ratePct: 10 },
+      biggest: { month: 'Mar 2026', spentPaise: 900_000 },
+      categoriesTotalPaise: 670_000,
+    })
+    // Investments left out; Other split by the type it was logged with.
+    expect(review.categories.map((c) => [c.name, c.spentPaise, c.splitByType])).toEqual([
+      ['Rent', 600_000, false],
+      ['Other (wants)', 50_000, true],
+      ['Other (needs)', 20_000, true],
+    ])
+    expect(yearReview(items, [], 2024, '2026-05-01')).toBeNull()
+  })
+
+  it('says it in plain sentences', () => {
+    const review = yearReview(items, rows, 2026, '2026-05-01')!
+    expect(yearReviewLines(review)).toEqual([
+      'You saved ₹13,000 in 2026 so far, 43% of your income over 3 finished cycles.',
+      'Best cycle: Apr 2026 (70% saved). Toughest: Mar 2026 (10%).',
+      'Rent took the most: ₹6,000, 90% of needs and wants.',
+      'Over plan: needs in 1 cycle and wants in 1 cycle of 4.',
+    ])
+    const calm = yearReview([items[0]], [], 2025, '2026-05-01')!
+    expect(yearReviewLines(calm)).toEqual([
+      'You saved ₹9,000 in 2025, 90% of your income over 1 finished cycle.',
+      'Needs and wants stayed within plan in every cycle in 2025.',
+    ])
   })
 })
