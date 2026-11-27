@@ -56,6 +56,7 @@ _Screenshots use sample data._
 - **Built for the phone.** Pages you just visited open instantly, pull down to refresh, filters and editing open in bottom sheets, and the dashboard leads with what you can spend today (charts sit under "More details").
 - **Documented API.** Swagger UI lists every endpoint with its real status codes and the exact error messages it can return; a test fails if an endpoint is added without them.
 - **CSV export.** Download the filtered expense list for a spreadsheet; cells that would run as formulas are neutralised.
+- **Feels like an app on a phone.** The dashboard offers to install it (Chrome's own dialog on Android, a short how-to on iPhone; "Not now" waits 30 days), pages fade in and open at the top, buttons and tabs press in and never select text, the app icon shows how many recurring payments are waiting, and a dark-mode start never flashes white.
 - **Installable PWA** with an offline shell, light/dark/system theme, and keyboard and screen-reader support for every chart (each also has a table view or a text legend).
 - **Personal greeting.** Your name is asked when you sign up and used in the greeting; Settings can hide it (it stays saved) or change it.
 - **Accounts.** Name, email and password, password reset by email, short-lived access tokens with rotating refresh tokens, and account deletion (password required, data removed after a 7-day grace period that a login cancels).
