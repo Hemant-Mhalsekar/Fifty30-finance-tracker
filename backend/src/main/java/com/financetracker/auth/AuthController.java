@@ -141,7 +141,8 @@ public class AuthController {
 
     @Operation(summary = "Get a new access token",
             description = "Uses and rotates the refresh cookie."
-                    + " Sending an already used token ends every session of that user.")
+                    + " A token replaced less than 2 minutes ago may be sent once more (a retry after a lost"
+                    + " response, or two tabs at once); any other reuse ends every session of that user.")
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
         Optional<RefreshTokenService.Rotated> rotated =

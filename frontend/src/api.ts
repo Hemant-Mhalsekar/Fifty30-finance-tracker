@@ -63,8 +63,16 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   }
 
   // Access token probably expired: refresh once and retry the original request once.
-  if (await refreshSession()) {
+  const session = await refreshSession()
+  if (session === 'ok') {
     return send()
+  }
+  if (session === 'unreachable') {
+    // Still signed in: only the network or the server failed. The page shows the message.
+    return new Response(JSON.stringify({ error: 'Unavailable', message: SESSION_UNREACHABLE_MESSAGE }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
   notifyLoggedOut()
   return response
@@ -72,10 +80,24 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
 
 // --- refresh ---
 
-let refreshInFlight: Promise<boolean> | null = null
+/**
+ * ok: a new access token. loggedOut: the server refused the refresh cookie (the session has ended).
+ * unreachable: no answer or a server error, so it is unknown; the user stays signed in.
+ */
+export type RefreshResult = 'ok' | 'loggedOut' | 'unreachable'
+
+export const SESSION_UNREACHABLE_MESSAGE =
+  'Could not reach the server to renew your session. You are still signed in; please try again in a minute.'
+
+// One retry only: the server accepts a just-replaced refresh token once more for 2 minutes (for a
+// response that never arrived), but a third use counts as theft and ends every session.
+const REFRESH_ATTEMPTS = 2
+export const REFRESH_RETRY_DELAY_MS = 1_500
+
+let refreshInFlight: Promise<RefreshResult> | null = null
 
 /** Gets a new access token using the refresh cookie. Simultaneous callers share one request. */
-export function refreshSession(): Promise<boolean> {
+export function refreshSession(): Promise<RefreshResult> {
   if (!refreshInFlight) {
     refreshInFlight = doRefresh().finally(() => {
       refreshInFlight = null
@@ -84,20 +106,37 @@ export function refreshSession(): Promise<boolean> {
   return refreshInFlight
 }
 
-async function doRefresh(): Promise<boolean> {
-  try {
-    const response = await apiFetch('/api/auth/refresh', { method: 'POST' })
-    const token = response.ok ? await readAccessToken(response) : null
-    if (!token) {
-      setAccessToken(null)
-      return false
-    }
-    setAccessToken(token)
-    return true
-  } catch {
-    setAccessToken(null)
-    return false
+async function doRefresh(): Promise<RefreshResult> {
+  for (let attempt = 1; ; attempt++) {
+    const result = await refreshOnce()
+    if (result !== 'unreachable' || attempt === REFRESH_ATTEMPTS) return result
+    await new Promise((resolve) => setTimeout(resolve, REFRESH_RETRY_DELAY_MS))
   }
+}
+
+async function refreshOnce(): Promise<RefreshResult> {
+  let response: Response
+  try {
+    response = await apiFetch('/api/auth/refresh', { method: 'POST' })
+  } catch {
+    return 'unreachable'
+  }
+  // A 5xx (Vercel could not reach Render, or the server failed) says nothing about the session.
+  if (response.status >= 500) return 'unreachable'
+  if (!response.ok) {
+    setAccessToken(null)
+    return 'loggedOut'
+  }
+  try {
+    const token = await readAccessToken(response)
+    if (token) {
+      setAccessToken(token)
+      return 'ok'
+    }
+  } catch {
+    // The body was cut off; the new cookie arrived with the headers, so a retry works normally.
+  }
+  return 'unreachable'
 }
 
 // --- cold start ---

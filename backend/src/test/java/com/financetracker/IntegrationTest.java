@@ -107,42 +107,39 @@ class IntegrationTest extends AbstractIntegrationTest {
     @Test
     void refreshRotatesDetectsReuseHandlesLogoutAndRejectsMissingCookie() throws Exception {
         String email = nextUniqueEmail();
-        MvcResult regResult = mockMvc.perform(post("/api/auth/register")
+        Cookie first = extractRefreshCookie(mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"" + email + "\",\"password\":\"password123\",\"name\":\"Test\"}"))
                 .andExpect(status().isCreated())
-                .andReturn();
-        Cookie firstCookie = extractRefreshCookie(regResult);
+                .andReturn());
 
         // Refresh rotates the token and issues a new cookie.
-        MvcResult refresh1 = mockMvc.perform(post("/api/auth/refresh").cookie(firstCookie))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").isString())
-                .andReturn();
-        Cookie secondCookie = extractRefreshCookie(refresh1);
+        Cookie second = refreshOk(first);
 
-        // Reusing the old refresh token returns 401 and revokes the new token too.
-        mockMvc.perform(post("/api/auth/refresh").cookie(firstCookie))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("Invalid refresh token"));
+        // A lost response: the old token is presented once more within the grace period and still works...
+        Cookie third = refreshOk(first);
+        // ...without ending the session that received the first answer.
+        Cookie fourth = refreshOk(second);
 
-        mockMvc.perform(post("/api/auth/refresh").cookie(secondCookie))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("Invalid refresh token"));
+        // A third use of the same token is reuse: 401, and every session of the user ends.
+        refreshRejected(first);
+        refreshRejected(third);
+        refreshRejected(fourth);
 
-        // Login again to get a fresh refresh cookie, then logout revokes it.
-        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\"}"))
-                .andExpect(status().isOk())
-                .andReturn();
-        Cookie thirdCookie = extractRefreshCookie(loginResult);
+        // After the grace period even a second use is reuse.
+        Cookie fifth = loginCookie(email);
+        Cookie sixth = refreshOk(fifth);
+        backdateRotations(email, 3);
+        refreshRejected(fifth);
+        refreshRejected(sixth);
 
-        mockMvc.perform(post("/api/auth/logout").cookie(thirdCookie))
+        // Logout revokes the token and closes the grace period of the token it replaced.
+        Cookie seventh = loginCookie(email);
+        Cookie eighth = refreshOk(seventh);
+        mockMvc.perform(post("/api/auth/logout").cookie(eighth))
                 .andExpect(status().isNoContent());
-
-        mockMvc.perform(post("/api/auth/refresh").cookie(thirdCookie))
-                .andExpect(status().isUnauthorized());
+        refreshRejected(eighth);
+        refreshRejected(seventh);
 
         // Refresh with no cookie returns 401.
         mockMvc.perform(post("/api/auth/refresh"))
@@ -151,7 +148,26 @@ class IntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void simultaneousRefreshesWithSameTokenProduceOne200AndOne401() throws Exception {
+    void endingEverySessionAlsoClosesTheGracePeriod() throws Exception {
+        String email = nextUniqueEmail();
+        String accessToken = registerUserAndGetToken(email, "password123");
+        Cookie first = loginCookie(email);
+        Cookie second = refreshOk(first);
+
+        // Scheduling account deletion revokes every refresh token (as a password reset does).
+        mockMvc.perform(post("/api/account/deletion")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"password123\"}"))
+                .andExpect(status().isAccepted());
+
+        // The just-rotated token is inside its grace period, but must not open a new session.
+        refreshRejected(first);
+        refreshRejected(second);
+    }
+
+    @Test
+    void simultaneousRefreshesWithSameTokenBothSucceedOnce() throws Exception {
         String email = nextUniqueEmail();
         MvcResult regResult = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -160,12 +176,40 @@ class IntegrationTest extends AbstractIntegrationTest {
                 .andReturn();
         Cookie cookie = extractRefreshCookie(regResult);
 
+        // Two tabs refreshing at the same moment: one rotation, one grace use, no logout.
         List<Integer> statuses = runConcurrently(2, () -> mockMvc.perform(post("/api/auth/refresh").cookie(cookie))
                 .andReturn()
                 .getResponse()
                 .getStatus());
 
-        assertEquals(Set.of(200, 401), Set.copyOf(statuses));
+        assertEquals(List.of(200, 200), statuses);
+        refreshRejected(cookie);
+    }
+
+    private Cookie refreshOk(Cookie cookie) throws Exception {
+        return extractRefreshCookie(mockMvc.perform(post("/api/auth/refresh").cookie(cookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isString())
+                .andReturn());
+    }
+
+    private void refreshRejected(Cookie cookie) throws Exception {
+        mockMvc.perform(post("/api/auth/refresh").cookie(cookie))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("Invalid refresh token"));
+    }
+
+    private Cookie loginCookie(String email) throws Exception {
+        return extractRefreshCookie(mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\"}"))
+                .andExpect(status().isOk())
+                .andReturn());
+    }
+
+    private void backdateRotations(String email, int minutes) {
+        jdbcTemplate.update("UPDATE refresh_tokens SET rotated_at = rotated_at - make_interval(mins => ?)"
+                + " WHERE rotated_at IS NOT NULL AND user_id = (SELECT id FROM users WHERE email = ?)", minutes, email);
     }
 
     // ---- 3. Onboarding ----

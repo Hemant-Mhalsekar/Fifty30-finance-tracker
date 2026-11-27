@@ -68,7 +68,14 @@ export default function App() {
         return
       }
 
-      if (await refreshSession()) {
+      const session = await refreshSession()
+      if (controller.signal.aborted) return
+      if (session === 'unreachable') {
+        // The server answered the ping but not the refresh: offer Try again instead of the login form.
+        setPhase('serverError')
+        return
+      }
+      if (session === 'ok') {
         try {
           const user = await getMe()
           if (controller.signal.aborted) return
