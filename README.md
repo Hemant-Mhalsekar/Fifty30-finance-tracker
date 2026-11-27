@@ -47,7 +47,7 @@ _Screenshots use sample data._
 - **Fast expense entry on a phone.** Big amount field, category chips (with icons) ordered by recent use, Today/Yesterday buttons, a note of which bucket the expense counts toward, and "Log again" chips for things you buy often (one tap logs it for today, with Undo).
 - **Expense list.** Search by description, filter by type, dates and category, daily totals that stay right across pages, and the time each expense was logged.
 - **Budget details.** Each bucket for any cycle, broken down by category, with a warning when the previous cycle went over.
-- **Push notifications** (Android and desktop browsers; iPhone once the app is on the Home Screen). A recurring payment on the morning it is due, an evening nudge only on days nothing was logged, an alert when needs or wants cross 80% or 100% of the plan, the new cycle on pay day and a Sunday summary of the week. Each kind can be switched off in Settings, and logging out stops them on that phone.
+- **Push notifications** (Android and desktop browsers; iPhone once the app is on the Home Screen). A recurring payment on the morning it is due, an evening nudge only on days nothing was logged, an alert when needs or wants cross 80% or 100% of the plan, the new cycle on pay day and a Sunday summary of the week. Each kind can be switched off in Settings, and logging out stops them on that phone. [How it works](#push-notifications).
 - **Works offline.** Expenses added without a connection wait on the phone and are sent when it comes back, never twice.
 - **Recurring expenses.** Weekly (a maid on Saturdays), monthly (rent, SIPs, EMIs) or yearly (insurance, a domain) come due on their day; one tap adds them (with the amount actually paid) or skips that one.
 - **"Did your salary change?"** asked once at the start of each new cycle.
@@ -80,6 +80,57 @@ _Screenshots use sample data._
 - **Offline-first expense entry.** The frontend queues expenses in local storage with a client id when there is no connection and sends them later; the API treats a repeated client id as the same expense.
 - **Testing in layers.** Unit tests for the calculations, integration tests against real PostgreSQL in Docker for SQL, locking and security rules, and Playwright tests that drive the real UI against a small mock API.
 
+## Push notifications
+
+Fifty30 sends real push notifications to the phone, even when the app is closed, using the browser's Web Push standard. There is no app-store app and no push library: the server encrypts and signs every message itself.
+
+### What is sent
+
+| Notification | When (India time) | Example | Tapping opens |
+| --- | --- | --- | --- |
+| Recurring payment due | From 09:00, on the day a payment comes due | "House rent is due today", "₹15,000. Tap to add it, change the amount or skip it." | Recurring |
+| New pay cycle | From 09:00 on pay day (not for the very first cycle) | "₹25,000 for needs, ₹15,000 for wants and ₹10,000 to save. Did your salary change?" | Dashboard |
+| Weekly summary | Sunday from 19:00 | "₹4,250 on needs and wants across 12 expenses. ₹9,800 left for 11 days of this cycle." | Weekly report |
+| Evening reminder | From 21:00, only if nothing was logged that day | "Log today's spending?" | Add expense |
+| Budget alert | Right after the expense that crosses 80% or 100% of needs or wants, from any device | "Needs at 82% of the plan", "Wants are over plan" | That bucket's expenses |
+
+Nothing is sent after 23:30. A payment left waiting is not repeated every day, and each budget level is sent once per cycle. People switch each kind on or off in Settings → Notifications; the choice applies to all their devices.
+
+### How it works
+
+1. **Turning it on.** In Settings, a tap asks the browser for permission. The browser then subscribes to its push service (Firebase Cloud Messaging for Chrome on Android) with the server's public VAPID key and gets back an endpoint URL plus its own encryption keys. The app sends these to `POST /api/notifications/subscribe`.
+2. **Storing the device.** The server only accepts endpoints on known push services, checks that the browser's key is a valid point on the P-256 curve, and stores up to 10 devices per person. A shared phone belongs to whoever turned notifications on last, and logging out turns them off on that phone.
+3. **Deciding what to send.** A job runs every 10 minutes. It doesn't fire at exact times, because the free server sleeps when idle and a missed minute would never come back; each run checks what is due now. Budget alerts react to a new expense instead, after its transaction commits, on a background thread, so saving an expense never waits on a push service.
+4. **Sending once.** Before sending, the server claims a row in `notification_log` (person, kind, day or cycle) with `INSERT … ON CONFLICT DO NOTHING`. Only the first claim sends, so restarts, redeploys and overlapping runs can't send the same reminder twice. If no device accepted the message, the claim is released and the next run tries again.
+5. **Encrypting and signing.** Each message is encrypted for that one browser (RFC 8291: ECDH on P-256, HKDF-SHA-256, AES-128-GCM, a fresh key and salt every time) and signed with a VAPID token (RFC 8292, ES256 JWT). The push service only sees ciphertext.
+6. **Showing it.** The service worker decrypts nothing itself (the browser has already done that); it shows the title and text and, when tapped, opens the page the message names. Only paths inside the app are followed.
+
+### Engineering details
+
+- **No third-party crypto or push library.** [`WebPushCrypto`](backend/src/main/java/com/financetracker/notification/WebPushCrypto.java) and [`VapidKeys`](backend/src/main/java/com/financetracker/notification/VapidKeys.java) use only the JDK. A unit test reproduces the worked example from RFC 8291 byte for byte, and another decrypts what the sender actually posted to a local stand-in push service.
+- **No SSRF.** The server POSTs to the endpoint a browser gives it, so endpoints must be `https`, on port 443, on Google's, Mozilla's, Apple's or Microsoft's push hosts. Anything else is refused with a 400.
+- **Dead devices clean themselves up.** A push service answering 404 or 410 means the subscription is gone, and the server deletes it.
+- **Privacy.** Logs only show the push service host and HTTP status, never the endpoint path, which identifies a browser. Messages are short and carry no account data beyond the amounts shown.
+- **Fails safe.** Without VAPID keys the app runs normally and simply offers no notifications. A key pair that doesn't match stops the server at startup instead of failing every push later.
+
+### Setting it up
+
+1. Generate a key pair for each environment (local and Render use different pairs):
+   ```bash
+   cd backend
+   java src/main/java/com/financetracker/notification/VapidKeyGenerator.java
+   ```
+2. Put `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` in `backend/.env` locally and in the Render dashboard. Optionally set `VAPID_SUBJECT` (a `mailto:` or `https:` contact for the push services; it defaults to `APP_BASE_URL`). The frontend needs nothing; it asks the server for the public key.
+3. Keep the private key secret, and don't change the pair later. A new pair stops every existing subscription, and people have to turn notifications on again.
+
+To try it, open the installed app on an Android phone, go to Settings → Notifications, turn on "Notifications on this phone" and tap **Send a test**. The service worker only exists in the production build, so notifications can't be turned on from `npm run dev`.
+
+### Limits
+
+- **iPhone** only gets notifications when Fifty30 is added to the Home Screen (iOS 16.4 or later); Safari tabs can't receive them.
+- **Timing follows the free server.** Reminders go out within about 10 minutes of their time while the server is awake (the keep-alive covers roughly 08:00 to 01:05). A message is kept by the push service for a few hours if the phone is offline.
+- **Budget alerts also reach the phone that logged the expense**, next to the in-app note.
+
 ## Engineering notes
 
 The parts I would point a reviewer to:
@@ -99,7 +150,7 @@ The parts I would point a reviewer to:
 ## Project layout
 
 ```
-backend/    Spring Boot API (feature packages: auth, cycle, expense, recurring, report, …)
+backend/    Spring Boot API (feature packages: auth, cycle, expense, recurring, report, notification, …)
 frontend/   React app (pages, components, charts, offline queue, PWA files)
 docs/       Screenshots
 .github/    CI workflow
@@ -127,7 +178,7 @@ Details, environment variables and the API overview: [backend/README.md](backend
 
 Every pull request runs everything in GitHub Actions ([ci.yml](.github/workflows/ci.yml)):
 
-- **Backend:** unit tests and integration tests against a real PostgreSQL 17 in Docker (Testcontainers), covering auth and token rotation, roll-forward races, reports, recurring expenses, offline retries and row-level security on every table.
+- **Backend:** unit tests and integration tests against a real PostgreSQL 17 in Docker (Testcontainers), covering auth and token rotation, roll-forward races, reports, recurring expenses, offline retries, row-level security on every table, Web Push encryption (against the RFC example) and reminders run at chosen times.
   ```bash
   cd backend && ./mvnw test
   ```
@@ -154,7 +205,8 @@ Known trade-offs, mostly from keeping it a free, single-person project:
 - **Four split presets, no custom percentages**, and one bonus amount per cycle (it does not repeat in later cycles).
 - **"Monthly" means pay cycle.** The monthly report has one column per pay cycle, named after the month most of it falls in, not calendar months.
 - **India only:** rupees, Indian number formatting, and dates in India time.
-- **Recurring expenses are monthly** (on a day of the month); weekly or yearly ones are not supported.
+- **Recurring expenses repeat weekly, monthly or yearly**; nothing in between (such as every two weeks or quarterly), and nothing is logged without a tap.
+- **Notifications depend on the free server being awake** and, on iPhone, on the app being on the Home Screen (see [Push notifications](#push-notifications)).
 - **Signing up with an email that is already used says so**, which reveals that the account exists.
 - **Free hosting:** the Render server sleeps when idle, so the first visit after a quiet spell can take up to about three minutes while it wakes. Rate limits are kept in memory on that single server and reset when it restarts.
 - **Offline expenses wait in the browser's storage** (amount, description, date) until they are sent; clearing site data before reconnecting loses them.
