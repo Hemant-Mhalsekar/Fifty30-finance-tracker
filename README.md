@@ -11,20 +11,20 @@ Built as a portfolio project: a Java 25 / Spring Boot 4 API, a React + TypeScrip
 
 ![Dashboard on a laptop](docs/screenshots/dashboard.png)
 
-| Phone dashboard | Adding an expense |
-| --- | --- |
-| <img src="docs/screenshots/phone-dashboard.png" alt="Dashboard on a phone" width="300"> | <img src="docs/screenshots/phone-add.png" alt="Add expense on a phone" width="300"> |
+| Phone dashboard | Adding an expense | This cycle report |
+| --- | --- | --- |
+| <img src="docs/screenshots/phone-dashboard.png" alt="Dashboard on a phone, leading with what you can spend today" width="260"> | <img src="docs/screenshots/phone-add.png" alt="Add expense on a phone with Log again chips" width="260"> | <img src="docs/screenshots/phone-reports.png" alt="This cycle report on a phone" width="260"> |
 
 | Expenses | Budget details |
 | --- | --- |
 | ![Expenses with search and filters](docs/screenshots/expenses.png) | ![Budget details](docs/screenshots/budgets.png) |
 
-| Monthly report | Settings: split presets, bonus, opening balance |
+| Reports: this cycle so far | Settings: split presets, bonus, opening balance |
 | --- | --- |
-| ![Monthly report, one column per pay cycle](docs/screenshots/reports-monthly.png) | ![Settings with the split picker](docs/screenshots/settings.png) |
+| ![This cycle report with a comparison to the same day last cycle and spending by category](docs/screenshots/reports-cycle.png) | ![Settings with the split picker](docs/screenshots/settings.png) |
 
 <details>
-<summary>Weekly report</summary>
+<summary>Trends: weekly report</summary>
 
 ![Weekly report](docs/screenshots/reports-weekly.png)
 
@@ -44,14 +44,15 @@ _Screenshots use sample data._
 - **Pay cycles, not calendar months.** A cycle runs from one pay day to the day before the next (the 29th–31st fall back to the last day of shorter months). Changing your pay day waits one full cycle, so no cycle is cut short without warning.
 - **A split plan per cycle.** 50/30/20 by default, or one of three presets (High rent 60/20/20, Saver 50/20/30, Low cost 40/30/30). "Left to spend" on needs and wants, a daily allowance, overspending and deficit warnings.
 - **Bonus and opening balance.** Add a bonus to the current cycle and it is split like salary. Savings you already had can be added once, and count toward total savings.
-- **Fast expense entry on a phone.** Big amount field, category chips (with icons) ordered by recent use, Today/Yesterday buttons, and a note of which bucket the expense counts toward.
+- **Fast expense entry on a phone.** Big amount field, category chips (with icons) ordered by recent use, Today/Yesterday buttons, a note of which bucket the expense counts toward, and "Log again" chips for things you buy often (one tap logs it for today, with Undo).
 - **Expense list.** Search by description, filter by type, dates and category, daily totals that stay right across pages, and the time each expense was logged.
 - **Budget details.** Each bucket for any cycle, broken down by category, with a warning when the previous cycle went over.
 - **Works offline.** Expenses added without a connection wait on the phone and are sent when it comes back, never twice.
 - **Recurring expenses.** Rent, SIPs, EMIs and subscriptions come due on their day; one tap adds them (with the amount actually paid) or skips the month.
 - **"Did your salary change?"** asked once at the start of each new cycle.
 - **Charts.** Spent vs plan, spending by category, spending over the cycle against an even pace, and past cycles (on the Budgets page).
-- **Reports.** Weekly (against a plan prorated per day), monthly (one column per pay cycle: needs and wants against the plan, and what was saved), spending by category across cycles with the change from one cycle to the next, yearly, and savings over time, each with a table view. Short highlights sum it up in plain sentences ("You saved 24% of your income in Oct 2026, your best in the last 4 cycles"), and the savings rate is shown next to every saved amount.
+- **Reports in three tabs.** This cycle: a statement of income, needs, wants, saved so far and the daily limit, each compared with the same day of the last cycle, plus "where it went" by category (tap one to see its expenses). Trends: weekly (against a plan prorated per day), per pay cycle, by category across cycles, and yearly, each with a table view. Savings: saved per finished cycle and in total. Short highlights sum it up in plain sentences ("You saved 24% of your income in Oct 2026, your best in the last 4 cycles"), and the savings rate is shown next to every saved amount.
+- **Built for the phone.** Pages you just visited open instantly, pull down to refresh, filters and editing open in bottom sheets, and the dashboard leads with what you can spend today (charts sit under "More details").
 - **Documented API.** Swagger UI lists every endpoint with its real status codes and the exact error messages it can return; a test fails if an endpoint is added without them.
 - **CSV export.** Download the filtered expense list for a spreadsheet; cells that would run as formulas are neutralised.
 - **Installable PWA** with an offline shell, light/dark/system theme, and keyboard and screen-reader support for every chart (each also has a table view or a text legend).
@@ -90,6 +91,7 @@ The parts I would point a reviewer to:
 - **Every query is scoped to the user.** Repositories extend Spring Data's bare `Repository`, so there is no `findById` without a user id; another user's data always answers 404.
 - **Privacy-minded logging and monitoring.** No request bodies, tokens, emails or SQL parameters in logs. Sentry is off unless configured, sends no personal data, strips reset tokens from URLs, and is loaded on demand in the browser.
 - **Totals that stay right across pages.** The expense list returns the total for every match and per-day totals counted over all matches, so a day split across two pages still shows its real total. Search, type and date filters share one JPQL fragment with the CSV export.
+- **Instant page switches without stale data.** GET answers are kept in memory for two minutes and shared between components asking at once; any change (POST/PUT/DELETE) or a new access token clears them, so edits show at once and one person's data never shows for the next. Nothing is written to browser storage.
 - **Accessibility.** 44 px touch targets and 16 px inputs (both checked by a browser test), all text at 4.5:1 contrast in both themes, colour never the only signal in charts (every chart prints its values).
 
 ## Project layout
