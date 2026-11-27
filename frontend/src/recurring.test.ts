@@ -51,6 +51,16 @@ describe('scheduleLabel', () => {
     )
   })
 
+  it('has a brief form for lists, without the note about short months', () => {
+    expect(scheduleLabel(monthly(31), true)).toBe('Every month on the 31st')
+    expect(scheduleLabel({ frequency: 'YEARLY', dayOfMonth: 29, dayOfWeek: null, monthOfYear: 2 }, true)).toBe(
+      'Every year on 29 February',
+    )
+    expect(scheduleLabel({ frequency: 'WEEKLY', dayOfMonth: null, dayOfWeek: 1, monthOfYear: null }, true)).toBe(
+      'Every Monday',
+    )
+  })
+
   it('knows the longest month lengths and the period words', () => {
     expect([2, 4, 12].map(daysInMonth)).toEqual([29, 30, 31])
     expect(periodWord('WEEKLY')).toBe('week')
