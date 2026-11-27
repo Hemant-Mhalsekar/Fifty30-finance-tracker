@@ -51,6 +51,9 @@ app:
     vapid-private-key: ${VAPID_PRIVATE_KEY:}
     # Who push services contact if this server misbehaves (RFC 8292): a mailto: or the site's URL.
     vapid-subject: ${VAPID_SUBJECT:${app.base-url}}
+  # Reminder timer (ReminderJobs). Off only in tests, which pick the time themselves.
+  reminders:
+    scheduled: true
   # Error monitoring (SentryConfig). Without a DSN nothing is sent.
   sentry:
     dsn: ${SENTRY_DSN:}

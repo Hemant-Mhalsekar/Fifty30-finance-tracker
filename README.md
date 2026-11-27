@@ -47,6 +47,7 @@ _Screenshots use sample data._
 - **Fast expense entry on a phone.** Big amount field, category chips (with icons) ordered by recent use, Today/Yesterday buttons, a note of which bucket the expense counts toward, and "Log again" chips for things you buy often (one tap logs it for today, with Undo).
 - **Expense list.** Search by description, filter by type, dates and category, daily totals that stay right across pages, and the time each expense was logged.
 - **Budget details.** Each bucket for any cycle, broken down by category, with a warning when the previous cycle went over.
+- **Push notifications** (Android and desktop browsers; iPhone once the app is on the Home Screen). A recurring payment on the morning it is due, an evening nudge only on days nothing was logged, an alert when needs or wants cross 80% or 100% of the plan, the new cycle on pay day and a Sunday summary of the week. Each kind can be switched off in Settings, and logging out stops them on that phone.
 - **Works offline.** Expenses added without a connection wait on the phone and are sent when it comes back, never twice.
 - **Recurring expenses.** Weekly (a maid on Saturdays), monthly (rent, SIPs, EMIs) or yearly (insurance, a domain) come due on their day; one tap adds them (with the amount actually paid) or skips that one.
 - **"Did your salary change?"** asked once at the start of each new cycle.
@@ -91,6 +92,7 @@ The parts I would point a reviewer to:
 - **Every query is scoped to the user.** Repositories extend Spring Data's bare `Repository`, so there is no `findById` without a user id; another user's data always answers 404.
 - **Privacy-minded logging and monitoring.** No request bodies, tokens, emails or SQL parameters in logs. Sentry is off unless configured, sends no personal data, strips reset tokens from URLs, and is loaded on demand in the browser.
 - **Totals that stay right across pages.** The expense list returns the total for every match and per-day totals counted over all matches, so a day split across two pages still shows its real total. Search, type and date filters share one JPQL fragment with the CSV export.
+- **Web Push without a push library.** Message encryption (RFC 8291: ECDH on P-256, HKDF, AES-128-GCM) and the VAPID signature (RFC 8292, ES256) are written on the JDK alone and checked against the RFC's own worked example. The server only posts to known push services (no SSRF through a crafted endpoint), and every reminder first claims a row in a send log (`INSERT … ON CONFLICT DO NOTHING`), so restarts, redeploys and a sleeping free server never send the same reminder twice.
 - **Instant page switches without stale data.** GET answers are kept in memory for two minutes and shared between components asking at once; any change (POST/PUT/DELETE) or a new access token clears them, so edits show at once and one person's data never shows for the next. Nothing is written to browser storage.
 - **Accessibility.** 44 px touch targets and 16 px inputs (both checked by a browser test), all text at 4.5:1 contrast in both themes, colour never the only signal in charts (every chart prints its values).
 
