@@ -15,6 +15,10 @@ Built as a portfolio project: a Java 25 / Spring Boot 4 API, a React + TypeScrip
 | --- | --- | --- |
 | <img src="docs/screenshots/phone-dashboard.png" alt="Dashboard on a phone, leading with what you can spend today" width="260"> | <img src="docs/screenshots/phone-add.png" alt="Add expense on a phone with Log again chips" width="260"> | <img src="docs/screenshots/phone-reports.png" alt="This cycle report on a phone" width="260"> |
 
+| Weekly, monthly and yearly payments | Push notifications | Year in review |
+| --- | --- | --- |
+| <img src="docs/screenshots/phone-recurring.png" alt="Recurring expenses on a phone: a weekly payment due today with Add and Skip, and monthly and yearly ones" width="260"> | <img src="docs/screenshots/phone-notifications.png" alt="Notification settings on a phone: on for this phone, a test button and a switch per kind" width="260"> | <img src="docs/screenshots/phone-year-review.png" alt="Year in review on a phone: income, spending, savings rate, highlights and top categories" width="260"> |
+
 | Expenses | Budget details |
 | --- | --- |
 | ![Expenses with search and filters](docs/screenshots/expenses.png) | ![Budget details](docs/screenshots/budgets.png) |
@@ -65,9 +69,9 @@ _Screenshots use sample data._
 
 | Part | Choices |
 | --- | --- |
-| Backend | Java 25, Spring Boot 4.1 (Web MVC, Data JPA, Security, OAuth2 resource server for JWT), Hibernate 7, Flyway, Bucket4j, Sentry, springdoc-openapi |
+| Backend | Java 25, Spring Boot 4.1 (Web MVC, Data JPA, Security, OAuth2 resource server for JWT), Hibernate 7, Flyway, Bucket4j, Sentry, springdoc-openapi; Web Push (RFC 8291/8292) on the JDK's own crypto |
 | Database | PostgreSQL 17 on Supabase (row-level security on, accessed only through the API) |
-| Frontend | React 19, TypeScript, Vite, React Router, plain CSS (no UI library), hand-drawn SVG charts and icons, Inter (self-hosted) |
+| Frontend | React 19, TypeScript, Vite, React Router, plain CSS (no UI library), hand-drawn SVG charts and icons, Inter (self-hosted), a hand-written service worker (offline shell, push, app badge) |
 | Tests | JUnit 5, Mockito, Testcontainers (real PostgreSQL), Vitest, Playwright |
 | Hosting | Render (API, Docker, Singapore, next to the Mumbai database), Vercel (frontend, also proxies `/api` so the browser sees one origin), GitHub Actions CI |
 
@@ -78,6 +82,7 @@ _Screenshots use sample data._
 - **The pay cycle is the core entity.** A cycle stores its own salary, bonus, split percentages and the three allocations, so changing a salary, split or pay day never rewrites history. Missing cycles are created on demand when a request needs today's cycle, because the free server sleeps and cannot rely on a nightly job.
 - **Thin reports API, logic in tested client code.** The API returns raw totals per cycle or per day from `GROUP BY` queries; grouping into weeks, months and years, prorating weekly plans and running savings totals happen in `reports.ts`, which has unit tests.
 - **Schema owned by Flyway.** Every change is a new migration; Hibernate only validates. Database `CHECK` constraints repeat the key rules (allocations add up to income, amounts in range), so a bug in Java cannot store an impossible budget.
+- **Background work without a scheduler service.** Reminders run inside the API every 10 minutes and decide what is due right now; a send log in the database makes each one go out once, even across restarts. Budget alerts listen for new expenses after their transaction commits and send on a background thread.
 - **Offline-first expense entry.** The frontend queues expenses in local storage with a client id when there is no connection and sends them later; the API treats a repeated client id as the same expense.
 - **Testing in layers.** Unit tests for the calculations, integration tests against real PostgreSQL in Docker for SQL, locking and security rules, and Playwright tests that drive the real UI against a small mock API.
 
