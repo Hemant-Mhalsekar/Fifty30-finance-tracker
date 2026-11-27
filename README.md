@@ -140,7 +140,7 @@ Deploys happen on every push to `main` and do not run tests, so pull requests ar
 
 | Where | What | Settings |
 | --- | --- | --- |
-| Render (free web service, Docker) | `backend/` | `DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `APP_BASE_URL`; optional `BREVO_API_KEY` + `MAIL_FROM_ADDRESS` (reset emails), `SENTRY_DSN` |
+| Render (free web service, Docker) | `backend/` | `DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `APP_BASE_URL`; optional `BREVO_API_KEY` + `MAIL_FROM_ADDRESS` (reset emails), `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (push notifications), `SENTRY_DSN` |
 | Vercel | `frontend/` | optional `VITE_SENTRY_DSN` |
 | Supabase | PostgreSQL | connect through the session pooler; Flyway runs the migrations on start |
 

@@ -690,3 +690,41 @@ export async function requestPasswordReset(email: string): Promise<void> {
 export async function resetPassword(token: string, password: string): Promise<void> {
   await sendJson<null>('/api/auth/reset-password', 'POST', { token, password })
 }
+
+// --- notifications ---
+
+/** Which notifications a person gets, on every device that has them on. */
+export type NotificationSettings = {
+  recurringDue: boolean
+  eveningReminder: boolean
+  budgetAlerts: boolean
+  cycleSummary: boolean
+}
+
+/** The browser's PushSubscription.toJSON() shape. */
+export type PushSubscriptionInfo = { endpoint: string; keys: { p256dh: string; auth: string } }
+
+/** The server's VAPID public key; null when notifications are not set up there. */
+export async function getPushKey(): Promise<string | null> {
+  return (await requestJson<{ publicKey: string | null }>('/api/notifications/key')).publicKey
+}
+
+export async function subscribePush(subscription: PushSubscriptionInfo): Promise<void> {
+  await sendJson<null>('/api/notifications/subscribe', 'POST', subscription)
+}
+
+export async function unsubscribePush(endpoint: string): Promise<void> {
+  await sendJson<null>('/api/notifications/unsubscribe', 'POST', { endpoint })
+}
+
+export function sendTestPush(): Promise<{ devices: number; delivered: number }> {
+  return requestJson('/api/notifications/test', { method: 'POST' })
+}
+
+export function getNotificationSettings(): Promise<NotificationSettings> {
+  return requestJson<NotificationSettings>('/api/notifications/settings')
+}
+
+export function updateNotificationSettings(settings: NotificationSettings): Promise<NotificationSettings> {
+  return sendJson<NotificationSettings>('/api/notifications/settings', 'PUT', settings)
+}

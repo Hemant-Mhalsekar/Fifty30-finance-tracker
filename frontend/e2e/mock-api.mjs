@@ -180,6 +180,8 @@ function reset({ onboarded = true, salaryConfirmed = true } = {}) {
     categories,
     expenses,
     recurring: [],
+    notificationSettings: { recurringDue: true, eveningReminder: true, budgetAlerts: true, cycleSummary: true },
+    pushSubscriptions: [],
   }
 }
 reset()
@@ -399,6 +401,29 @@ function handle(req, res, body) {
     const cycles = state.cycles.slice(-count)
     const rows = cycles.flatMap((c) => report(c).categories.map((row) => ({ periodStart: c.periodStart, ...row })))
     return send(res, 200, { cycles, rows })
+  }
+  // Notifications. The browser tests run against the dev server, which has no service worker,
+  // so only the settings round trip matters here.
+  if (path === '/api/notifications/key') return send(res, 200, { publicKey: null })
+  if (path === '/api/notifications/settings' && method === 'GET') return send(res, 200, state.notificationSettings)
+  if (path === '/api/notifications/settings' && method === 'PUT') {
+    const keys = ['recurringDue', 'eveningReminder', 'budgetAlerts', 'cycleSummary']
+    if (!keys.every((k) => typeof body[k] === 'boolean')) return fail(res, 400, 'All four settings are required')
+    state.notificationSettings = Object.fromEntries(keys.map((k) => [k, body[k]]))
+    return send(res, 200, state.notificationSettings)
+  }
+  if (path === '/api/notifications/subscribe') {
+    state.pushSubscriptions = [...state.pushSubscriptions.filter((s) => s.endpoint !== body.endpoint), body]
+    return send(res, 204)
+  }
+  if (path === '/api/notifications/unsubscribe') {
+    state.pushSubscriptions = state.pushSubscriptions.filter((s) => s.endpoint !== body.endpoint)
+    return send(res, 204)
+  }
+  if (path === '/api/notifications/test') {
+    if (state.pushSubscriptions.length === 0) return fail(res, 409, 'Turn on notifications on a device first')
+    const n = state.pushSubscriptions.length
+    return send(res, 202, { devices: n, delivered: n })
   }
   if (path === '/api/reports/year') {
     const year = Number(url.searchParams.get('year'))

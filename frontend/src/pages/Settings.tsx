@@ -18,6 +18,7 @@ import SplitPreview from '../components/SplitPreview'
 import { formatPaise, paiseToInput, parseRupeesToPaise } from '../money'
 import { incomeOf, presetOf, SPLITS, splitLabel, type SplitPreset } from '../splits'
 import { getThemePreference, setThemePreference, type ThemePreference } from '../theme'
+import NotificationsCard from '../components/NotificationsCard'
 
 const MIN_SALARY_PAISE = 100
 const MAX_SALARY_PAISE = 1_000_000_000
@@ -68,7 +69,7 @@ export default function Settings({
       <div className="page-head">
         <div>
           <h1>Settings</h1>
-          <p className="sub">Your salary, split, bonus, savings, pay day, name and how the app looks</p>
+          <p className="sub">Your salary, split, bonus, savings, pay day, name, notifications and how the app looks</p>
         </div>
       </div>
       <div className="settings-grid">
@@ -87,6 +88,7 @@ export default function Settings({
         )}
         <OpeningBalanceSettings me={me} onUserChanged={onUserChanged} />
         <PayDaySettings me={me} onUserChanged={onUserChanged} />
+        <NotificationsCard />
         <AppearanceSettings />
         <DeleteAccount onDeleted={onAccountDeleted} />
       </div>

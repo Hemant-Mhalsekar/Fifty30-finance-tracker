@@ -20,6 +20,8 @@ Spring Boot app (Maven, Java).
 | `BREVO_API_KEY` | Optional | `backend/.env` locally, Render dashboard in production | Brevo API key for sending email. Without it (or without `MAIL_FROM_ADDRESS`) the app runs but sends no email. |
 | `MAIL_FROM_ADDRESS` | Optional | `backend/.env` locally, Render dashboard in production | Sender address. Must be a sender verified in Brevo. |
 | `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE` | Optional | `backend/.env` locally, Render dashboard in production | Overrides the default pool size. |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Optional | `.env` locally, Render dashboard | Push notification keys, base64url. Make a pair per environment with `java src/main/java/com/financetracker/notification/VapidKeyGenerator.java` (run from `backend/`). Without both, notifications are off; a mismatched pair stops the app at startup. Changing them stops every existing subscription. |
+| `VAPID_SUBJECT` | Optional | Render dashboard | Contact for push services, a `mailto:` or `https:` URL. Defaults to `APP_BASE_URL`. |
 | `SENTRY_DSN` | Optional | Render dashboard | Sentry project DSN. Without it, error monitoring is off and nothing is sent. |
 | `SENTRY_ENVIRONMENT` | Optional | Render dashboard | Environment name shown in Sentry. Defaults to `production`. |
 

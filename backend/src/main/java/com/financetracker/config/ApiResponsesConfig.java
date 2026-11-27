@@ -36,6 +36,7 @@ public class ApiResponsesConfig {
 
     private static final String JSON = "application/json";
     private static final String SETUP_FIRST = "Complete setup first";
+    private static final String PUSH_NOT_SET_UP = "Notifications are not set up on this server";
     private static final String SALARY_RANGE = "Salary must be between ₹1 and ₹1,00,00,000";
     private static final String PAY_DAY_RANGE = "Pay day must be between 1 and 31";
     private static final String OPENING_RANGE = "Opening balance must be between ₹0 and ₹10,00,00,00,000";
@@ -202,6 +203,19 @@ public class ApiResponsesConfig {
                     err(400, OPENING_RANGE)),
             doc("PUT /api/settings/name", 200, "The saved name and greeting setting.",
                     err(400, NAME_LENGTH, NAME_CHARACTERS)),
+            // Notifications
+            doc("GET /api/notifications/key", 200, "The VAPID public key, or null when notifications are not set up."),
+            doc("POST /api/notifications/subscribe", 204, "Notifications are on for this browser.",
+                    err(400, "Endpoint is required", "This push service is not supported", "Invalid subscription keys"),
+                    err(409, PUSH_NOT_SET_UP)),
+            doc("POST /api/notifications/unsubscribe", 204, "Notifications are off for this browser.",
+                    err(400, "Endpoint is required")),
+            doc("POST /api/notifications/test", 202, "How many of your devices there are and how many accepted it.",
+                    err(409, PUSH_NOT_SET_UP, "Turn on notifications on a device first"),
+                    err(429)),
+            doc("GET /api/notifications/settings", 200, "Which notifications you get."),
+            doc("PUT /api/notifications/settings", 200, "The saved notification settings.",
+                    err(400, "All four settings are required")),
             doc("POST /api/account/deletion", 202, "Deletion scheduled. Every session is ended.",
                     err(400, "Password is required", "Password is incorrect"),
                     err(429)),
