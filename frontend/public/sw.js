@@ -83,6 +83,10 @@ self.addEventListener('push', (event) => {
   // Only paths inside the app are followed, whatever the message says.
   const url =
     typeof message.url === 'string' && message.url.startsWith('/') && !message.url.startsWith('//') ? message.url : '/'
+  // A payment waiting for an answer also marks the app icon until the app is opened.
+  if (message.tag === 'recurring-due' && self.navigator.setAppBadge) {
+    self.navigator.setAppBadge().catch(() => {})
+  }
   event.waitUntil(
     self.registration.showNotification(title, {
       body: typeof message.body === 'string' ? message.body : '',

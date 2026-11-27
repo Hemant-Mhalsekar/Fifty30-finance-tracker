@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { getCurrentCycle, type Cycle } from './api'
+import { getCurrentCycle, listRecurring, type Cycle } from './api'
 import { clearApiCache } from './apiCache'
 import { usePullToRefresh } from './usePullToRefresh'
 import { daysLeftLabel } from './display'
@@ -21,6 +21,7 @@ import {
   WalletIcon,
 } from './components/icons'
 import type { PendingExpense } from './offline'
+import { dueCount, showDueOnAppIcon } from './appBadge'
 
 type Props = {
   email: string
@@ -71,6 +72,25 @@ export default function AppShell({ email, onLogout, loggingOut, offline, pending
       cancelled = true
     }
   }, [pathname, refreshCount])
+
+  // The app icon's badge follows the recurring payments waiting for an answer (a cached GET).
+  useEffect(() => {
+    let cancelled = false
+    listRecurring()
+      .then((items) => {
+        if (!cancelled) void showDueOnAppIcon(dueCount(items))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [pathname, refreshCount])
+
+  // A new page starts at the top, like an app screen; a link to a section (#bonus-title) still
+  // scrolls to it once the page has loaded.
+  useEffect(() => {
+    if (!window.location.hash) window.scrollTo(0, 0)
+  }, [pathname])
 
   return (
     <div className="shell">
@@ -138,8 +158,11 @@ export default function AppShell({ email, onLogout, loggingOut, offline, pending
             </div>
           )}
           <OfflineBanner offline={offline} pending={pending} />
-          {/* The key remounts the page after a pull, which loads it again from the server. */}
-          <Outlet key={refreshCount} />
+          {/* The key remounts the page after a pull, which loads it again from the server, and
+              restarts the short entry animation on every new page. */}
+          <div className="page-enter" key={`${pathname}#${refreshCount}`}>
+            <Outlet />
+          </div>
         </main>
       </div>
 

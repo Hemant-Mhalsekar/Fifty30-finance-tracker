@@ -13,6 +13,13 @@
     <meta name="theme-color" content="#f6f6f8" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#121316" media="(prefers-color-scheme: dark)" />
     <title>Fifty30</title>
+    <!-- The page colour before the stylesheet arrives, so a dark-mode start never flashes white. -->
+    <style>
+      html { background: #f6f6f8; }
+      @media (prefers-color-scheme: dark) { html { background: #121316; } }
+      html[data-theme='light'] { background: #f6f6f8; }
+      html[data-theme='dark'] { background: #121316; }
+    </style>
     <meta name="description" content="Fifty30: plan each pay cycle 50/30/20 and track your spending against it." />
       <!-- Applies a saved Light/Dark choice before the first paint (see src/theme.ts). -->
     <script>

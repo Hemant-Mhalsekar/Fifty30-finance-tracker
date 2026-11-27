@@ -22,6 +22,7 @@ import SalaryCheck from '../components/SalaryCheck'
 import UpcomingRecurring from '../components/UpcomingRecurring'
 import { AlertIcon, BagIcon, ChevronLeftIcon, ChevronRightIcon, HomeIcon, PiggyIcon } from '../components/icons'
 import { alertText, budgetAlerts } from '../budgetAlerts'
+import InstallBanner from '../components/InstallBanner'
 import { addDays, formatRange, todayIst } from '../dates'
 import { donutSlices, firstName, greeting, initial, paceStatus, percentOf } from '../display'
 import { formatPaise, formatPaiseCompact, formatPaiseShort } from '../money'
@@ -196,6 +197,7 @@ export default function Dashboard({ me }: { me: Me }) {
 
       {isPhone ? (
         <>
+          <InstallBanner />
           {isCurrent ? <TodayCard report={report} /> : <LeftToSpend report={report} isCurrent={false} />}
           <BucketRows report={report} isCurrent={isCurrent} />
           {isCurrent && recurring && (
