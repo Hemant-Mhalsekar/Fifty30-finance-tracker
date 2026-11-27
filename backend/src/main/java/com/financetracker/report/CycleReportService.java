@@ -36,6 +36,9 @@ public class CycleReportService {
     public static final int MAX_HISTORY = 12;
     // About six months of weeks.
     public static final int MAX_WEEKS = 26;
+    // Dates before 2000 are refused for expenses, so no cycle can start earlier.
+    public static final int MIN_YEAR = 2000;
+    public static final int MAX_YEAR = 9999;
 
     private final CycleService cycleService;
     private final CycleRepository cycleRepository;
@@ -136,6 +139,26 @@ public class CycleReportService {
         List<Cycle> cycles = new ArrayList<>(cycleRepository.findAllByUserIdOrderByPeriodStartDesc(userId));
         Collections.reverse(cycles);
         return summarize(userId, cycles);
+    }
+
+    // The cycles that start in a calendar year (oldest first) and the spending per category in each,
+    // for the year in review. Same rows as the category trends, so the client sums them the same way.
+    @Transactional
+    public CategoryTrends year(UUID userId, int year) {
+        if (year < MIN_YEAR || year > MAX_YEAR) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Year must be between " + MIN_YEAR + " and " + MAX_YEAR);
+        }
+        cycleService.getCurrent(userId);
+        LocalDate first = LocalDate.of(year, 1, 1);
+        LocalDate last = LocalDate.of(year, 12, 31);
+        List<Cycle> cycles = new ArrayList<>(cycleRepository.findAllByUserIdOrderByPeriodStartDesc(userId).stream()
+                .filter(c -> !c.getPeriodStart().isBefore(first) && !c.getPeriodStart().isAfter(last))
+                .toList());
+        Collections.reverse(cycles);
+        return new CategoryTrends(
+                cycles.stream().map(CycleView::from).toList(),
+                cycles.isEmpty() ? List.of() : expenseRepository.sumByCycleAndCategory(userId, first, last));
     }
 
     // Spending per category in the last `count` cycles up to the current one, oldest first.

@@ -482,6 +482,11 @@ export function getCategoryTrends(count = 6): Promise<CategoryTrends> {
   return requestJson<CategoryTrends>(`/api/reports/categories?count=${count}`)
 }
 
+/** The cycles that start in a calendar year, oldest first, with spending per category in each. */
+export function getYearReport(year: number): Promise<CategoryTrends> {
+  return requestJson<CategoryTrends>(`/api/reports/year?year=${year}`)
+}
+
 /** The cycle containing the date (today if left out) and up to count - 1 before it, oldest first. */
 export function getHistory(date?: string, count = 6): Promise<CycleHistoryItem[]> {
   const params = new URLSearchParams({ count: String(count) })
@@ -601,25 +606,36 @@ export async function exportExpensesCsv(
   return { filename, blob: await response.blob() }
 }
 
+export type Frequency = 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+
+/**
+ * When it comes due. Only the fields of the frequency are set: WEEKLY dayOfWeek (1 = Monday ...
+ * 7 = Sunday), MONTHLY dayOfMonth, YEARLY monthOfYear (1-12) and dayOfMonth.
+ */
+export type RecurringSchedule = {
+  frequency: Frequency
+  dayOfMonth: number | null
+  dayOfWeek: number | null
+  monthOfYear: number | null
+}
+
 /** type is set only for categories without a fixed type (Other). due = waiting for Confirm or Skip. */
-export type RecurringExpense = {
+export type RecurringExpense = RecurringSchedule & {
   id: string
   categoryId: string
   type: BudgetType | null
   amountPaise: number
   description: string
-  dayOfMonth: number
   nextDueDate: string
   paused: boolean
   due: boolean
 }
 
-export type RecurringInput = {
+export type RecurringInput = RecurringSchedule & {
   categoryId: string
   type?: BudgetType
   amountPaise: number
   description: string
-  dayOfMonth: number
 }
 
 /** Due ones first, then by next due date. */

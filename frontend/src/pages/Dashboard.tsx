@@ -21,6 +21,7 @@ import Meter from '../components/Meter'
 import SalaryCheck from '../components/SalaryCheck'
 import UpcomingRecurring from '../components/UpcomingRecurring'
 import { AlertIcon, BagIcon, ChevronLeftIcon, ChevronRightIcon, HomeIcon, PiggyIcon } from '../components/icons'
+import { alertText, budgetAlerts } from '../budgetAlerts'
 import { addDays, formatRange, todayIst } from '../dates'
 import { donutSlices, firstName, greeting, initial, paceStatus, percentOf } from '../display'
 import { formatPaise, formatPaiseCompact, formatPaiseShort } from '../money'
@@ -190,6 +191,7 @@ export default function Dashboard({ me }: { me: Me }) {
         />
       )}
 
+      {isCurrent && <BudgetAlerts report={report} />}
       <Warnings report={report} isCurrent={isCurrent} />
 
       {isPhone ? (
@@ -375,6 +377,31 @@ function BucketRows({ report, isCurrent }: { report: CycleReport; isCurrent: boo
         ))}
       </ul>
     </article>
+  )
+}
+
+// Needs or wants at 80% of the plan (amber) or used up (red). Only for the cycle under way:
+// a finished cycle has nothing left to act on, and its cards already show any overspending.
+function BudgetAlerts({ report }: { report: CycleReport }) {
+  const alerts = budgetAlerts(report)
+  if (alerts.length === 0) return null
+  const daysLeft = report.days.remaining + 1
+  const { periodStart, periodEnd } = report.cycle
+  return (
+    <ul className="budget-alerts" aria-label="Budget alerts">
+      {alerts.map((alert) => (
+        <li key={alert.type} className={alert.level}>
+          <AlertIcon />
+          <span>
+            <strong>{alert.level === 'near' ? 'Close to the limit. ' : 'Limit reached. '}</strong>
+            {alertText(alert, daysLeft)}{' '}
+            <Link to={`/expenses?${new URLSearchParams({ type: alert.type, from: periodStart, to: periodEnd })}`}>
+              See {alert.type === 'NEED' ? 'needs' : 'wants'}
+            </Link>
+          </span>
+        </li>
+      ))}
+    </ul>
   )
 }
 

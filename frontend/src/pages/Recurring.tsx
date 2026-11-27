@@ -98,7 +98,9 @@ export default function Recurring() {
       <div className="page-head">
         <div>
           <h1>Recurring expenses</h1>
-          <p className="sub">Bills that repeat every month, like rent, SIPs, EMIs and subscriptions.</p>
+          <p className="sub">
+            Bills that repeat every week, month or year, like rent, SIPs, EMIs, subscriptions and insurance.
+          </p>
         </div>
       </div>
 
@@ -190,7 +192,10 @@ function RecurringRow({ item, categories, categoryName, onChanged, onDeleted }: 
     categoryId: item.categoryId,
     amountPaise: item.amountPaise,
     description: item.description,
+    frequency: item.frequency,
     dayOfMonth: item.dayOfMonth,
+    dayOfWeek: item.dayOfWeek,
+    monthOfYear: item.monthOfYear,
     ...(item.type ? { type: item.type } : {}),
   }
   // Active categories, plus this one's own category if it was archived since.
@@ -245,7 +250,7 @@ function RecurringRow({ item, categories, categoryName, onChanged, onDeleted }: 
 
       {open && (
         <div className="category-panel" id={panelId}>
-          <p className="hint">{scheduleLabel(item.dayOfMonth)}.</p>
+          <p className="hint">{scheduleLabel(item)}.</p>
           {categoryArchived && (
             <p className="hint">
               Its category is archived. Choose another one, or restore the category, to add it again.
@@ -299,7 +304,7 @@ function RecurringRow({ item, categories, categoryName, onChanged, onDeleted }: 
           </div>
           <p className="hint">
             {item.paused
-              ? 'Resuming skips any months that passed while it was paused.'
+              ? 'Resuming skips any payments that came due while it was paused.'
               : 'Pausing stops the reminders until you resume. Deleting keeps the expenses already added.'}
           </p>
 
@@ -322,7 +327,7 @@ function HowItWorks() {
       <ol>
         <li>
           <strong>Add each bill once</strong>
-          <span className="muted">With its usual amount and the day of the month it is due.</span>
+          <span className="muted">With its usual amount and when it is due: weekly, monthly or yearly.</span>
         </li>
         <li>
           <strong>On that day, the dashboard asks</strong>
@@ -331,7 +336,7 @@ function HowItWorks() {
         <li>
           <strong>Tap Add or Skip</strong>
           <span className="muted">
-            Add logs it as an expense (change the amount if the bill changed). Skip leaves that month out. Nothing is
+            Add logs it as an expense (change the amount if the bill changed). Skip leaves that one out. Nothing is
             added without your tap.
           </span>
         </li>

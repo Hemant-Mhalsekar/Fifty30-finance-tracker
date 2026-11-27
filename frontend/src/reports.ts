@@ -422,3 +422,151 @@ export function categoryExpensesLink(
   if (share.splitByType) params.set('type', share.type)
   return `/expenses?${params}`
 }
+
+export type YearCategory = {
+  key: string
+  categoryId: string
+  name: string
+  type: BudgetType
+  // True when "Other" was logged as both a need and a want this year (the link must name the type).
+  splitByType: boolean
+  spentPaise: number
+}
+
+export type YearReview = {
+  year: number
+  // Range covered by the year's cycles, for links to their expenses.
+  from: string
+  to: string
+  cycles: number
+  // Every cycle of the year has ended.
+  complete: boolean
+  incomePaise: number
+  needsPaise: number
+  wantsPaise: number
+  investedPaise: number
+  // Savings rule as everywhere: finished cycles with at least one expense.
+  savedPaise: number
+  savedCycles: number
+  // Saved against the income of those same cycles; null when none counted yet.
+  savingsRatePct: number | null
+  needsOverCycles: number
+  wantsOverCycles: number
+  best: { month: string; ratePct: number } | null
+  worst: { month: string; ratePct: number } | null
+  biggest: { month: string; spentPaise: number } | null
+  // Needs and wants only (investments are savings), biggest first.
+  categories: YearCategory[]
+  // Needs + wants of all categories, so shares of the top few stay true.
+  categoriesTotalPaise: number
+}
+
+/**
+ * The year in review: cycles that start in `year` (from GET /api/reports/cycles) and their spending
+ * per category (from GET /api/reports/year). Null when the year has no cycles.
+ */
+export function yearReview(
+  items: CycleHistoryItem[],
+  categoryRows: CategoryTrends['rows'],
+  year: number,
+  today: string,
+): YearReview | null {
+  const inYear = items.filter((item) => Number(item.cycle.periodStart.slice(0, 4)) === year)
+  if (inYear.length === 0) return null
+  const counted = inYear.filter((item) => countsAsSaved(item, today))
+  const sum = (list: CycleHistoryItem[], pick: (i: CycleHistoryItem) => number) => list.reduce((t, i) => t + pick(i), 0)
+  const month = (i: CycleHistoryItem) => cycleMonth(i.cycle.periodStart, i.cycle.periodEnd)
+  const rate = (i: CycleHistoryItem) => savingsRate(i.savedPaise, incomeOf(i.cycle)) ?? 0
+
+  const rated = counted.map((i) => ({ month: month(i), ratePct: rate(i) }))
+  // Best and toughest only mean something with two or more cycles to compare.
+  const byRate = rated.length >= 2 ? [...rated].sort((a, b) => b.ratePct - a.ratePct) : []
+  const spending = inYear
+    .map((i) => ({ month: month(i), spentPaise: i.needsSpentPaise + i.wantsSpentPaise }))
+    .filter((s) => s.spentPaise > 0)
+    .sort((a, b) => b.spentPaise - a.spentPaise)
+
+  const totals = new Map<string, YearCategory>()
+  const types = new Map<string, Set<BudgetType>>()
+  for (const row of categoryRows) {
+    if (row.type === 'INVESTMENT') continue
+    const key = `${row.categoryId}:${row.type}`
+    const entry = totals.get(key) ?? {
+      key,
+      categoryId: row.categoryId,
+      name: row.name,
+      type: row.type,
+      splitByType: false,
+      spentPaise: 0,
+    }
+    entry.spentPaise += row.spentPaise
+    totals.set(key, entry)
+    types.set(row.categoryId, (types.get(row.categoryId) ?? new Set()).add(row.type))
+  }
+  const categories = [...totals.values()]
+    .map((c) => {
+      const split = types.get(c.categoryId)!.size > 1
+      return { ...c, splitByType: split, name: split ? `${c.name} (${c.type === 'NEED' ? 'needs' : 'wants'})` : c.name }
+    })
+    .filter((c) => c.spentPaise > 0)
+    .sort((a, b) => b.spentPaise - a.spentPaise || a.name.localeCompare(b.name))
+
+  const savedPaise = sum(counted, (i) => i.savedPaise)
+  const countedIncome = sum(counted, (i) => incomeOf(i.cycle))
+  return {
+    year,
+    from: inYear[0].cycle.periodStart,
+    to: inYear[inYear.length - 1].cycle.periodEnd,
+    cycles: inYear.length,
+    complete: inYear.every((i) => i.cycle.periodEnd < today),
+    incomePaise: sum(inYear, (i) => incomeOf(i.cycle)),
+    needsPaise: sum(inYear, (i) => i.needsSpentPaise),
+    wantsPaise: sum(inYear, (i) => i.wantsSpentPaise),
+    investedPaise: sum(inYear, (i) => i.investedPaise),
+    savedPaise,
+    savedCycles: counted.length,
+    savingsRatePct: counted.length > 0 ? savingsRate(savedPaise, countedIncome) : null,
+    needsOverCycles: inYear.filter((i) => i.needsSpentPaise > i.cycle.needsPaise).length,
+    wantsOverCycles: inYear.filter((i) => i.wantsSpentPaise > i.cycle.wantsPaise).length,
+    best: byRate[0] ?? null,
+    worst: byRate.length >= 2 ? byRate[byRate.length - 1] : null,
+    biggest: spending[0] ?? null,
+    categories,
+    categoriesTotalPaise: categories.reduce((t, c) => t + c.spentPaise, 0),
+  }
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+/** Plain sentences for the year in review, most important first. */
+export function yearReviewLines(review: YearReview): string[] {
+  const lines: string[] = []
+  const when = review.complete ? `in ${review.year}` : `in ${review.year} so far`
+  if (review.savingsRatePct !== null) {
+    lines.push(
+      review.savedPaise < 0
+        ? `Spending was ${formatPaiseShort(-review.savedPaise)} more than your income ${when}, over ${plural(review.savedCycles, 'finished cycle')}.`
+        : `You saved ${formatPaiseShort(review.savedPaise)} ${when}, ${review.savingsRatePct}% of your income over ${plural(review.savedCycles, 'finished cycle')}.`,
+    )
+  }
+  if (review.best && review.worst && review.best.ratePct !== review.worst.ratePct) {
+    lines.push(
+      `Best cycle: ${review.best.month} (${review.best.ratePct}% saved). Toughest: ${review.worst.month} (${review.worst.ratePct}%).`,
+    )
+  }
+  const top = review.categories[0]
+  if (top && review.categoriesTotalPaise > 0) {
+    const share = Math.round((top.spentPaise * 100) / review.categoriesTotalPaise)
+    lines.push(`${top.name} took the most: ${formatPaiseShort(top.spentPaise)}, ${share}% of needs and wants.`)
+  }
+  if (review.needsOverCycles === 0 && review.wantsOverCycles === 0) {
+    lines.push(`Needs and wants stayed within plan in every cycle ${when}.`)
+  } else {
+    const parts = [
+      review.needsOverCycles > 0 ? `needs in ${plural(review.needsOverCycles, 'cycle')}` : null,
+      review.wantsOverCycles > 0 ? `wants in ${plural(review.wantsOverCycles, 'cycle')}` : null,
+    ].filter(Boolean)
+    lines.push(`Over plan: ${parts.join(' and ')} of ${review.cycles}.`)
+  }
+  return lines
+}

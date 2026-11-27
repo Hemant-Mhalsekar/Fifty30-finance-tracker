@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { confirmRecurring, skipRecurring, type RecurringExpense } from '../api'
 import { formatDate, todayIst } from '../dates'
 import { formatPaise, paiseToInput, parseRupeesToPaise } from '../money'
+import { periodWord } from '../recurring'
 
 const MAX_AMOUNT_PAISE = 10_000_000_000
 
@@ -100,7 +101,7 @@ function DueRow({
             type="button"
             className="secondary"
             disabled={busy}
-            aria-label={`Skip ${item.description} this month`}
+            aria-label={`Skip ${item.description} this ${periodWord(item.frequency)}`}
             onClick={() => run(async () => onUpdated(await skipRecurring(item.id, item.nextDueDate)))}
           >
             Skip

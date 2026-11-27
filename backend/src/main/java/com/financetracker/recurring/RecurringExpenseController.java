@@ -35,7 +35,10 @@ public class RecurringExpenseController {
             BudgetType type,
             Long amountPaise,
             String description,
-            Integer dayOfMonth) {
+            Frequency frequency,
+            Integer dayOfMonth,
+            Integer dayOfWeek,
+            Integer monthOfYear) {
     }
 
     public record UpdateRequest(
@@ -43,7 +46,10 @@ public class RecurringExpenseController {
             BudgetType type,
             Long amountPaise,
             String description,
+            Frequency frequency,
             Integer dayOfMonth,
+            Integer dayOfWeek,
+            Integer monthOfYear,
             Boolean paused) {
     }
 
@@ -75,8 +81,10 @@ public class RecurringExpenseController {
     }
 
     @Operation(summary = "Create a recurring expense",
-            description = "Monthly on a day of the month;"
-                    + " days 29 to 31 fall on the last day of shorter months.")
+            description = "frequency WEEKLY (dayOfWeek 1 = Monday to 7 = Sunday), MONTHLY (dayOfMonth; the"
+                    + " default when frequency is left out) or YEARLY (monthOfYear and dayOfMonth). Days 29 to 31"
+                    + " fall on the last day of shorter months. Fields of other frequencies are ignored."
+                    + " The first due date is the next occurrence, today included.")
     @PostMapping
     public ResponseEntity<RecurringExpenseView> create(
             @AuthenticationPrincipal Jwt jwt,
@@ -87,11 +95,16 @@ public class RecurringExpenseController {
                 request.type(),
                 request.amountPaise(),
                 request.description(),
-                request.dayOfMonth());
+                request.frequency(),
+                request.dayOfMonth(),
+                request.dayOfWeek(),
+                request.monthOfYear());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @Operation(summary = "Update, pause or resume a recurring expense")
+    @Operation(summary = "Update, pause or resume a recurring expense",
+            description = "A new day keeps the waiting week, month or year; a new frequency starts again"
+                    + " from today.")
     @PutMapping("/{id}")
     public RecurringExpenseView update(
             @AuthenticationPrincipal Jwt jwt,
@@ -104,7 +117,10 @@ public class RecurringExpenseController {
                 request.type(),
                 request.amountPaise(),
                 request.description(),
+                request.frequency(),
                 request.dayOfMonth(),
+                request.dayOfWeek(),
+                request.monthOfYear(),
                 request.paused());
     }
 
@@ -115,8 +131,8 @@ public class RecurringExpenseController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Log the due month as an expense",
-            description = "dueDate must be the month waiting for an answer, otherwise 409.")
+    @Operation(summary = "Log the due occurrence as an expense",
+            description = "dueDate must be the occurrence waiting for an answer, otherwise 409.")
     @PostMapping("/{id}/confirm")
     public ResponseEntity<RecurringExpenseService.ConfirmResult> confirm(
             @AuthenticationPrincipal Jwt jwt,
@@ -127,7 +143,7 @@ public class RecurringExpenseController {
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
-    @Operation(summary = "Skip the due month")
+    @Operation(summary = "Skip the due occurrence")
     @PostMapping("/{id}/skip")
     public RecurringExpenseView skip(
             @AuthenticationPrincipal Jwt jwt,

@@ -403,6 +403,53 @@ class CycleReportIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void yearListsTheCyclesStartingInItWithSpendingPerCategory() throws Exception {
+        mockMvc.perform(get("/api/reports/year").param("year", "2010")).andExpect(status().isUnauthorized());
+        String token = registerUserAndGetToken();
+        mockMvc.perform(get("/api/reports/year").param("year", "2010").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isConflict());
+
+        onboardUser(token, 1_000_000L, 25);
+        UUID userId = userId(token);
+        BudgetSplit split = BudgetSplit.of(1_000_000L);
+        jdbcTemplate.update("""
+                INSERT INTO cycles (user_id, period_start, period_end, salary_paise,
+                                    needs_paise, wants_paise, savings_paise)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                userId, LocalDate.of(2010, 3, 25), LocalDate.of(2010, 4, 24), 1_000_000L,
+                split.needsPaise(), split.wantsPaise(), split.savingsPaise());
+        logExpense(token, "Dining", 20_000L, null, LocalDate.of(2010, 4, 1));
+        logExpense(token, "Rent", 300_000L, null, LocalDate.of(2010, 4, 24));
+        // The day before the cycle: in no stored cycle, so not counted.
+        logExpense(token, "Dining", 99_000L, null, LocalDate.of(2010, 3, 24));
+
+        mockMvc.perform(get("/api/reports/year").param("year", "2010").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cycles.length()").value(1))
+                .andExpect(jsonPath("$.cycles[0].periodStart").value("2010-03-25"))
+                .andExpect(jsonPath("$.rows.length()").value(2))
+                .andExpect(jsonPath("$.rows[0].name").value("Rent"))
+                .andExpect(jsonPath("$.rows[0].spentPaise").value(300_000L))
+                .andExpect(jsonPath("$.rows[1].name").value("Dining"))
+                .andExpect(jsonPath("$.rows[1].spentPaise").value(20_000L));
+
+        mockMvc.perform(get("/api/reports/year").param("year", "2011").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cycles").isEmpty())
+                .andExpect(jsonPath("$.rows").isEmpty());
+
+        for (String year : new String[] {"1999", "10000"}) {
+            mockMvc.perform(get("/api/reports/year").param("year", year).header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Year must be between 2000 and 9999"));
+        }
+        mockMvc.perform(get("/api/reports/year").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Required parameter 'year' is not present."));
+    }
+
+    @Test
     void categoryTrendsGroupSpendingByCycleAndCategory() throws Exception {
         mockMvc.perform(get("/api/reports/categories")).andExpect(status().isUnauthorized());
         String token = registerUserAndGetToken();

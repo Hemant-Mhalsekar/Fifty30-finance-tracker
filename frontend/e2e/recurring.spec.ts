@@ -106,3 +106,43 @@ test('recurring: edit, pause, resume and delete', async ({ page }) => {
   await row.getByRole('button', { name: 'Confirm delete' }).click()
   await expect(page.locator('.category-row', { hasText: 'House rent' })).toHaveCount(0)
 })
+
+test('recurring: weekly and yearly ones start on today by default and come due on their day', async ({ page }) => {
+  await page.goto('/recurring')
+  const form = page.locator('form', { has: page.getByRole('button', { name: 'Save recurring expense' }) })
+  const ist = new Date(Date.now() + 5.5 * 3600_000)
+  const weekday = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][ist.getUTCDay()]
+  const month = ist.toLocaleString('en-GB', { month: 'long', timeZone: 'UTC' })
+
+  await form.getByLabel('Usual amount').fill('1500')
+  await form.getByRole('button', { name: 'Groceries', exact: true }).click()
+  await form.getByLabel('Description').fill('Maid')
+  await form.getByLabel('Weekly').check()
+  await expect(form.getByLabel('Due every week on')).toHaveValue(String(ist.getUTCDay() || 7))
+  await form.getByRole('button', { name: 'Save recurring expense' }).click()
+  await expect(page.getByRole('status')).toContainText('Maid added. It is due today')
+
+  // On a phone the form closes after a save.
+  const again = page.getByRole('button', { name: 'New recurring expense' })
+  if (await again.isVisible()) await again.click()
+  await form.getByLabel('Usual amount').fill('12000')
+  await form.getByRole('button', { name: 'Other', exact: true }).click()
+  await form.getByLabel('Need').check()
+  await form.getByLabel('Description').fill('Health insurance')
+  await form.getByLabel('Yearly').check()
+  await expect(form.getByLabel('Day', { exact: true })).toHaveValue(String(ist.getUTCDate()))
+  await expect(form.getByLabel('Month', { exact: true })).toHaveValue(String(ist.getUTCMonth() + 1))
+  await form.getByRole('button', { name: 'Save recurring expense' }).click()
+  await expect(page.getByRole('status')).toContainText('Health insurance added. It is due today')
+
+  const due = page.getByRole('article', { name: 'Due recurring expenses' })
+  await due.getByRole('button', { name: 'Skip Maid this week' }).click()
+  await expect(due).not.toContainText('Maid')
+
+  const insurance = page.getByRole('listitem').filter({ hasText: 'Health insurance' }).last()
+  await insurance.getByRole('button', { name: 'Edit Health insurance' }).click()
+  await expect(insurance).toContainText(`Every year on ${ist.getUTCDate()} ${month}`)
+  const maid = page.getByRole('listitem').filter({ hasText: 'Maid' }).last()
+  await maid.getByRole('button', { name: 'Edit Maid' }).click()
+  await expect(maid).toContainText(`Every ${weekday}`)
+})

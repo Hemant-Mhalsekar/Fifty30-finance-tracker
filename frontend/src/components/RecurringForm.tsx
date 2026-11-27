@@ -1,12 +1,21 @@
 import { useId, useState, type FormEvent } from 'react'
-import type { BudgetType, Category, RecurringInput } from '../api'
+import type { BudgetType, Category, Frequency, RecurringInput } from '../api'
+import { todayIst } from '../dates'
 import { TYPE_LABELS } from '../labels'
 import { CategoryIcon } from './icons'
 import { paiseToInput, parseRupeesToPaise } from '../money'
-import { ordinal } from '../recurring'
+import { daysInMonth, FREQUENCY_LABELS, MONTHS, ordinal, WEEKDAYS } from '../recurring'
 
 const MAX_AMOUNT_PAISE = 10_000_000_000
-const DAYS = Array.from({ length: 31 }, (_, i) => i + 1)
+const days = (count: number) => Array.from({ length: count }, (_, i) => i + 1)
+
+// A new weekly or yearly one starts on today's weekday or date, the likeliest answer.
+function todayParts() {
+  const today = todayIst()
+  const [, month, day] = today.split('-').map(Number)
+  const sundayIsZero = new Date(`${today}T00:00:00Z`).getUTCDay()
+  return { month, day, weekday: sundayIsZero === 0 ? 7 : sundayIsZero }
+}
 
 type Props = {
   // Chips in this order. In edit mode the current category is included even if archived.
@@ -33,7 +42,13 @@ export default function RecurringForm({
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '')
   const [type, setType] = useState<BudgetType | ''>(initial?.type ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
-  const [day, setDay] = useState(initial?.dayOfMonth ?? 1)
+  const today = todayParts()
+  const [frequency, setFrequency] = useState<Frequency>(initial?.frequency ?? 'MONTHLY')
+  // Each frequency keeps its own choice, so switching back and forth loses nothing.
+  const [day, setDay] = useState(initial?.frequency === 'MONTHLY' ? (initial.dayOfMonth ?? 1) : 1)
+  const [weekday, setWeekday] = useState(initial?.dayOfWeek ?? today.weekday)
+  const [yearMonth, setYearMonth] = useState(initial?.monthOfYear ?? today.month)
+  const [yearDay, setYearDay] = useState(initial?.frequency === 'YEARLY' ? (initial.dayOfMonth ?? 1) : today.day)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -66,7 +81,10 @@ export default function RecurringForm({
         amountPaise: parseRupeesToPaise(amountText)!,
         categoryId,
         description: description.trim(),
-        dayOfMonth: day,
+        frequency,
+        dayOfMonth: frequency === 'WEEKLY' ? null : frequency === 'YEARLY' ? yearDay : day,
+        dayOfWeek: frequency === 'WEEKLY' ? weekday : null,
+        monthOfYear: frequency === 'YEARLY' ? yearMonth : null,
         // The API rejects a type for categories that have their own.
         ...(needsType && type !== '' ? { type } : {}),
       })
@@ -93,7 +111,7 @@ export default function RecurringForm({
             onChange={(e) => setAmountText(e.target.value)}
           />
         </div>
-        <p className="hint">You can change it each month when you confirm.</p>
+        <p className="hint">You can change it each time you confirm.</p>
       </div>
 
       <fieldset className="field chips-field">
@@ -147,17 +165,88 @@ export default function RecurringForm({
         />
       </div>
 
-      <div className="field">
-        <label htmlFor={`${id}-day`}>Due every month on the</label>
-        <select id={`${id}-day`} value={day} onChange={(e) => setDay(Number(e.target.value))}>
-          {DAYS.map((d) => (
-            <option key={d} value={d}>
-              {ordinal(d)}
-            </option>
+      <fieldset className="field">
+        <legend>Repeats</legend>
+        <div className="segmented">
+          {(Object.keys(FREQUENCY_LABELS) as Frequency[]).map((f) => (
+            <label key={f}>
+              <input
+                type="radio"
+                name={`${id}-frequency`}
+                value={f}
+                checked={frequency === f}
+                onChange={() => setFrequency(f)}
+              />
+              {FREQUENCY_LABELS[f]}
+            </label>
           ))}
-        </select>
-        {day >= 29 && <p className="hint">In shorter months it is due on the last day.</p>}
-      </div>
+        </div>
+      </fieldset>
+
+      {frequency === 'WEEKLY' && (
+        <div className="field">
+          <label htmlFor={`${id}-weekday`}>Due every week on</label>
+          <select id={`${id}-weekday`} value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}>
+            {WEEKDAYS.map((name, i) => (
+              <option key={name} value={i + 1}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {frequency === 'MONTHLY' && (
+        <div className="field">
+          <label htmlFor={`${id}-day`}>Due every month on the</label>
+          <select id={`${id}-day`} value={day} onChange={(e) => setDay(Number(e.target.value))}>
+            {days(31).map((d) => (
+              <option key={d} value={d}>
+                {ordinal(d)}
+              </option>
+            ))}
+          </select>
+          {day >= 29 && <p className="hint">In shorter months it is due on the last day.</p>}
+        </div>
+      )}
+
+      {frequency === 'YEARLY' && (
+        <fieldset className="field">
+          <legend>Due every year on</legend>
+          <div className="date-pair">
+            <div>
+              <label htmlFor={`${id}-year-day`}>Day</label>
+              <select id={`${id}-year-day`} value={yearDay} onChange={(e) => setYearDay(Number(e.target.value))}>
+                {days(daysInMonth(yearMonth)).map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor={`${id}-year-month`}>Month</label>
+              <select
+                id={`${id}-year-month`}
+                value={yearMonth}
+                onChange={(e) => {
+                  const month = Number(e.target.value)
+                  setYearMonth(month)
+                  // 31 March -> April becomes 30 April instead of a day the month lacks.
+                  setYearDay((d) => Math.min(d, daysInMonth(month)))
+                }}
+              >
+                {MONTHS.map((name, i) => (
+                  <option key={name} value={i + 1}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {yearMonth === 2 && yearDay === 29 && <p className="hint">In other years it is due on 28 February.</p>}
+        </fieldset>
+      )}
 
       {error && (
         <p className="error" role="alert">

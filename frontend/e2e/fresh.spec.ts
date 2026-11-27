@@ -113,3 +113,47 @@ test('phone dashboard: today first, the three buckets as rows, the charts behind
   await expect(trend).toBeVisible()
   await expect(page.getByRole('article', { name: 'Pay cycle budget' })).toBeVisible()
 })
+
+test('budget alerts: a note when an expense crosses 80%, then amber and red cards on the dashboard', async ({
+  page,
+  request,
+}) => {
+  type Line = { allocatedPaise: number; spentPaise: number }
+  const wants = async () =>
+    ((await (await request.get('http://localhost:8080/api/cycles/current/report')).json()) as { wants: Line }).wants
+  const start = await wants()
+  // Whole rupees that take wants from below 80% to about 85% of the plan.
+  const rupees = Math.ceil((start.allocatedPaise * 0.85 - start.spentPaise) / 100)
+  expect(start.spentPaise * 100).toBeLessThan(start.allocatedPaise * 80)
+
+  await page.goto('/add')
+  await page.getByLabel('Amount').fill(String(rupees))
+  await page.getByRole('button', { name: 'Dining', exact: true }).click()
+  await page.getByLabel('Description').fill('Team dinner')
+  await page.getByRole('button', { name: 'Save expense' }).click()
+  await expect(page.getByRole('status')).toContainText('Heads up: wants are at 85% of the plan')
+
+  await page.goto('/')
+  const alerts = page.getByRole('list', { name: 'Budget alerts' })
+  await expect(alerts.getByRole('listitem')).toHaveCount(1)
+  await expect(alerts).toContainText('Close to the limit. Wants: 85% of the plan used')
+
+  // Past the plan: the card turns red and says by how much.
+  const now = await wants()
+  const dining = (
+    (await (await request.get('http://localhost:8080/api/categories')).json()) as { id: string; name: string }[]
+  ).find((c) => c.name === 'Dining')!.id
+  const r = await request.post('http://localhost:8080/api/expenses', {
+    data: { categoryId: dining, amountPaise: now.allocatedPaise - now.spentPaise + 10_000, description: 'Concert' },
+  })
+  expect(r.ok()).toBeTruthy()
+  await page.reload()
+  const item = alerts.getByRole('listitem')
+  await expect(item).toContainText('Limit reached. Wants are ₹100.00 over plan.')
+  await expect(item).toHaveClass(/reached/)
+
+  const link = item.getByRole('link', { name: 'See wants' })
+  expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await link.click()
+  await expect(page).toHaveURL(/\/expenses\?.*type=WANT/)
+})

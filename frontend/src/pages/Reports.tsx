@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import {
   ApiError,
@@ -7,6 +7,7 @@ import {
   getCurrentReport,
   getReportForDate,
   getWeekly,
+  getYearReport,
   type CategoryTrends,
   type CycleHistoryItem,
   type CycleReport,
@@ -30,6 +31,8 @@ import {
   savingsRate,
   savingsSummary,
   weekRows,
+  yearReview,
+  yearReviewLines,
   yearRows,
   type MonthRow,
   type PaceComparison,
@@ -298,7 +301,13 @@ function CycleReports({ view, openingPaise }: { view: 'monthly' | 'yearly' | 'sa
   const { data, error } = useLoad<CycleHistoryItem[]>(getAllCycles)
   if (!data) return <Status error={error} />
   if (view === 'monthly') return <MonthlyReport items={data} />
-  return view === 'yearly' ? <YearlyReport items={data} /> : <SavingsReport items={data} openingPaise={openingPaise} />
+  if (view === 'savings') return <SavingsReport items={data} openingPaise={openingPaise} />
+  return (
+    <>
+      <YearlyReport items={data} />
+      <YearInReview items={data} />
+    </>
+  )
 }
 
 const MONTHS_SHOWN = 12
@@ -472,6 +481,103 @@ function YearlyReport({ items }: { items: CycleHistoryItem[] }) {
           ]),
         }}
       />
+    </>
+  )
+}
+
+// Years that have cycles, newest first. January shows last year's review until this year has a
+// finished cycle with expenses, since one unfinished cycle says little.
+function reviewYears(items: CycleHistoryItem[], today: string): { years: number[]; initial: number } {
+  const years = [...new Set(items.map((i) => Number(i.cycle.periodStart.slice(0, 4))))].sort((a, b) => b - a)
+  const thisYear = Number(today.slice(0, 4))
+  const thisYearCounted = items.some(
+    (i) => i.cycle.periodStart.startsWith(String(thisYear)) && i.cycle.periodEnd < today && i.expenseCount > 0,
+  )
+  const initial = !thisYearCounted && years.includes(thisYear - 1) ? thisYear - 1 : (years[0] ?? thisYear)
+  return { years, initial }
+}
+
+function YearInReview({ items }: { items: CycleHistoryItem[] }) {
+  const today = todayIst()
+  const { years, initial } = reviewYears(items, today)
+  const [year, setYear] = useState(initial)
+  const id = useId()
+  if (years.length === 0) return null
+  return (
+    <article className="card year-review" aria-labelledby={`${id}-title`}>
+      <div className="card-head">
+        <h2 id={`${id}-title`}>Year in review</h2>
+        <label className="visually-hidden" htmlFor={`${id}-year`}>
+          Year
+        </label>
+        <select id={`${id}-year`} value={year} onChange={(e) => setYear(Number(e.target.value))}>
+          {years.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+      </div>
+      {/* A new year loads afresh, so an answer for the previous choice can never show under it. */}
+      <YearReviewBody key={year} year={year} items={items} today={today} />
+    </article>
+  )
+}
+
+function YearReviewBody({ year, items, today }: { year: number; items: CycleHistoryItem[]; today: string }) {
+  const { data, error } = useLoad(useCallback(() => getYearReport(year), [year]))
+  if (!data) return <Status error={error} />
+  const review = yearReview(items, data.rows, year, today)
+  if (!review) return <p className="muted">No pay cycles started in {year}.</p>
+  const top = review.categories.slice(0, 5)
+  return (
+    <>
+      <p className="muted">
+        {review.complete ? '' : 'So far: '}
+        {review.cycles} pay {review.cycles === 1 ? 'cycle' : 'cycles'}, {formatRange(review.from, review.to)}
+      </p>
+      <div className="stat-tiles">
+        <Tile label="Income" value={formatPaiseShort(review.incomePaise)} note="Salary and bonuses" />
+        <Tile
+          label="Needs and wants"
+          value={formatPaiseShort(review.needsPaise + review.wantsPaise)}
+          note={`Needs ${formatPaiseShort(review.needsPaise)} · wants ${formatPaiseShort(review.wantsPaise)}`}
+        />
+        <Tile
+          label="Saved"
+          value={review.savingsRatePct === null ? '–' : formatPaiseShort(review.savedPaise)}
+          note={
+            review.savingsRatePct === null
+              ? 'Shows once a cycle with expenses has ended'
+              : `${review.savingsRatePct}% of income in ${review.savedCycles} finished ${review.savedCycles === 1 ? 'cycle' : 'cycles'}`
+          }
+          negative={review.savedPaise < 0}
+        />
+        <Tile label="Invested" value={formatPaiseShort(review.investedPaise)} note="Part of what you saved" />
+      </div>
+      <ul className="review-lines">
+        {yearReviewLines(review).map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+      {top.length > 0 && (
+        <>
+          <h3 className="review-subtitle">Where it went in {year}</h3>
+          <CategoryBars
+            title={`Top categories in ${year}`}
+            compareLabel=""
+            totalPaise={review.categoriesTotalPaise}
+            rows={top.map((c) => ({
+              key: c.key,
+              name: c.name,
+              type: c.type,
+              amountPaise: c.spentPaise,
+              comparePaise: null,
+              href: categoryExpensesLink(c, review.from, review.to),
+            }))}
+          />
+        </>
+      )}
     </>
   )
 }

@@ -6,6 +6,7 @@ import { todayIst } from '../dates'
 import { TYPE_LABELS } from '../labels'
 import { formatPaiseShort } from '../money'
 import { CategoryIcon } from './icons'
+import { periodWord } from '../recurring'
 
 // Due ones first, then the next few coming up.
 const SHOWN = 4
@@ -120,7 +121,7 @@ function UpcomingRow({
             type="button"
             className="secondary"
             disabled={busy}
-            aria-label={`Skip ${item.description} this month`}
+            aria-label={`Skip ${item.description} this ${periodWord(item.frequency)}`}
             onClick={() => run(async () => onUpdated(await skipRecurring(item.id, item.nextDueDate)))}
           >
             Skip

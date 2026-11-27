@@ -743,6 +743,61 @@ fieldset.field > legend {
   margin-top: 2px;
 }
 
+/* Yearly recurring: day and month side by side. */
+.date-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 0.75rem;
+}
+
+.date-pair > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.budget-alerts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.budget-alerts li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--warn-bg);
+  border: 1px solid color-mix(in srgb, var(--warn-border) 45%, transparent);
+}
+
+/* Used up: red, so it reads as more serious than the 80% notice (the words say it too). */
+.budget-alerts li.reached {
+  background: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+
+.budget-alerts li.reached svg {
+  color: var(--danger);
+}
+
+.budget-alerts svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* A 44px tap target that does not stretch the line it sits on. */
+.budget-alerts a {
+  display: inline-block;
+  padding-block: 0.7rem;
+  margin-block: -0.7rem;
+  font-weight: 600;
+}
+
 .notice p + p,
 .notice p + button {
   margin-top: 0.5rem;
@@ -3154,6 +3209,51 @@ details.range-picker[open] > summary {
     padding-right: 4px;
     mask-image: none;
   }
+}
+
+.year-review {
+  display: grid;
+  gap: 1rem;
+}
+
+.year-review .card-head select {
+  width: auto;
+}
+
+/* Tiles inside the card: flat and two to a row, not cards stacked in a card. */
+.year-review .stat-tiles {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (min-width: 900px) {
+  .year-review .stat-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.year-review .stat-tile {
+  padding: 0.85rem;
+  background: var(--surface-2);
+  border: none;
+  box-shadow: none;
+}
+
+.year-review .stat-tile .big {
+  font-size: 1.25rem;
+}
+
+.review-lines {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  line-height: 1.5;
+}
+
+.review-subtitle {
+  margin: 0;
+  font-size: 1rem;
 }
 
 .insights ul {
