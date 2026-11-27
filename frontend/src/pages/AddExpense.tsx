@@ -4,11 +4,14 @@ import {
   ApiError,
   createExpense,
   deleteExpense,
+  getCurrentReport,
   listCategories,
   listExpenses,
   type Category,
+  type Expense,
   type NewExpense,
 } from '../api'
+import { crossedLevel, crossedText } from '../budgetAlerts'
 import { orderByRecentUse } from '../categoryOrder'
 import ExpenseForm from '../components/ExpenseForm'
 import PendingList from '../components/PendingList'
@@ -90,8 +93,9 @@ export default function AddExpense({ userId }: { userId: string }) {
     if (!navigator.onLine) return keep()
     try {
       const saved = await createExpense({ ...expense, clientId })
+      const alert = await budgetNote(saved)
       return {
-        message: `Saved ${formatPaise(saved.amountPaise)} in ${category.name}.`,
+        message: `Saved ${formatPaise(saved.amountPaise)} in ${category.name}.${alert ? ` ${alert}` : ''}`,
         undo: () => deleteExpense(saved.id),
       }
     } catch (e) {
@@ -99,6 +103,19 @@ export default function AddExpense({ userId }: { userId: string }) {
       if (e instanceof ApiError && isRetryable(e.status) && e.status !== 401) return keep()
       throw e
     }
+  }
+
+  // One extra request after saving (the save cleared the cached report, so it is fresh; the
+  // dashboard then opens from this answer). Any failure just leaves the note out.
+  async function budgetNote(saved: Expense): Promise<string | null> {
+    if (saved.type === 'INVESTMENT') return null
+    const report = await getCurrentReport().catch(() => null)
+    if (!report) return null
+    const { periodStart, periodEnd } = report.cycle
+    if (saved.expenseDate < periodStart || saved.expenseDate > periodEnd) return null
+    const line = saved.type === 'NEED' ? report.needs : report.wants
+    const level = crossedLevel(line.spentPaise, saved.amountPaise, line.allocatedPaise)
+    return level ? crossedText(saved.type, level, line.spentPaise, line.allocatedPaise) : null
   }
 
   const save = (expense: NewExpense, category: Category) => send(expense, category).then((r) => r.message)
