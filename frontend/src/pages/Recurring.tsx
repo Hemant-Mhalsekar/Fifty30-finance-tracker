@@ -234,6 +234,7 @@ function RecurringRow({ item, categories, categoryName, onChanged, onDeleted }: 
             <span className="num">{formatPaise(item.amountPaise)}</span> · {categoryName}
             {categoryArchived ? ' (archived)' : ''}
           </span>
+          <span className="muted">{scheduleLabel(item, true)}</span>
           <span className={item.due ? 'status due' : 'status muted'}>{status}</span>
         </div>
         <button

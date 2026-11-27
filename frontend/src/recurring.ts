@@ -39,16 +39,19 @@ export function daysInMonth(month: number): number {
   return [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]
 }
 
-/** "Every Saturday", "Every month on the 5th", "Every year on 15 March"; days some periods lack say where they fall. */
-export function scheduleLabel(s: RecurringSchedule): string {
+/**
+ * "Every Saturday", "Every month on the 5th", "Every year on 15 March". The full label also says
+ * where a day that some months or years lack falls; brief leaves that out, for one-line lists.
+ */
+export function scheduleLabel(s: RecurringSchedule, brief = false): string {
   if (s.frequency === 'WEEKLY') return `Every ${WEEKDAYS[(s.dayOfWeek ?? 1) - 1]}`
   const day = s.dayOfMonth ?? 1
   if (s.frequency === 'YEARLY') {
     const base = `Every year on ${day} ${MONTHS[(s.monthOfYear ?? 1) - 1]}`
-    return s.monthOfYear === 2 && day === 29 ? `${base} (28 February in other years)` : base
+    return s.monthOfYear === 2 && day === 29 && !brief ? `${base} (28 February in other years)` : base
   }
   const base = `Every month on the ${ordinal(day)}`
-  return day >= 29 ? `${base} (or the last day of shorter months)` : base
+  return day >= 29 && !brief ? `${base} (or the last day of shorter months)` : base
 }
 
 /** "week", "month" or "year": for sentences like "Skip it this month". */

@@ -139,10 +139,10 @@ test('recurring: weekly and yearly ones start on today by default and come due o
   await due.getByRole('button', { name: 'Skip Maid this week' }).click()
   await expect(due).not.toContainText('Maid')
 
+  // Each row says how often it repeats, without opening it.
   const insurance = page.getByRole('listitem').filter({ hasText: 'Health insurance' }).last()
-  await insurance.getByRole('button', { name: 'Edit Health insurance' }).click()
   await expect(insurance).toContainText(`Every year on ${ist.getUTCDate()} ${month}`)
   const maid = page.getByRole('listitem').filter({ hasText: 'Maid' }).last()
-  await maid.getByRole('button', { name: 'Edit Maid' }).click()
   await expect(maid).toContainText(`Every ${weekday}`)
+  await expect(maid.getByRole('button', { name: 'Edit Maid' })).toHaveAttribute('aria-expanded', 'false')
 })
