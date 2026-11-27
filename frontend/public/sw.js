@@ -22,7 +22,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((names) => Promise.all(names.filter((n) => n.startsWith('fifty30-') && n !== CACHE).map((n) => caches.delete(n))))
+      .then((names) =>
+        Promise.all(names.filter((n) => n.startsWith('fifty30-') && n !== CACHE).map((n) => caches.delete(n))),
+      )
       .then(() => self.clients.claim()),
   )
 })
@@ -66,4 +68,42 @@ self.addEventListener('fetch', (event) => {
       ),
     )
   }
+})
+
+// Push notifications. The server sends {title, body, url, tag}, encrypted for this browser; the
+// browser decrypts it before this runs. A notification is always shown (browsers require it).
+self.addEventListener('push', (event) => {
+  let message = {}
+  try {
+    message = event.data ? event.data.json() : {}
+  } catch {
+    message = {}
+  }
+  const title = typeof message.title === 'string' && message.title ? message.title : 'Fifty30'
+  // Only paths inside the app are followed, whatever the message says.
+  const url =
+    typeof message.url === 'string' && message.url.startsWith('/') && !message.url.startsWith('//') ? message.url : '/'
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: typeof message.body === 'string' ? message.body : '',
+      icon: '/icon-192.png',
+      badge: '/badge-96.png',
+      // Same tag replaces the earlier one instead of stacking ("Rent is due" shown once).
+      tag: typeof message.tag === 'string' ? message.tag : undefined,
+      data: { url },
+    }),
+  )
+})
+
+// Tapping a notification opens its page: in a Fifty30 window that is already open, else a new one.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = new URL(event.notification.data?.url || '/', self.location.origin).href
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((w) => new URL(w.url).origin === self.location.origin)
+      if (open) return open.focus().then((w) => (w ? w.navigate(target) : self.clients.openWindow(target)))
+      return self.clients.openWindow(target)
+    }),
+  )
 })

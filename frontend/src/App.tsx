@@ -17,6 +17,7 @@ import Reports from './pages/Reports'
 import ResetPassword from './pages/ResetPassword'
 import Settings from './pages/Settings'
 import { setMonitoredUser } from './monitoring'
+import { disablePush, syncPush } from './push'
 import { forgetUser, pendingExpenses, rememberedUser, rememberUser, removePending } from './offline'
 import { useOnline, usePendingSync } from './useOffline'
 
@@ -123,6 +124,12 @@ export default function App() {
   // Error reports carry the user's id (never the email), so repeated crashes can be grouped.
   useEffect(() => setMonitoredUser(me?.id ?? null), [me])
 
+  // Keeps this phone's push subscription current and attached to whoever is signed in.
+  const meId = me?.id
+  useEffect(() => {
+    if (phase === 'ready' && meId && online) void syncPush()
+  }, [phase, meId, online])
+
   // Return to the form if a session refresh ever fails.
   useEffect(
     () =>
@@ -155,6 +162,7 @@ export default function App() {
 
   async function finishReset() {
     if (me) {
+      await stopPushOnThisDevice()
       await logout()
       setMe(null)
     }
@@ -168,6 +176,7 @@ export default function App() {
     if (me) pendingExpenses(me.id).forEach((p) => removePending(p.clientId))
     forgetUser()
     setStartedOffline(false)
+    await stopPushOnThisDevice()
     await logout()
     setMe(null)
     setLoginNotice(
@@ -183,6 +192,8 @@ export default function App() {
     // Expenses still waiting stay on the phone for this user's next sign-in.
     forgetUser()
     setStartedOffline(false)
+    // A shared phone must not keep getting this person's reminders after they log out.
+    await stopPushOnThisDevice()
     await logout()
     setLoggingOut(false)
     setMe(null)
@@ -299,4 +310,9 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
+}
+
+// Best effort and bounded: logging out never waits more than 3 seconds on notifications.
+async function stopPushOnThisDevice(): Promise<void> {
+  await Promise.race([disablePush().catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 3_000))])
 }

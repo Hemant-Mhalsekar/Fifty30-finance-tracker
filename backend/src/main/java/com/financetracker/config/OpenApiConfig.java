@@ -57,9 +57,10 @@ public class OpenApiConfig {
                         tag("Cycles", "Pay cycles (one pay day to the day before the next) and their reports."),
                         tag("Expenses", "Logged expenses, the filtered list and CSV export."),
                         tag("Categories", "Needs, wants and investment categories."),
-                        tag("Recurring expenses", "Monthly payments that are asked about when due."),
+                        tag("Recurring expenses", "Weekly, monthly or yearly payments that are asked about when due."),
                         tag("Reports", "Raw totals for the weekly, monthly, yearly, savings and category reports."),
                         tag("Settings", "Name, opening balance and pay day changes."),
+                        tag("Notifications", "Push notifications: subscribe a browser, choose which ones, send a test."),
                         tag("Account", "Account deletion."),
                         tag("Health", "Liveness and database checks. No token needed.")));
     }

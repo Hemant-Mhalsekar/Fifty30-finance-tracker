@@ -554,6 +554,11 @@ class IntegrationTest extends AbstractIntegrationTest {
                                 + "\",\"description\":\"Streaming\",\"dayOfMonth\":5}"))
                 .andExpect(status().isCreated());
 
+        // Notification rows too, written straight to the tables (no push service in this test).
+        jdbcTemplate.update("INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, 'k', 'a')",
+                userId, "https://fcm.googleapis.com/fcm/send/" + userId);
+        jdbcTemplate.update("INSERT INTO notification_settings (user_id) VALUES (?)", userId);
+
         // Delete the user directly; ON DELETE CASCADE + NO ACTION composite FK must allow this in one statement.
         int deletedUsers = jdbcTemplate.update("DELETE FROM users WHERE id = ?", userId);
         assertEquals(1, deletedUsers);
@@ -563,6 +568,8 @@ class IntegrationTest extends AbstractIntegrationTest {
         assertEquals(0, countForUser("cycles", userId));
         assertEquals(0, countForUser("refresh_tokens", userId));
         assertEquals(0, countForUser("recurring_expenses", userId));
+        assertEquals(0, countForUser("push_subscriptions", userId));
+        assertEquals(0, countForUser("notification_settings", userId));
 
         // Every table in public except flyway_schema_history must have RLS enabled.
         List<String> tablesWithoutRls = jdbcTemplate.queryForList(
@@ -582,8 +589,8 @@ class IntegrationTest extends AbstractIntegrationTest {
                         + "AND c.relrowsecurity",
                 Integer.class);
         // users, refresh_tokens, categories, cycles, expenses, app_meta, password_reset_tokens,
-        // recurring_expenses
-        assertEquals(8, rlsTableCount);
+        // recurring_expenses, push_subscriptions, notification_settings
+        assertEquals(10, rlsTableCount);
     }
 
     // ---- helpers ----
