@@ -33,7 +33,9 @@ import tools.jackson.databind.json.JsonMapper;
         "app.rate-limit.register-per-ip=100000",
         "app.rate-limit.register-global=100000",
         "app.rate-limit.password-reset-per-ip=100000",
-        "app.rate-limit.password-reset-per-email=100000"
+        "app.rate-limit.password-reset-per-email=100000",
+        // Tests call Reminders.runDue with a chosen time; the real timer would send at random moments.
+        "app.reminders.scheduled=false"
 })
 @AutoConfigureMockMvc
 public abstract class AbstractIntegrationTest {

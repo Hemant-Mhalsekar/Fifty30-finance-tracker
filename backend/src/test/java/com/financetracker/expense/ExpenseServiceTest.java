@@ -45,7 +45,7 @@ class ExpenseServiceTest {
     void setUp() {
         expenseRepository = mock(ExpenseRepository.class);
         categoryRepository = mock(CategoryRepository.class);
-        expenseService = new ExpenseService(expenseRepository, categoryRepository, FIXED_CLOCK);
+        expenseService = new ExpenseService(expenseRepository, categoryRepository, FIXED_CLOCK, event -> { });
 
         when(expenseRepository.saveAndFlush(any(Expense.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));

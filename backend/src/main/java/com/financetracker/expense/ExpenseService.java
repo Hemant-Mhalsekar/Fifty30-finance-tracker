@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -37,14 +38,17 @@ public class ExpenseService {
     private final ExpenseRepository expenseRepository;
     private final CategoryRepository categoryRepository;
     private final Clock clock;
+    private final ApplicationEventPublisher events;
 
     public ExpenseService(
             ExpenseRepository expenseRepository,
             CategoryRepository categoryRepository,
-            Clock clock) {
+            Clock clock,
+            ApplicationEventPublisher events) {
         this.expenseRepository = expenseRepository;
         this.categoryRepository = categoryRepository;
         this.clock = clock;
+        this.events = events;
     }
 
     @Transactional
@@ -98,7 +102,10 @@ public class ExpenseService {
                 validated.expenseDate(),
                 validated.description());
         expense.setClientId(clientId);
-        return ExpenseView.from(expenseRepository.saveAndFlush(expense));
+        ExpenseView saved = ExpenseView.from(expenseRepository.saveAndFlush(expense));
+        // Heard only after the transaction commits (budget alerts); a rollback sends nothing.
+        events.publishEvent(new ExpenseCreated(userId, saved.type(), saved.amountPaise(), saved.expenseDate()));
+        return saved;
     }
 
     @Transactional
